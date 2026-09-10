@@ -1,0 +1,18 @@
+{
+  "short_name": "Market Kasa",
+  "name": "Market Kasa - Mobil POS & Barkod",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}

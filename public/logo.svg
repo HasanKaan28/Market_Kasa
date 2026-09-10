@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#059669"/>
+      <stop offset="1" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <!-- Barcode Lines -->
+  <rect x="120" y="140" width="16" height="100" rx="4" fill="white"/>
+  <rect x="152" y="140" width="28" height="100" rx="4" fill="white"/>
+  <rect x="196" y="140" width="14" height="100" rx="4" fill="white"/>
+  <rect x="226" y="140" width="36" height="100" rx="4" fill="white"/>
+  <rect x="278" y="140" width="18" height="100" rx="4" fill="white"/>
+  <rect x="312" y="140" width="32" height="100" rx="4" fill="white"/>
+  <rect x="360" y="140" width="16" height="100" rx="4" fill="white"/>
+  <rect x="392" y="140" width="8" height="100" rx="4" fill="white"/>
+  <!-- Scanner Beam -->
+  <line x1="100" y1="190" x2="412" y2="190" stroke="#f43f5e" stroke-width="8" stroke-linecap="round"/>
+  <!-- POS / Register Base -->
+  <rect x="110" y="270" width="292" height="150" rx="24" fill="#0f172a" fill-opacity="0.85"/>
+  <rect x="140" y="295" width="232" height="50" rx="12" fill="#1e293b"/>
+  <!-- Display Text Dummy -->
+  <text x="350" y="332" font-family="monospace" font-weight="bold" font-size="28" fill="#10b981" text-anchor="end">₺149.90</text>
+  <!-- Keypad dots -->
+  <circle cx="160" cy="380" r="10" fill="#38bdf8"/>
+  <circle cx="205" cy="380" r="10" fill="#38bdf8"/>
+  <circle cx="250" cy="380" r="10" fill="#38bdf8"/>
+  <circle cx="300" cy="380" r="14" fill="#10b981"/>
+  <circle cx="345" cy="380" r="14" fill="#ef4444"/>
+</svg>

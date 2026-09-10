@@ -1,0 +1,26 @@
+﻿# Dependencies
+node_modules/
+
+# Production builds & packaging
+dist/
+dist-electron/
+dist-win/
+
+# Binaries & Installers
+*.apk
+*.exe
+*.zip
+
+# Subproject (Has its own separate repository)
+tuvalet_sayac/
+
+# Environment and logs
+.env
+*.log
+npm-debug.log*
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

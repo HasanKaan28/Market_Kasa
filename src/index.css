@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Print styling for receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-receipt-area, #thermal-receipt-area * {
+    visibility: visible;
+  }
+  #thermal-receipt-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 10px;
+    background: white !important;
+    color: black !important;
+  }
+}
+
+/* Custom scrollbar for mobile feel */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}

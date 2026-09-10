@@ -1,0 +1,68 @@
+{
+  "name": "market-pos-android",
+  "productName": "Market Kasa",
+  "description": "Market Kasa POS - Modern Market ve Bakkal Satış Sistemi",
+  "author": "Kurşunlu Market",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:start": "electron .",
+    "electron:pack": "vite build && electron-packager . MarketKasa --platform=win32 --arch=x64 --out=dist-win --overwrite --prune=true --ignore=^(android|dist-win|MarketKasa.apk)",
+    "electron:installer": "vite build && electron-builder --win nsis",
+    "cap:sync": "vite build && cap sync android",
+    "cap:open": "cap open android",
+    "sync:server": "node server.js"
+  },
+  "build": {
+    "appId": "com.kursunlu.marketkasa",
+    "productName": "Market Kasa",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Market Kasa",
+      "uninstallDisplayName": "Market Kasa POS"
+    }
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "canvas-confetti": "^1.9.4",
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
+    "html5-qrcode": "^2.3.8",
+    "jspdf": "^3.0.4",
+    "lucide-react": "^1.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
+    "@tailwindcss/vite": "^4.0.9",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-packager": "^17.1.2",
+    "tailwindcss": "^4.0.9",
+    "vite": "^6.2.0"
+  }
+}

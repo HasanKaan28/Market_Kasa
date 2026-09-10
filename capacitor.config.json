@@ -1,0 +1,9 @@
+{
+  "appId": "com.kursunlu.marketpos",
+  "appName": "Market Kasa",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
