@@ -81,8 +81,8 @@ npm run cap:open
 
 GitHub Actions builds a debug APK automatically when changes are pushed to `main`.
 
-- Go to the repository's **Actions** tab and open the latest **Build Android APK** run.
-- Download the APK from the **Artifacts** section.
+- Go to the repository's **Actions** tab and open the latest workflow run.
+- Download the APK or Windows `.exe` installer from the **Artifacts** section.
 - To publish a permanent download under **Releases**, create and push a version tag:
 
 ```bash
@@ -90,7 +90,7 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-The APK will then be attached to the GitHub release for that tag. This workflow creates a debug APK for testing and internal distribution; a signed Play Store release requires an Android signing key and GitHub repository secrets.
+The APK and Windows setup file will then be attached to the GitHub release for that tag. The workflow creates a debug APK for testing and internal distribution; a signed Play Store release requires an Android signing key and GitHub repository secrets.
 
 ---
 
