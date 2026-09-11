@@ -572,10 +572,10 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
   }, [cart, grandTotal, showPayment, showScanner, showSuspended, quickAddModal, showDiscountModal, completedSale, searchTerm, barcodeInput, scanMode]);
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-0 lg:gap-3 w-full max-w-lg lg:max-w-7xl mx-auto bg-zinc-950 overflow-hidden relative">
+    <div className="h-full flex flex-col lg:flex-row gap-0 lg:gap-3 w-full max-w-lg lg:max-w-7xl mx-auto overflow-hidden relative">
       
       {/* ================= LEFT PANE: SEARCH, CATALOG & QUICK ITEMS ================= */}
-      <div className="flex-1 min-h-0 flex flex-col bg-zinc-950 lg:bg-zinc-900/50 lg:border lg:border-zinc-800 lg:rounded-2xl overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col bg-zinc-950/55 lg:bg-zinc-900/45 lg:border lg:border-zinc-700/70 lg:rounded-2xl overflow-hidden shadow-xl shadow-black/10">
         
         {/* Modern Minimalist Header / Mode Switcher */}
         <div className="shrink-0 p-2 sm:p-2.5 bg-zinc-900/90 backdrop-blur border-b border-zinc-800/80 space-y-2">
@@ -1064,7 +1064,7 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
       </div>
 
       {/* ================= RIGHT PANE: DESKTOP CART & FAST CHECKOUT (lg:flex) ================= */}
-      <div className="hidden lg:flex w-96 xl:w-[430px] min-h-0 flex-col bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl shrink-0">
+      <div className="hidden lg:flex w-96 xl:w-[430px] min-h-0 flex-col bg-zinc-900/70 border border-zinc-700/70 rounded-2xl overflow-hidden shadow-2xl shadow-black/25 shrink-0 backdrop-blur-sm">
         
         {/* Cart Top Header */}
         <div className="shrink-0 p-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">

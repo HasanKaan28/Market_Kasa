@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { seedInitialData, cleanupPreloadedProducts } from './db/db';
 import Navbar from './components/Navbar';
-import PosScreen from './components/PosScreen';
-import ProductCatalog from './components/ProductCatalog';
-import CustomerBook from './components/CustomerBook';
-import ReportsView from './components/ReportsView';
-import SettingsView from './components/SettingsView';
-import UserManagement from './components/UserManagement';
-import AdminDashboard from './components/AdminDashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { sync } from './utils/sync';
 import { googleDriveSync } from './utils/googleDriveSync';
 import { Download, Smartphone, X } from 'lucide-react';
+
+const PosScreen = lazy(() => import('./components/PosScreen'));
+const ProductCatalog = lazy(() => import('./components/ProductCatalog'));
+const CustomerBook = lazy(() => import('./components/CustomerBook'));
+const ReportsView = lazy(() => import('./components/ReportsView'));
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const UserManagement = lazy(() => import('./components/UserManagement'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('pos');
@@ -101,7 +102,7 @@ function AppContent() {
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden antialiased selection:bg-emerald-500 selection:text-zinc-950">
+    <div className="app-shell h-[100dvh] max-h-[100dvh] text-zinc-100 flex flex-col overflow-hidden antialiased selection:bg-emerald-500 selection:text-zinc-950">
       
       {/* Top Installation Banner */}
       {!isInstalled && !hideBanner && (
@@ -143,27 +144,34 @@ function AppContent() {
           ? `flex flex-col overflow-hidden max-w-7xl px-0 sm:px-2 lg:px-4 ${currentUser?.role === 'admin' ? 'pb-0' : 'pb-[56px] md:pb-0'}`
           : `overflow-y-auto px-2 lg:px-4 ${currentUser?.role === 'admin' ? 'pb-4' : 'pb-20 md:pb-6'} ${activeTab === 'dashboard' ? 'max-w-6xl' : 'max-w-5xl'}`
       }`}>
-        {activeTab === 'dashboard' && currentUser?.role === 'admin' && (
-          <AdminDashboard onNavigate={setActiveTab} cartItemCount={totalCartCount} />
-        )}
-        {activeTab === 'pos' && hasPermission('canAccessPos') && (
-          <PosScreen cart={cart} setCart={setCart} />
-        )}
-        {activeTab === 'products' && hasPermission('canAccessProducts') && (
-          <ProductCatalog />
-        )}
-        {activeTab === 'customers' && hasPermission('canAccessCustomers') && (
-          <CustomerBook />
-        )}
-        {activeTab === 'reports' && hasPermission('canAccessReports') && (
-          <ReportsView />
-        )}
-        {activeTab === 'users' && hasPermission('canManageUsers') && (
-          <UserManagement />
-        )}
-        {activeTab === 'settings' && hasPermission('canAccessSettings') && (
-          <SettingsView onInstallClick={handleInstallApp} />
-        )}
+        <Suspense fallback={
+          <div className="flex min-h-32 items-center justify-center text-sm text-zinc-400">
+            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+            Ekran yükleniyor...
+          </div>
+        }>
+          {activeTab === 'dashboard' && currentUser?.role === 'admin' && (
+            <AdminDashboard onNavigate={setActiveTab} cartItemCount={totalCartCount} />
+          )}
+          {activeTab === 'pos' && hasPermission('canAccessPos') && (
+            <PosScreen cart={cart} setCart={setCart} />
+          )}
+          {activeTab === 'products' && hasPermission('canAccessProducts') && (
+            <ProductCatalog />
+          )}
+          {activeTab === 'customers' && hasPermission('canAccessCustomers') && (
+            <CustomerBook />
+          )}
+          {activeTab === 'reports' && hasPermission('canAccessReports') && (
+            <ReportsView />
+          )}
+          {activeTab === 'users' && hasPermission('canManageUsers') && (
+            <UserManagement />
+          )}
+          {activeTab === 'settings' && hasPermission('canAccessSettings') && (
+            <SettingsView onInstallClick={handleInstallApp} />
+          )}
+        </Suspense>
       </main>
     </div>
   );

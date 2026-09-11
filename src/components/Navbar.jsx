@@ -108,11 +108,11 @@ export default function Navbar({ activeTab, setActiveTab, cartItemCount = 0, onI
   return (
     <>
       {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800/80 px-3 py-2 flex items-center justify-between shadow-xs">
+      <header className="sticky top-0 z-30 bg-zinc-950/75 backdrop-blur-xl border-b border-emerald-500/10 px-3 py-2 flex items-center justify-between shadow-lg shadow-black/10">
         
         {/* Left: Store Branding & Live Sync Status */}
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-black text-base shadow-xs">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400/25 to-cyan-400/10 border border-emerald-400/40 flex items-center justify-center text-emerald-300 font-black text-base shadow-lg shadow-emerald-950/30">
             K
           </div>
           <div>
@@ -173,7 +173,7 @@ export default function Navbar({ activeTab, setActiveTab, cartItemCount = 0, onI
         </div>
 
         {/* Center: Desktop Navigation Bar */}
-        <div className="hidden md:flex items-center gap-1 bg-zinc-900/90 border border-zinc-800/80 rounded-xl p-1 shadow-inner">
+        <div className="hidden md:flex items-center gap-1 bg-zinc-900/75 border border-zinc-700/70 rounded-xl p-1 shadow-inner shadow-black/20">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -183,7 +183,7 @@ export default function Navbar({ activeTab, setActiveTab, cartItemCount = 0, onI
                 onClick={() => setActiveTab(item.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-emerald-400 text-zinc-950 font-black shadow-sm'
+                    ? 'bg-gradient-to-r from-emerald-300 to-teal-400 text-zinc-950 font-black shadow-md shadow-emerald-950/40'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
                 }`}
               >
