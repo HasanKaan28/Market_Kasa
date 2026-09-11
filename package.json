@@ -12,7 +12,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:start": "electron .",
-    "electron:pack": "vite build && electron-packager . MarketKasa --platform=win32 --arch=x64 --out=dist-win --overwrite --prune=true --ignore=^(android|dist-win|MarketKasa.apk)",
+    "electron:pack": "vite build && electron-packager . MarketKasa --platform=win32 --arch=x64 --out=dist-win --overwrite --prune=true --ignore=android --ignore=dist-win --ignore=MarketKasa.apk",
     "electron:installer": "vite build && electron-builder --win nsis",
     "cap:sync": "vite build && cap sync android",
     "cap:open": "cap open android",
