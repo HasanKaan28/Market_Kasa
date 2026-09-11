@@ -68,7 +68,7 @@ jobs:
         run: npm ci
 
       - name: Build Windows setup
-        run: npm run electron:installer
+        run: npm run electron:installer -- --publish never
 
       - name: Upload Windows setup artifact
         uses: actions/upload-artifact@v4
