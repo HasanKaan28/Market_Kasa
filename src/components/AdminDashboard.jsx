@@ -155,31 +155,31 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12 pt-2 px-3 sm:px-5 max-w-4xl mx-auto space-y-5 antialiased">
+    <div className="min-h-screen bg-transparent text-slate-800 pb-12 pt-2 px-3 sm:px-5 max-w-4xl mx-auto space-y-5 antialiased">
       
       {/* 1. EXECUTIVE WELCOME & COMMAND HEADER */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl">
-        <div className="absolute -right-6 -top-6 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-        <div className="absolute right-24 bottom-0 w-28 h-28 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+      <div className="relative overflow-hidden bg-white/80 border border-blue-100 rounded-[28px] p-4 sm:p-5 shadow-[0_18px_40px_rgba(59,130,246,0.08)] backdrop-blur-sm">
+        <div className="absolute -right-6 -top-6 w-36 h-36 bg-blue-100/80 rounded-full blur-2xl pointer-events-none"></div>
+        <div className="absolute right-24 bottom-0 w-28 h-28 bg-sky-100 rounded-full blur-xl pointer-events-none"></div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-wider">
-                <Crown className="w-3 h-3 text-amber-400" />
+              <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-wider">
+                <Crown className="w-3 h-3 text-amber-600" />
                 {t('admin_console', 'Yönetici Konsolu')}
               </span>
-              <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
-                <Clock className="w-3 h-3 text-emerald-400" />
+              <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                <Clock className="w-3 h-3 text-blue-600" />
                 {currentTime}
               </span>
             </div>
-            
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+             
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
               <span>{storeName}</span>
             </h1>
-            <p className="text-xs text-slate-300">
-              {t('admin_welcome', 'Hoş Geldiniz')}, <strong className="text-amber-400">{currentUser?.name || 'Müdür'}</strong>. {t('admin_subtitle', 'Mağazanızın tüm canlı finans, personel ve stok durumu tek ekranda.')}
+            <p className="text-xs text-slate-600">
+              {t('admin_welcome', 'Hoş Geldiniz')}, <strong className="text-blue-700">{currentUser?.name || 'Müdür'}</strong>. {t('admin_subtitle', 'Mağazanızın tüm canlı finans, personel ve stok durumu tek ekranda.')}
             </p>
           </div>
 
@@ -191,16 +191,16 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
               <button
                 type="button"
                 onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-                className="bg-slate-800/90 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5 shadow"
+                className="bg-slate-100 hover:bg-white border border-blue-100 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 transition active:scale-95 flex items-center gap-1.5 shadow-sm"
                 title="Dil Seçeneği"
               >
-                <Globe className="w-3.5 h-3.5 text-sky-400" />
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
                 <span className="uppercase font-mono">{language}</span>
                 <span>{SUPPORTED_LANGUAGES.find(l => l.code === language)?.flag || '🇹🇷'}</span>
               </button>
 
               {showLanguageMenu && (
-                <div className="absolute right-0 mt-2 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1 z-50 animate-in fade-in zoom-in-95 space-y-0.5">
+                <div className="absolute right-0 mt-2 w-36 bg-white border border-blue-100 rounded-xl shadow-2xl p-1 z-50 animate-in fade-in zoom-in-95 space-y-0.5">
                   {SUPPORTED_LANGUAGES.map((l) => (
                     <button
                       key={l.code}
@@ -209,14 +209,14 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
                         setShowLanguageMenu(false);
                       }}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
-                        language === l.code ? 'bg-sky-500/20 text-sky-300 font-bold' : 'text-slate-300 hover:bg-slate-800'
+                        language === l.code ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-100'
                       }`}
                     >
                       <span className="flex items-center gap-2">
                         <span>{l.flag}</span>
                         <span>{l.name}</span>
                       </span>
-                      {language === l.code && <Check className="w-3.5 h-3.5 text-sky-400" />}
+                      {language === l.code && <Check className="w-3.5 h-3.5 text-blue-600" />}
                     </button>
                   ))}
                 </div>
@@ -225,7 +225,7 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
 
             {/* Google Drive Status badge */}
             <div className={`px-2.5 py-1.5 rounded-xl text-[11px] font-mono flex items-center gap-1.5 border ${
-              gdriveState.isConfigured ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+              gdriveState.isConfigured ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-100 border-slate-200 text-slate-500'
             }`}>
               <Cloud className="w-3.5 h-3.5" />
               <span>{gdriveState.isConfigured ? t('drive_live', 'Drive Canlı ⚡') : t('drive_off', 'Drive Kapalı')}</span>
@@ -234,10 +234,10 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
             {/* Change Profile */}
             <button
               onClick={openLogin}
-              className="bg-slate-800/90 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5 shadow"
+              className="bg-blue-600 hover:bg-blue-500 border border-blue-500 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5 shadow"
               title={t('change_profile', 'Kullanıcı Değiştir / Çıkış')}
             >
-              <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <UserCheck className="w-3.5 h-3.5 text-white" />
               <span>{t('change_profile', 'Profili Değiştir')}</span>
             </button>
           </div>
@@ -247,50 +247,49 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
       {/* 2. CANLI FİNANSAL NABIZ (EXECUTIVE LIVE KPIS) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Bugünkü Ciro */}
-        <div className="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-3.5 shadow-lg relative overflow-hidden group">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+        <div className="bg-white/80 border border-blue-100 rounded-[24px] p-3.5 shadow-[0_14px_34px_rgba(59,130,246,0.08)] relative overflow-hidden group">
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-semibold text-[11px]">{t('kpi_today_revenue', 'Bugünkü Ciro')}</span>
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
               <DollarSign className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono tracking-tight">
+          <div className="text-xl sm:text-2xl font-black text-emerald-600 font-mono tracking-tight">
             ₺{todayKPIs.revenue.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-            <span className="text-emerald-400 font-bold">{t('kpi_live_sales', 'Canlı Satış')}</span>
+          <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+            <span className="text-emerald-600 font-bold">{t('kpi_live_sales', 'Canlı Satış')}</span>
           </p>
         </div>
 
         {/* Canlı Kâr (Sadece Yönetici Görür) */}
-        <div className="bg-slate-900/90 border border-purple-500/30 rounded-2xl p-3.5 shadow-lg relative overflow-hidden group">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+        <div className="bg-white/80 border border-violet-100 rounded-[24px] p-3.5 shadow-[0_14px_34px_rgba(139,92,246,0.08)] relative overflow-hidden group">
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-semibold text-[11px]">{t('kpi_today_profit', 'Bugünkü Kâr 🔒')}</span>
-            <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-purple-400 font-mono tracking-tight">
+          <div className="text-xl sm:text-2xl font-black text-violet-600 font-mono tracking-tight">
             ₺{todayKPIs.profit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">
-            {t('kpi_profit_margin', 'Kâr Marjı')}: <span className="text-purple-300 font-bold">%{todayKPIs.profitMargin.toFixed(1)}</span>
+          <p className="text-[10px] text-slate-500 mt-1">
+            {t('kpi_profit_margin', 'Kâr Marjı')}: <span className="text-violet-700 font-bold">%{todayKPIs.profitMargin.toFixed(1)}</span>
           </p>
         </div>
 
         {/* Fiş / Satış Adedi */}
-        <div className="bg-slate-900/90 border border-sky-500/30 rounded-2xl p-3.5 shadow-lg relative overflow-hidden group">
-          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+        <div className="bg-white/80 border border-sky-100 rounded-[24px] p-3.5 shadow-[0_14px_34px_rgba(14,165,233,0.08)] relative overflow-hidden group">
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-semibold text-[11px]">{t('kpi_today_sales', 'Toplam Satış')}</span>
-            <div className="w-6 h-6 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center">
               <Receipt className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
-            {todayKPIs.count} <span className="text-xs font-normal text-slate-400">{t('kpi_receipts', 'Fiş')}</span>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
+            {todayKPIs.count} <span className="text-xs font-normal text-slate-500">{t('kpi_receipts', 'Fiş')}</span>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">
-            {todayKPIs.count > 0 ? 'Tamamlanan Satış' : 'Bekleniyor'}
+          <p className="text-[10px] text-slate-500 mt-1">            {todayKPIs.count > 0 ? 'Tamamlanan Satış' : 'Bekleniyor'}
           </p>
         </div>
 
@@ -312,18 +311,18 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
       </div>
 
       {/* 3. 🎯 GÜNLÜK CİRO HEDEFİ & CANLI BİLDİRİM KARTI */}
-      <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950/30 border border-sky-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      <section className="bg-white border border-blue-100 rounded-3xl p-4 sm:p-5 shadow-[0_18px_45px_rgba(37,99,235,0.1)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-100 pb-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
                 <BellRing className="w-4 h-4 animate-bounce" />
               </div>
-              <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
                 <span>{t('target_card_title', 'Günlük Ciro Hedefi & Canlı Bildirim')}</span>
               </h2>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {t('target_card_subtitle', 'Belirlediğiniz günlük ciro eşiğine ulaşıldığında sesli ve görsel bildirim alın.')}
             </p>
           </div>
@@ -335,44 +334,44 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
               onClick={handleToggleNotify}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
                 targetNotifyEnabled
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                  : 'bg-slate-800 border-slate-700 text-slate-400'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${targetNotifyEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${targetNotifyEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
               <span>{targetNotifyEnabled ? 'Bildirim Açık' : 'Bildirim Kapalı'}</span>
             </button>
           </div>
         </div>
 
         {/* Target Progress Bar & Live Status */}
-        <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 space-y-2.5">
+        <div className="bg-blue-50/70 rounded-2xl p-4 border border-blue-100 space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-300 font-bold flex items-center gap-1.5">
+            <span className="text-slate-700 font-bold flex items-center gap-1.5">
               <span>{t('target_progress', "Bugünkü İlerleme")}:</span>
-              <strong className="text-emerald-400 font-mono text-sm">
+              <strong className="text-blue-700 font-mono text-sm">
                 ₺{todayKPIs.revenue.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}
               </strong>
-              <span className="text-slate-500">/</span>
-              <span className="text-slate-400 font-mono">
+              <span className="text-slate-400">/</span>
+              <span className="text-slate-600 font-mono">
                 ₺{dailyTarget.toLocaleString('tr-TR')}
               </span>
             </span>
 
             <span className={`font-mono font-black text-xs px-2 py-0.5 rounded-lg ${
-              isTargetAchieved ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-sky-500/20 text-sky-300'
+              isTargetAchieved ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-blue-100 text-blue-700'
             }`}>
               %{targetProgressPercent.toFixed(1)}
             </span>
           </div>
 
           {/* Visual Progress Bar */}
-          <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-800">
+          <div className="w-full bg-white h-2.5 rounded-full overflow-hidden border border-blue-100">
             <div
               className={`h-full rounded-full transition-all duration-700 ${
                 isTargetAchieved 
-                  ? 'bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-300 animate-pulse shadow-lg' 
-                  : 'bg-gradient-to-r from-sky-500 to-emerald-400'
+                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 animate-pulse shadow-lg' 
+                  : 'bg-gradient-to-r from-blue-500 to-sky-400'
               }`}
               style={{ width: `${targetProgressPercent}%` }}
             ></div>
@@ -394,16 +393,16 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
               </button>
             </div>
           ) : (
-            <p className="text-[11px] text-slate-400 flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 flex items-center gap-1">
               <span>{t('target_remaining', 'Hedefe kalan')}:</span>
-              <strong className="text-slate-200 font-mono">₺{remainingToTarget.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</strong>
+              <strong className="text-slate-800 font-mono">₺{remainingToTarget.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</strong>
             </p>
           )}
         </div>
 
         {/* Target Amount Configuration & Quick Buttons */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-300 block">
+          <label className="text-xs font-bold text-slate-700 block">
             {t('target_amount_label', 'Günlük Ciro Limiti (₺)')}
           </label>
           
@@ -412,13 +411,13 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
               type="number"
               value={dailyTarget}
               onChange={(e) => setDailyTarget(parseFloat(e.target.value) || 0)}
-              className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-sky-500 font-bold"
+              className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-500 font-bold"
               placeholder="10000"
             />
             <button
               type="button"
               onClick={() => handleSaveTarget(dailyTarget)}
-              className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition shadow"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition shadow"
             >
               {targetSavedMsg ? '✓ Kaydedildi' : t('save', 'Kaydet')}
             </button>
@@ -434,8 +433,8 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
                 onClick={() => handleSaveTarget(amt)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition ${
                   dailyTarget === amt
-                    ? 'bg-sky-500 text-slate-950 shadow'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-blue-50'
                 }`}
               >
                 ₺{amt.toLocaleString('tr-TR')}
@@ -445,11 +444,11 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
         </div>
 
         {/* Notification Action Buttons */}
-        <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80 flex-wrap">
+        <div className="flex items-center gap-2 pt-1 border-t border-blue-100 flex-wrap">
           <button
             type="button"
             onClick={handleTestNotification}
-            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-400 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
+            className="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
             title="Bildirim sesini ve konfetiyi test et"
           >
             <Bell className="w-3.5 h-3.5" />
@@ -459,7 +458,7 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
           <button
             type="button"
             onClick={handleShareWhatsApp}
-            className="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
+            className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>{t('target_share_wa', '📲 WhatsApp ile Bildir')}</span>
@@ -469,7 +468,7 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
             <button
               type="button"
               onClick={requestNotificationPermission}
-              className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
+              className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
             >
               <Volume2 className="w-3.5 h-3.5" />
               <span>{t('target_perm_btn', 'Bildirim İznini Aç 🔔')}</span>

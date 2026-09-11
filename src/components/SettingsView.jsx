@@ -15,16 +15,18 @@ import { testRevenueNotification, shareTargetAchievedViaWhatsApp, requestNotific
 const APPS_SCRIPT_CODE = `function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
+    var marketId = String(data.marketId || "unassigned").replace(/[^a-zA-Z0-9_-]/g, "_");
+    var fileName = "market_pos_data_" + marketId + ".json";
     var folderName = "MarketKasa_Yedek";
     var folders = DriveApp.getFoldersByName(folderName);
     var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
-    var files = folder.getFilesByName("market_pos_data.json");
+    var files = folder.getFilesByName(fileName);
     var file;
     if (files.hasNext()) {
       file = files.next();
       file.setContent(e.postData.contents);
     } else {
-      file = folder.createFile("market_pos_data.json", e.postData.contents, MimeType.PLAIN_TEXT);
+      file = folder.createFile(fileName, e.postData.contents, MimeType.PLAIN_TEXT);
     }
     var lastUpdated = file.getLastUpdated().getTime();
     return ContentService.createTextOutput(JSON.stringify({ status: "success", serverTime: lastUpdated, timestamp: new Date().toISOString() }))
@@ -37,11 +39,13 @@ const APPS_SCRIPT_CODE = `function doPost(e) {
 
 function doGet(e) {
   try {
+    var marketId = String((e && e.parameter && e.parameter.marketId) || "unassigned").replace(/[^a-zA-Z0-9_-]/g, "_");
+    var fileName = "market_pos_data_" + marketId + ".json";
     var folderName = "MarketKasa_Yedek";
     var folders = DriveApp.getFoldersByName(folderName);
     if (!folders.hasNext()) return ContentService.createTextOutput(JSON.stringify({ empty: true })).setMimeType(ContentService.MimeType.JSON);
     var folder = folders.next();
-    var files = folder.getFilesByName("market_pos_data.json");
+    var files = folder.getFilesByName(fileName);
     if (!files.hasNext()) return ContentService.createTextOutput(JSON.stringify({ empty: true })).setMimeType(ContentService.MimeType.JSON);
     
     var file = files.next();
@@ -100,7 +104,7 @@ export default function SettingsView() {
         if (s.key === 'taxId') setTaxId(s.value);
         if (s.key === 'receiptFooter') setReceiptFooter(s.value);
         if (s.key === 'syncServerUrl') setSyncUrl(s.value);
-        if (s.key === 'gdrive_sync_url' && !gdriveUrl) setGdriveUrl(s.value);
+        if (s.key === googleDriveSync.settingKey('gdrive_sync_url') && !gdriveUrl) setGdriveUrl(s.value);
         if (s.key === 'daily_revenue_target') setDailyTarget(parseFloat(s.value) || 10000);
         if (s.key === 'daily_revenue_notify_enabled') setTargetNotifyEnabled(s.value !== 'false' && s.value !== false);
       });
@@ -437,7 +441,7 @@ export default function SettingsView() {
           </div>
 
           <p className="text-xs text-slate-300 leading-relaxed">
-            Telefonlar farklı Wi-Fi ağlarında veya mobil veride (4G/5G) olsa bile satışları ve stokları Google Drive hesabınız üzerinden kayıpsız eşitler.
+            Bu marketin satış, stok ve veresiye verilerini ayrı bir Google Drive dosyasında tutar. Farklı marketler birbirinin verilerini göremez.
           </p>
 
           {/* Web App URL input */}
@@ -570,7 +574,7 @@ export default function SettingsView() {
                 </div>
 
                 <ol start="3" className="list-decimal list-inside space-y-1.5 leading-relaxed">
-                  <li>Sağ üstteki mavi <b>"Dağıt" (Deploy)</b> butonuna basın &gt; <b>"Yeni dağıtım"</b>ı seçin.</li>
+                  <li>Bu güncel kodu kullandığınızda her market için <b>ayrı Drive dosyası</b> oluşur. Sağ üstteki mavi <b>"Dağıt" (Deploy)</b> butonuna basın &gt; <b>"Yeni dağıtım"</b>ı seçin.</li>
                   <li>Sol çarktaki türü <b>"Web uygulaması"</b> seçin. <i>Erişimi olanlar (Who has access)</i> kısmını <b>"Herkes" (Anyone)</b> yapıp <b>"Dağıt"</b>a tıklayın.</li>
                   <li>Google'ın size verdiği <b>Web Uygulaması URL'sini</b> kopyalayıp yukarıdaki kutuya yapıştırıp Kaydet'e basın!</li>
                 </ol>

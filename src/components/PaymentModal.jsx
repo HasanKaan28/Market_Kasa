@@ -92,34 +92,34 @@ export default function PaymentModal({ total, onComplete, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center safe-bottom animate-fade-in">
-      <div className="bg-zinc-900 border border-zinc-750 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center safe-bottom animate-fade-in">
+      <div className="bg-white border border-slate-200 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         
         {/* Header */}
-        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div>
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Tahsilat / Ödeme</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tahsilat / Ödeme</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-400">₺{total.toFixed(2)}</span>
-              <span className="text-xs text-zinc-400 font-medium">Ödenecek Tutar</span>
+              <span className="text-2xl sm:text-3xl font-black text-emerald-600">₺{total.toFixed(2)}</span>
+              <span className="text-xs text-slate-500 font-medium">Ödenecek Tutar</span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-zinc-800 text-zinc-400 hover:text-white transition"
+            className="p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-700 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Method Switcher Tabs */}
-        <div className="grid grid-cols-4 gap-1 p-2 bg-zinc-950 border-b border-zinc-800">
+        <div className="grid grid-cols-4 gap-1 p-2 bg-slate-100 border-b border-slate-200">
           <button
             onClick={() => { setMethod('cash'); setCashGiven(total.toString()); }}
             className={`flex flex-col items-center py-2 px-1 rounded-xl text-xs font-bold transition ${
               method === 'cash'
-                ? 'bg-emerald-400 text-zinc-950 shadow-md shadow-emerald-500/20'
-                : 'text-zinc-400 hover:text-zinc-200'
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200'
+                : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <Banknote className="w-5 h-5 mb-0.5" />
@@ -130,8 +130,8 @@ export default function PaymentModal({ total, onComplete, onClose }) {
             onClick={() => setMethod('card')}
             className={`flex flex-col items-center py-2 px-1 rounded-xl text-xs font-bold transition ${
               method === 'card'
-                ? 'bg-sky-400 text-zinc-950 shadow-md shadow-sky-500/20'
-                : 'text-zinc-400 hover:text-zinc-200'
+                ? 'bg-sky-500 text-white shadow-md shadow-sky-200'
+                : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <CreditCard className="w-5 h-5 mb-0.5" />
@@ -142,8 +142,8 @@ export default function PaymentModal({ total, onComplete, onClose }) {
             onClick={() => setMethod('debt')}
             className={`flex flex-col items-center py-2 px-1 rounded-xl text-xs font-bold transition ${
               method === 'debt'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
+                : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <UserCheck className="w-5 h-5 mb-0.5" />
@@ -154,8 +154,8 @@ export default function PaymentModal({ total, onComplete, onClose }) {
             onClick={() => setMethod('split')}
             className={`flex flex-col items-center py-2 px-1 rounded-xl text-xs font-bold transition ${
               method === 'split'
-                ? 'bg-purple-500 text-slate-950 shadow-md shadow-purple-500/20'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-violet-500 text-white shadow-md shadow-violet-200'
+                : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <Split className="w-5 h-5 mb-0.5" />
@@ -255,7 +255,7 @@ export default function PaymentModal({ total, onComplete, onClose }) {
           {method === 'debt' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-300">Müşteri Seçin</label>
+                <label className="text-xs font-bold text-slate-600">Müşteri Seçin</label>
                 <button
                   type="button"
                   onClick={() => setShowAddCustomer(!showAddCustomer)}
@@ -275,14 +275,14 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                     value={newCustomerName}
                     onChange={(e) => setNewCustomerName(e.target.value)}
                     required
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                   <input
                     type="tel"
                     placeholder="Telefon Numarası (Opsiyonel)"
                     value={newCustomerPhone}
                     onChange={(e) => setNewCustomerPhone(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     type="submit"
@@ -296,7 +296,7 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                   <select
                     value={selectedCustomerId}
                     onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-2xl px-3 py-3 text-sm text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-3 text-sm text-slate-800 focus:outline-none focus:border-amber-500"
                   >
                     <option value="">-- Müşteri Seçin --</option>
                     {customers?.map((cust) => (
@@ -349,7 +349,7 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                       max={total}
                       min={0}
                       step="0.5"
-                      className="w-24 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 text-right font-mono text-sm text-emerald-400 font-bold focus:outline-none"
+                      className="w-24 bg-white border border-slate-200 rounded-lg px-2 py-1 text-right font-mono text-sm text-emerald-600 font-bold focus:outline-none"
                     />
                   </div>
                 </div>

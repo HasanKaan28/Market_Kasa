@@ -16,6 +16,11 @@ db.version(2).stores({
   users: '++id, name, pin, role'
 });
 
+db.version(3).stores({
+  customers: '++id, name, phone, balance, autoReminderEnabled, reminderFrequency, lastReminderAt, nextReminderAt',
+  customerTransactions: '++id, customerId, date, type'
+});
+
 /**
  * Arka plan kütüphanesinden sisteme yüklenmiş veya eski örnek ürünleri temizler.
  * Kullanıcı "Tüm Ürünler"de sadece kendi eklediği veya okutup fiyat belirlediği ürünleri görür.
@@ -61,38 +66,17 @@ export async function seedInitialData() {
   // Arka plan kütüphanesini ve eski örnek ürünleri temizle
   await cleanupPreloadedProducts();
 
-  // Seed sample customers if empty
-  const customerCount = await db.customers.count();
-  if (customerCount === 0) {
-    await db.customers.bulkAdd([
-      {
-        name: 'Ahmet Yılmaz (Komşu)',
-        phone: '0532 111 22 33',
-        address: 'Daire: 4',
-        balance: 345.50,
-        limit: 2000,
-        notes: 'Maaş günü 15\'inde ödüyor',
-        createdAt: new Date().toISOString()
-      },
-      {
-        name: 'Fatma Teyze',
-        phone: '0544 222 33 44',
-        address: 'Sokak başındaki pembe ev',
-        balance: 120.00,
-        limit: 1000,
-        notes: 'Oğlu esnaf, güvenilir',
-        createdAt: new Date().toISOString()
-      },
-      {
-        name: 'Mehmet Usta (Oto Tamir)',
-        phone: '0555 999 88 77',
-        address: 'Sanayi Sitesi No: 12',
-        balance: 0.00,
-        limit: 5000,
-        notes: 'Haftalık toplu öder',
-        createdAt: new Date().toISOString()
-      }
-    ]);
+  const allCustomers = await db.customers.toArray();
+  for (const c of allCustomers) {
+    const shouldUpdate = !('autoReminderEnabled' in c) || !('reminderFrequency' in c) || !('nextReminderAt' in c) || !('lastReminderAt' in c);
+    if (shouldUpdate) {
+      await db.customers.update(c.id, {
+        autoReminderEnabled: c.autoReminderEnabled ?? (c.balance > 0),
+        reminderFrequency: c.reminderFrequency ?? 'weekly',
+        lastReminderAt: c.lastReminderAt ?? null,
+        nextReminderAt: c.nextReminderAt ?? new Date().toISOString()
+      });
+    }
   }
 
   // Seed default settings if empty
@@ -171,4 +155,53 @@ export async function seedInitialData() {
 
   // Always ensure Turkish market barcode catalog is loaded in background
   await seedInternetBarcodes();
+}
+
+/**
+ * Bir defaya mahsus başlangıç temizliği: son 30 günlük örnek satışları
+ * ve eski demo veresiye kayıtlarını kaldırır; kullanıcı verilerini tekrar silmez.
+ */
+export async function removeInitialDemoData() {
+  const cleanupKey = 'initial_demo_data_removed_v1';
+  if (await db.settings.get(cleanupKey)) return;
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const recentSales = await db.sales.filter(sale => new Date(sale.date) >= cutoff).toArray();
+  if (recentSales.length > 0) {
+    await db.sales.bulkDelete(recentSales.map(sale => sale.id));
+  }
+
+  const demoNames = new Set([
+    'Ahmet Yılmaz (Komşu)',
+    'Fatma Teyze',
+    'Mehmet Usta (Oto Tamir)'
+  ]);
+  const demoCustomers = await db.customers.filter(customer => demoNames.has(customer.name)).toArray();
+  if (demoCustomers.length > 0) {
+    const demoIds = new Set(demoCustomers.map(customer => customer.id));
+    const demoTransactions = await db.customerTransactions
+      .filter(transaction => demoIds.has(transaction.customerId))
+      .toArray();
+    await db.customerTransactions.bulkDelete(demoTransactions.map(transaction => transaction.id));
+    await db.customers.bulkDelete(demoCustomers.map(customer => customer.id));
+  }
+
+  await db.settings.put({ key: cleanupKey, value: new Date().toISOString() });
+}
+
+export async function switchToMarket(marketId) {
+  if (!marketId) throw new Error('Market kimliği bulunamadı.');
+  const active = await db.settings.get('active_market_id');
+  if (active?.value && active.value !== marketId) {
+    await Promise.all([
+      db.products.clear(),
+      db.sales.clear(),
+      db.customers.clear(),
+      db.customerTransactions.clear(),
+      db.suspendedSales.clear(),
+      db.users.clear()
+    ]);
+  }
+  await db.settings.put({ key: 'active_market_id', value: marketId });
 }

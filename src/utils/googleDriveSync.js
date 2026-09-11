@@ -4,6 +4,8 @@ export const DEFAULT_GDRIVE_URL = 'https://script.google.com/macros/s/AKfycbynKm
 
 class GoogleDriveSyncManager {
   constructor() {
+    this.marketId = 'unassigned';
+    this.marketName = '';
     this.syncUrl = DEFAULT_GDRIVE_URL;
     this.autoSyncInterval = '1s'; // '1s' (Canlı/Her saniye), '5s', 'on_sale', 'off'
     this.status = 'idle'; // 'idle', 'syncing', 'success', 'error'
@@ -16,25 +18,36 @@ class GoogleDriveSyncManager {
     this.hasPendingPush = false;
   }
 
+  setMarketContext(marketId, marketName = '') {
+    this.marketId = marketId || 'unassigned';
+    this.marketName = marketName;
+    this.lastCloudTimestamp = 0;
+    this.lastSyncTime = null;
+  }
+
+  settingKey(key) {
+    return `market_${this.marketId}_${key}`;
+  }
+
   async init() {
     try {
-      const urlSetting = await db.settings.get('gdrive_sync_url');
+      const urlSetting = await db.settings.get(this.settingKey('gdrive_sync_url'));
       if (urlSetting?.value && urlSetting.value.startsWith('http')) {
         this.syncUrl = urlSetting.value;
       } else {
         this.syncUrl = DEFAULT_GDRIVE_URL;
-        await db.settings.put({ key: 'gdrive_sync_url', value: DEFAULT_GDRIVE_URL });
+        await db.settings.put({ key: this.settingKey('gdrive_sync_url'), value: DEFAULT_GDRIVE_URL });
       }
 
-      const autoSetting = await db.settings.get('gdrive_auto_sync');
+      const autoSetting = await db.settings.get(this.settingKey('gdrive_auto_sync'));
       if (autoSetting?.value && autoSetting.value !== 'off') {
         this.autoSyncInterval = autoSetting.value;
       } else {
         this.autoSyncInterval = '1s';
-        await db.settings.put({ key: 'gdrive_auto_sync', value: '1s' });
+        await db.settings.put({ key: this.settingKey('gdrive_auto_sync'), value: '1s' });
       }
 
-      const lastSyncSetting = await db.settings.get('gdrive_last_sync');
+      const lastSyncSetting = await db.settings.get(this.settingKey('gdrive_last_sync'));
       if (lastSyncSetting?.value) {
         this.lastSyncTime = lastSyncSetting.value;
       }
@@ -75,14 +88,14 @@ class GoogleDriveSyncManager {
 
   async setSyncUrl(url) {
     this.syncUrl = url.trim();
-    await db.settings.put({ key: 'gdrive_sync_url', value: this.syncUrl });
+    await db.settings.put({ key: this.settingKey('gdrive_sync_url'), value: this.syncUrl });
     this.startPollingLoop();
     this.notifyListeners();
   }
 
   async setAutoSyncInterval(val) {
     this.autoSyncInterval = val;
-    await db.settings.put({ key: 'gdrive_auto_sync', value: val });
+    await db.settings.put({ key: this.settingKey('gdrive_auto_sync'), value: val });
     this.startPollingLoop();
     this.notifyListeners();
   }
@@ -144,9 +157,12 @@ class GoogleDriveSyncManager {
 
     try {
       // ?since= parametresi ile sunucunun dosya güncelleme saatini hafif kontrol et
-      const checkUrl = this.lastCloudTimestamp > 0
-        ? `${this.syncUrl}${this.syncUrl.includes('?') ? '&' : '?'}since=${this.lastCloudTimestamp}`
-        : this.syncUrl;
+      const checkUrlObject = new URL(this.syncUrl);
+      checkUrlObject.searchParams.set('marketId', this.marketId);
+      if (this.lastCloudTimestamp > 0) {
+        checkUrlObject.searchParams.set('since', this.lastCloudTimestamp);
+      }
+      const checkUrl = checkUrlObject.toString();
 
       const res = await fetch(checkUrl, {
         method: 'GET',
@@ -183,7 +199,7 @@ class GoogleDriveSyncManager {
 
         this.status = 'success';
         this.lastSyncTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        await db.settings.put({ key: 'gdrive_last_sync', value: this.lastSyncTime });
+        await db.settings.put({ key: this.settingKey('gdrive_last_sync'), value: this.lastSyncTime });
         this.notifyListeners();
       }
     } catch (err) {
@@ -223,7 +239,9 @@ class GoogleDriveSyncManager {
       customers,
       customerTransactions,
       users,
-      settings: settings.filter(s => !s.key.startsWith('gdrive_')) // Don't overwrite Drive configs
+      marketId: this.marketId,
+      marketName: this.marketName,
+      settings: settings.filter(s => !s.key.includes('gdrive_')) // Don't overwrite Drive configs
     };
   }
 
@@ -233,6 +251,9 @@ class GoogleDriveSyncManager {
    */
   async mergeCloudData(cloud) {
     if (!cloud || typeof cloud !== 'object') return { merged: false };
+    if (cloud.marketId !== this.marketId) {
+      throw new Error('Google Drive verisi bu market için ayrılmamış. Ayarlardaki Apps Script kodunu güncelleyin.');
+    }
 
     let addedSales = 0;
     let addedProducts = 0;
@@ -369,7 +390,9 @@ class GoogleDriveSyncManager {
   async pullFromDrive() {
     if (!this.syncUrl) throw new Error('Google Drive Web URL tanımlanmamış!');
 
-    const res = await fetch(this.syncUrl, {
+    const url = new URL(this.syncUrl);
+    url.searchParams.set('marketId', this.marketId);
+    const res = await fetch(url.toString(), {
       method: 'GET',
       headers: {
         'Accept': 'application/json'
@@ -458,7 +481,7 @@ class GoogleDriveSyncManager {
 
       this.status = 'success';
       this.lastSyncTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      await db.settings.put({ key: 'gdrive_last_sync', value: this.lastSyncTime });
+      await db.settings.put({ key: this.settingKey('gdrive_last_sync'), value: this.lastSyncTime });
 
       this.notifyListeners();
       return { success: true, mergeResult };

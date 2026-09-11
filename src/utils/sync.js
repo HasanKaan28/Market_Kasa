@@ -2,6 +2,7 @@ import { db } from '../db/db';
 
 class SyncManager {
   constructor() {
+    this.marketId = null;
     this.ws = null;
     this.isConnected = false;
     this.connectedDevices = 1;
@@ -9,7 +10,8 @@ class SyncManager {
     this.reconnectTimer = null;
   }
 
-  async init() {
+  async init(marketId) {
+    this.marketId = marketId || null;
     // Get custom server URL if configured
     let serverUrl = 'ws://192.168.1.103:5174';
     try {
@@ -23,10 +25,10 @@ class SyncManager {
       // ignore
     }
 
-    this.connect(serverUrl);
+    this.connect(serverUrl, marketId);
   }
 
-  connect(url) {
+  connect(url, marketId) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -70,6 +72,7 @@ class SyncManager {
   }
 
   async handleIncomingMessage(msg) {
+    if (msg.marketId && msg.marketId !== this.marketId) return;
     if (msg.type === 'DEVICE_COUNT') {
       this.connectedDevices = msg.count || 1;
       this.notifyListeners();
@@ -184,7 +187,7 @@ class SyncManager {
   broadcast(action, payload) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
-        this.ws.send(JSON.stringify({ action, payload }));
+        this.ws.send(JSON.stringify({ action, marketId: this.marketId, payload }));
       } catch (err) {
         console.warn('[SYNC] Yayınlama hatası:', err);
       }

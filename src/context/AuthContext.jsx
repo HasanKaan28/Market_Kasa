@@ -88,16 +88,16 @@ export function AuthProvider({ children }) {
 
       {/* PIN Login Screen Modal */}
       {showPinModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 safe-top safe-bottom select-none animate-fade-in">
-          <div className="w-full max-w-sm flex flex-col items-center space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-100/95 backdrop-blur-md flex items-center justify-center p-4 safe-top safe-bottom select-none animate-fade-in">
+          <div className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.16)] flex flex-col items-center space-y-4">
             
             {/* Logo & Header */}
             <div className="text-center space-y-1">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/10">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mx-auto shadow-inner shadow-blue-100">
                 <Lock className="w-7 h-7" />
               </div>
-              <h2 className="text-lg font-black text-white tracking-tight">Kullanıcı Girişi</h2>
-              <p className="text-xs text-slate-400">Devam etmek için profilinizi ve 4 haneli PIN kodunuzu girin</p>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Kullanıcı Girişi</h2>
+              <p className="text-xs text-slate-500">Devam etmek için profilinizi ve 4 haneli PIN kodunuzu girin</p>
             </div>
 
             {/* User Profile Selector Cards */}
@@ -110,15 +110,15 @@ export function AuthProvider({ children }) {
                     onClick={() => handleSelectUser(u)}
                     className={`p-3 rounded-2xl border flex flex-col items-center text-center transition active:scale-95 ${
                       isSelected
-                        ? 'bg-emerald-600 text-white border-emerald-400 shadow-lg shadow-emerald-900/40 font-bold'
-                        : 'bg-slate-900/90 text-slate-300 border-slate-800 hover:border-slate-700'
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-200 font-bold'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-full bg-slate-800/80 flex items-center justify-center text-sm font-bold mb-1">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold mb-1">
                       {u.role === 'admin' ? '👑' : '👤'}
                     </div>
                     <span className="text-xs font-bold truncate w-full">{u.name}</span>
-                    <span className="text-[10px] text-slate-400 font-mono mt-0.5 capitalize">
+                    <span className="text-[10px] text-slate-500 font-mono mt-0.5 capitalize">
                       {u.role === 'admin' ? 'Müdür (Tam Yetki)' : 'Kasiyer'}
                     </span>
                   </button>
@@ -129,7 +129,7 @@ export function AuthProvider({ children }) {
             {/* PIN Input Dots */}
             {selectedUser && (
               <div className="w-full flex flex-col items-center space-y-3 pt-2">
-                <span className="text-xs text-slate-300 font-medium">
+                <span className="text-xs text-slate-600 font-medium">
                   <b>{selectedUser.name}</b> için PIN Girin:
                 </span>
 
@@ -143,8 +143,8 @@ export function AuthProvider({ children }) {
                           pinError
                             ? 'bg-rose-500 scale-110 animate-bounce'
                             : isFilled
-                            ? 'bg-emerald-400 scale-110 shadow-[0_0_10px_#34d399]'
-                            : 'bg-slate-800 border border-slate-700'
+                            ? 'bg-blue-500 scale-110 shadow-[0_0_10px_#60a5fa]'
+                            : 'bg-slate-200 border border-slate-300'
                         }`}
                       />
                     );
@@ -174,8 +174,8 @@ export function AuthProvider({ children }) {
                         key === 'C'
                           ? 'bg-rose-950/40 text-rose-400 border border-rose-800/40'
                           : key === '←'
-                          ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                          : 'bg-slate-900 text-white border border-slate-800 hover:bg-slate-850'
+                          ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                          : 'bg-white text-slate-800 border border-slate-200 shadow-sm hover:bg-blue-50 hover:border-blue-200'
                       }`}
                     >
                       {key}
@@ -184,7 +184,7 @@ export function AuthProvider({ children }) {
                 </div>
 
                 {/* Helpful Hint */}
-                <p className="text-[10px] text-slate-500 text-center font-mono pt-1">
+                <p className="text-[10px] text-slate-400 text-center font-mono pt-1">
                   Varsayılan PIN'ler: Müdür: <b>1234</b> | Kasiyer: <b>0000</b>
                 </p>
               </div>
