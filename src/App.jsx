@@ -371,6 +371,14 @@ function MarketSetupScreen({ onComplete }) {
               'Markete Giriş Yap / Katıl'
             )}
           </button>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Google Drive Aktif
+            </span>
+            <span className="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full text-[10px]">v1.2.1 Bulut</span>
+          </div>
         </form>
       </div>
     </div>
