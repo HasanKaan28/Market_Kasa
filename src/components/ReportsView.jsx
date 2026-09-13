@@ -1,26 +1,44 @@
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart3, Calendar, DollarSign, TrendingUp, ShoppingBag, 
-  CreditCard, Banknote, UserCheck, Printer, RotateCcw, Eye, Download, X
+  CreditCard, Banknote, UserCheck, Printer, RotateCcw, Eye, Download, X, FileText
 } from 'lucide-react';
 import { db } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ReceiptModal from './ReceiptModal';
+import DailyInvoiceModal from './DailyInvoiceModal';
 import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
 import { sync } from '../utils/sync';
 
 export default function ReportsView() {
   const { hasPermission } = useAuth();
-  const [period, setPeriod] = useState('today'); // today | yesterday | week | month | all
+  const [period, setPeriod] = useState('today'); // today | yesterday | week | month | custom | all
+  const [customStartDate, setCustomStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [showZReportModal, setShowZReportModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   const sales = useLiveQuery(() => db.sales.reverse().toArray(), []);
   const storeSettings = useLiveQuery(async () => {
     const list = await db.settings.toArray();
     return list.reduce((acc, cur) => ({ ...acc, [cur.key]: cur.value }), {});
   }, []);
+
+  const periodLabel = useMemo(() => {
+    if (period === 'today') return 'Bugün (' + new Date().toLocaleDateString('tr-TR') + ')';
+    if (period === 'yesterday') return 'Dün';
+    if (period === 'week') return 'Son 7 Gün';
+    if (period === 'month') return 'Bu Ay';
+    if (period === 'custom') {
+      if (customStartDate === customEndDate) {
+        return new Date(customStartDate).toLocaleDateString('tr-TR');
+      }
+      return `${new Date(customStartDate).toLocaleDateString('tr-TR')} - ${new Date(customEndDate).toLocaleDateString('tr-TR')}`;
+    }
+    return 'Tüm Zamanlar';
+  }, [period, customStartDate, customEndDate]);
 
   // Filter sales by date period
   const filteredSales = useMemo(() => {
@@ -37,9 +55,14 @@ export default function ReportsView() {
       if (period === 'yesterday') return saleTime >= yesterdayStart && saleTime < todayStart;
       if (period === 'week') return saleTime >= weekStart;
       if (period === 'month') return saleTime >= monthStart;
+      if (period === 'custom') {
+        const start = new Date(`${customStartDate}T00:00:00`).getTime();
+        const end = new Date(`${customEndDate}T23:59:59.999`).getTime();
+        return saleTime >= start && saleTime <= end;
+      }
       return true;
     });
-  }, [sales, period]);
+  }, [sales, period, customStartDate, customEndDate]);
 
   // Aggregate stats
   const stats = useMemo(() => {
@@ -82,26 +105,33 @@ export default function ReportsView() {
 
   // Refund / Cancel sale
   const handleCancelSale = async (sale) => {
-    if (confirm(`Fiş #${sale.receiptNo} satışını iptal edip ürün stoklarını geri yüklemek istiyor musunuz?`)) {
-      // Restore stocks
+    const isRefund = sale.isRefund || sale.grandTotal < 0 || sale.receiptNo?.startsWith('IAD');
+    const confirmMsg = isRefund
+      ? `İade Makbuzu #${sale.receiptNo} işlemini iptal edip, stoğa eklenen ürünleri geri düşmek istiyor musunuz?`
+      : `Fiş #${sale.receiptNo} satışını iptal edip ürün stoklarını geri yüklemek istiyor musunuz?`;
+
+    if (confirm(confirmMsg)) {
+      // Restore / deduct stocks appropriately
       for (const item of sale.items) {
         const prod = await db.products.get(item.id);
         if (prod) {
-          await db.products.update(prod.id, { stock: prod.stock + item.quantity });
+          const qtyDelta = isRefund ? -Math.abs(item.quantity) : Math.abs(item.quantity);
+          await db.products.update(prod.id, { stock: Math.max(0, prod.stock + qtyDelta) });
         }
       }
 
-      // If debt, reduce customer balance
+      // If debt, adjust customer balance
       if (sale.paymentMethod === 'debt' && sale.customerId) {
         const cust = await db.customers.get(sale.customerId);
         if (cust) {
-          await db.customers.update(cust.id, { balance: Math.max(0, cust.balance - sale.grandTotal) });
+          const balanceDelta = isRefund ? Math.abs(sale.grandTotal) : -Math.abs(sale.grandTotal);
+          await db.customers.update(cust.id, { balance: Math.max(0, (cust.balance || 0) + balanceDelta) });
           await db.customerTransactions.add({
             customerId: cust.id,
-            type: 'payment',
-            amount: sale.grandTotal,
+            type: isRefund ? 'debt' : 'payment',
+            amount: Math.abs(sale.grandTotal),
             date: new Date().toISOString(),
-            note: `İptal: Fiş #${sale.receiptNo}`,
+            note: `İptal: ${sale.receiptNo}`,
             receiptNo: sale.receiptNo
           });
         }
@@ -114,19 +144,20 @@ export default function ReportsView() {
 
   const handleDownloadZReportPDF = () => {
     try {
-      const doc = new jsPDF({ unit: 'mm', format: [80, 180] });
+      const doc = new jsPDF({ unit: 'mm', format: [80, 185] });
       doc.setFont('courier', 'bold');
       doc.setFontSize(13);
       doc.text(storeSettings?.storeName || 'MARKET KASA', 40, 10, { align: 'center' });
       doc.setFontSize(10);
-      doc.text('GÜN SONU Z-RAPORU', 40, 16, { align: 'center' });
+      doc.text(period === 'today' ? 'GÜN SONU Z-RAPORU' : 'DÖNEMSEL MALİ RAPOR (Z)', 40, 16, { align: 'center' });
       
       doc.setFont('courier', 'normal');
       doc.setFontSize(8);
-      doc.text(`Tarih: ${new Date().toLocaleString('tr-TR')}`, 5, 23);
-      doc.text('------------------------------------------', 40, 27, { align: 'center' });
+      doc.text(`Dönem: ${periodLabel}`, 5, 22);
+      doc.text(`Tarih: ${new Date().toLocaleString('tr-TR')}`, 5, 26);
+      doc.text('------------------------------------------', 40, 29, { align: 'center' });
 
-      let y = 33;
+      let y = 35;
       doc.text(`Toplam Fiş Adedi   : ${stats.salesCount}`, 5, y); y += 5;
       doc.text(`Nakit Tahsilat     : ₺${stats.cashTotal.toFixed(2)}`, 5, y); y += 5;
       doc.text(`Kredi Kartı        : ₺${stats.cardTotal.toFixed(2)}`, 5, y); y += 5;
@@ -136,7 +167,7 @@ export default function ReportsView() {
       
       doc.setFont('courier', 'bold');
       doc.setFontSize(10);
-      doc.text(`GENEL CİRO        : ₺${stats.totalRevenue.toFixed(2)}`, 5, y); y += 6;
+      doc.text(`TOPLAM CİRO       : ₺${stats.totalRevenue.toFixed(2)}`, 5, y); y += 6;
       doc.text(`TAHMİNİ NET KAR   : ₺${stats.totalProfit.toFixed(2)}`, 5, y); y += 6;
 
       doc.setFont('courier', 'normal');
@@ -147,7 +178,7 @@ export default function ReportsView() {
         doc.text(`${idx + 1}. ${it.name.substring(0, 15)} (${it.count} adet)`, 5, y); y += 4;
       });
 
-      doc.save(`Z-Raporu-${new Date().toISOString().slice(0, 10)}.pdf`);
+      doc.save(`Z-Raporu-${selectedReceipt || period}.pdf`);
     } catch (e) {
       console.error(e);
     }
@@ -164,28 +195,40 @@ export default function ReportsView() {
             <span>Kasa Raporları & Z-Raporu</span>
           </h2>
 
-          <button
-            onClick={() => setShowZReportModal(true)}
-            className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Z-Raporu Al</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowInvoiceModal(true)}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition shadow-sm"
+              title="Günlük / Dönemsel Satış Faturası Çıkar"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Satış Faturası</span>
+            </button>
+
+            <button
+              onClick={() => setShowZReportModal(true)}
+              className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Z-Raporu</span>
+            </button>
+          </div>
         </div>
 
         {/* Date Filter Tabs */}
-        <div className="grid grid-cols-5 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-semibold">
+        <div className="grid grid-cols-6 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-semibold">
           {[
             { id: 'today', label: 'Bugün' },
             { id: 'yesterday', label: 'Dün' },
             { id: 'week', label: '7 Gün' },
             { id: 'month', label: 'Bu Ay' },
+            { id: 'custom', label: 'Tarih Aralığı' },
             { id: 'all', label: 'Tümü' }
           ].map((t) => (
             <button
               key={t.id}
               onClick={() => setPeriod(t.id)}
-              className={`py-1.5 rounded-lg text-center transition ${
+              className={`py-1.5 rounded-lg text-center transition truncate px-0.5 ${
                 period === t.id
                   ? 'bg-slate-800 text-white font-bold shadow'
                   : 'text-slate-400 hover:text-slate-200'
@@ -195,6 +238,39 @@ export default function ReportsView() {
             </button>
           ))}
         </div>
+
+        {/* Custom Date Range Selector (When 'custom' selected) */}
+        {period === 'custom' && (
+          <div className="bg-slate-950/90 border border-blue-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs animate-in fade-in">
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg flex-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Başlangıç:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-transparent text-white font-mono text-xs focus:outline-none w-full cursor-pointer"
+                />
+              </div>
+
+              <span className="text-slate-500">→</span>
+
+              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg flex-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Bitiş:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-transparent text-white font-mono text-xs focus:outline-none w-full cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="text-[10px] text-blue-400 font-mono font-bold bg-blue-950/40 px-2 py-1 rounded-md border border-blue-800/40">
+              {filteredSales.length} Satış
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Reports Content */}
@@ -281,64 +357,77 @@ export default function ReportsView() {
               Seçilen periyotta satış hareketi bulunamadı.
             </div>
           ) : (
-            filteredSales.map((sale) => (
-              <div
-                key={sale.id}
-                className={`bg-slate-900 border rounded-2xl p-3 flex items-center justify-between gap-2 transition ${
-                  sale.status === 'cancelled'
-                    ? 'border-rose-900/40 opacity-60'
-                    : 'border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono font-bold text-slate-300">{sale.receiptNo}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                      sale.paymentMethod === 'cash' ? 'bg-emerald-500/20 text-emerald-400' :
-                      sale.paymentMethod === 'card' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'
-                    }`}>
-                      {sale.paymentMethod === 'cash' ? 'Nakit' : sale.paymentMethod === 'card' ? 'Kart' : 'Veresiye'}
-                    </span>
-                    {sale.status === 'cancelled' && (
-                      <span className="text-[9px] bg-rose-500/20 text-rose-400 px-1 rounded font-bold">
-                        İPTAL EDİLDİ
+            filteredSales.map((sale) => {
+              const isRefund = sale.isRefund || sale.grandTotal < 0 || sale.receiptNo?.startsWith('IAD');
+              return (
+                <div
+                  key={sale.id}
+                  className={`border rounded-2xl p-3 flex items-center justify-between gap-2 transition ${
+                    sale.status === 'cancelled'
+                      ? 'bg-slate-900 border-rose-900/40 opacity-60'
+                      : isRefund
+                      ? 'bg-amber-950/20 border-amber-600/40 hover:border-amber-500/60'
+                      : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono font-bold text-slate-300">{sale.receiptNo}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                        sale.paymentMethod === 'cash' ? 'bg-emerald-500/20 text-emerald-400' :
+                        sale.paymentMethod === 'card' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'
+                      }`}>
+                        {sale.paymentMethod === 'cash' ? 'Nakit' : sale.paymentMethod === 'card' ? 'Kart' : 'Veresiye'}
                       </span>
-                    )}
+                      {isRefund && (
+                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-bold">
+                          İADE
+                        </span>
+                      )}
+                      {sale.status === 'cancelled' && (
+                        <span className="text-[9px] bg-rose-500/20 text-rose-400 px-1 rounded font-bold">
+                          İPTAL EDİLDİ
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {new Date(sale.date).toLocaleDateString('tr-TR')} {new Date(sale.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} • {sale.items.length} Kalem Ürün
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    {new Date(sale.date).toLocaleDateString('tr-TR')} {new Date(sale.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} • {sale.items.length} Kalem Ürün
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <span className={`text-sm font-black font-mono block ${sale.status === 'cancelled' ? 'line-through text-slate-500' : 'text-emerald-400'}`}>
-                      ₺{sale.grandTotal.toFixed(2)}
-                    </span>
-                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <span className={`text-sm font-black font-mono block ${
+                        sale.status === 'cancelled' ? 'line-through text-slate-500' :
+                        isRefund ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>
+                        {sale.grandTotal < 0 ? `-₺${Math.abs(sale.grandTotal).toFixed(2)}` : `₺${sale.grandTotal.toFixed(2)}`}
+                      </span>
+                    </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setSelectedReceipt(sale)}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-                      title="Fişi Görüntüle / Yazdır"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-
-                    {hasPermission('canCancelSale') && sale.status !== 'cancelled' && (
+                    <div className="flex items-center gap-1">
                       <button
-                        onClick={() => handleCancelSale(sale)}
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 transition"
-                        title="Fişi İptal Et / İade Al"
+                        onClick={() => setSelectedReceipt(sale)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                        title="Fişi Görüntüle / Yazdır"
                       >
+                        <Eye className="w-4 h-4" />
+                      </button>
+
+                      {hasPermission('canCancelSale') && sale.status !== 'cancelled' && (
+                        <button
+                          onClick={() => handleCancelSale(sale)}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 transition"
+                          title="İşlemi İptal Et"
+                        >
                         <RotateCcw className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 </div>
               </div>
-            ))
+            );
+          })
           )}
         </div>
 
@@ -433,6 +522,15 @@ export default function ReportsView() {
             taxId: storeSettings?.taxId || 'VKN: 1234567890',
             footer: storeSettings?.receiptFooter || 'Teşekkür Ederiz!'
           }}
+        />
+      )}
+
+      {/* Daily Sales Invoice Modal */}
+      {showInvoiceModal && (
+        <DailyInvoiceModal
+          onClose={() => setShowInvoiceModal(false)}
+          defaultStartDate={period === 'custom' ? customStartDate : (period === 'today' ? new Date().toISOString().slice(0, 10) : undefined)}
+          defaultEndDate={period === 'custom' ? customEndDate : (period === 'today' ? new Date().toISOString().slice(0, 10) : undefined)}
         />
       )}
 

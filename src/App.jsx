@@ -8,6 +8,7 @@ import { googleDriveSync } from './utils/googleDriveSync';
 import { LayoutDashboard, ShoppingCart, Package, BookUser, BarChart3, X, ArrowRight, Check } from 'lucide-react';
 
 const PosScreen = lazy(() => import('./components/PosScreen'));
+const StockUpdateView = lazy(() => import('./components/StockUpdateView'));
 const ProductCatalog = lazy(() => import('./components/ProductCatalog'));
 const CustomerBook = lazy(() => import('./components/CustomerBook'));
 const ReportsView = lazy(() => import('./components/ReportsView'));
@@ -540,6 +541,7 @@ function AppContent({ marketSession, onMarketUpdate, onMarketExit }) {
     const tabPermissions = {
       dashboard: 'canManageUsers',
       pos: 'canAccessPos',
+      stock: 'canAccessProducts',
       products: 'canAccessProducts',
       customers: 'canAccessCustomers',
       reports: 'canAccessReports',
@@ -613,8 +615,11 @@ function AppContent({ marketSession, onMarketUpdate, onMarketExit }) {
           {activeTab === 'pos' && hasPermission('canAccessPos') && (
             <PosScreen cart={cart} setCart={setCart} />
           )}
+          {activeTab === 'stock' && hasPermission('canAccessProducts') && (
+            <StockUpdateView onNavigate={setActiveTab} />
+          )}
           {activeTab === 'products' && hasPermission('canAccessProducts') && (
-            <ProductCatalog />
+            <ProductCatalog onNavigate={setActiveTab} />
           )}
           {activeTab === 'customers' && hasPermission('canAccessCustomers') && (
             <CustomerBook />

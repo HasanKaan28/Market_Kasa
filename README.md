@@ -1,4 +1,4 @@
-﻿# 🛒 Market Kasa - Modern Barcode POS & Retail Inventory Management System
+# 🛒 Market Kasa - Modern Barcode POS & Retail Inventory Management System
 
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-6.2-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -11,7 +11,16 @@
 
 ---
 
-## ✨ Key Features
+## 📲 Hızlı İndir & Kurulum (İş Yeri / Personel)
+
+| Platform | Kurulum Türü | İndirme / Erişim Linki |
+| :--- | :--- | :--- |
+| 🤖 **Android** | APK Dosyası | [📥 Market-Kasa.apk İndir](https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa.apk) |
+| 💻 **Windows** | Setup Kurulumu (.exe) | [📥 Windows Kurulum Dosyası İndir](https://github.com/HasanKaan28/Market_Kasa/releases/latest) |
+| 🍏 **iPhone / iOS** | Web PWA (Ana Ekrana Ekle) | [🌐 iOS Canlı Web Adresi](https://hasankaan28.github.io/Market_Kasa/) *(Safari -> Paylaş -> Ana Ekrana Ekle)* |
+| 📦 **Tüm Sürümler** | GitHub Releases | [🏷️ Sürümler ve Dosyalar](https://github.com/HasanKaan28/Market_Kasa/releases) |
+
+---
 
 - ⚡ **Rapid Barcode Scanning:** Seamless integration with physical USB/Bluetooth handheld barcode scanners and mobile/tablet camera scanning via `html5-qrcode`.
 - 📦 **Smart Catalog & Stock Control:** Barcode generation, multi-category sorting, low-stock threshold alerts, quick price adjustment, and bulk editing.

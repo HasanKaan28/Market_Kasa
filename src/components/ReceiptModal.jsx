@@ -5,6 +5,9 @@ import { jsPDF } from 'jspdf';
 export default function ReceiptModal({ sale, onClose, storeInfo }) {
   if (!sale) return null;
 
+  const isRefund = sale.isRefund || sale.grandTotal < 0 || sale.receiptNo?.startsWith('IAD');
+  const displayTotal = Math.abs(sale.grandTotal || 0);
+
   const handlePrint = () => {
     window.print();
   };
@@ -26,11 +29,14 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
       doc.text(`Tel: ${storeInfo?.phone || ''} | ${storeInfo?.taxId || ''}`, 40, 19, { align: 'center' });
       doc.text('------------------------------------------', 40, 23, { align: 'center' });
 
-      doc.text(`Fiş No: ${sale.receiptNo}`, 5, 27);
-      doc.text(`Tarih : ${new Date(sale.date).toLocaleString('tr-TR')}`, 5, 31);
-      doc.text('------------------------------------------', 40, 35, { align: 'center' });
+      doc.setFont('courier', 'bold');
+      doc.text(isRefund ? '*** İADE GİDER PUSULASI ***' : '*** SATIŞ BİLGİ FİŞİ ***', 40, 27, { align: 'center' });
+      doc.setFont('courier', 'normal');
+      doc.text(`Fiş No: ${sale.receiptNo}`, 5, 32);
+      doc.text(`Tarih : ${new Date(sale.date).toLocaleString('tr-TR')}`, 5, 36);
+      doc.text('------------------------------------------', 40, 40, { align: 'center' });
 
-      let y = 40;
+      let y = 45;
       doc.text('Ürün                     Adet    Tutar', 5, y);
       y += 4;
       doc.text('------------------------------------------', 40, y, { align: 'center' });
@@ -38,8 +44,8 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
 
       sale.items.forEach((item) => {
         const name = item.name.substring(0, 18).padEnd(18, ' ');
-        const qty = `${item.quantity} ${item.unit}`.padEnd(8, ' ');
-        const total = `₺${item.total.toFixed(2)}`.padStart(8, ' ');
+        const qty = `${Math.abs(item.quantity)} ${item.unit || 'Adet'}`.padEnd(8, ' ');
+        const total = `₺${Math.abs(item.total).toFixed(2)}`.padStart(8, ' ');
         doc.text(`${name} ${qty} ${total}`, 5, y);
         y += 5;
       });
@@ -48,15 +54,15 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
       y += 5;
       doc.setFont('courier', 'bold');
       doc.setFontSize(10);
-      doc.text(`TOPLAM: ₺${sale.grandTotal.toFixed(2)}`, 75, y, { align: 'right' });
+      doc.text(`${isRefund ? 'İADE EDİLEN' : 'TOPLAM'}: ₺${displayTotal.toFixed(2)}`, 75, y, { align: 'right' });
       y += 5;
 
       doc.setFont('courier', 'normal');
       doc.setFontSize(8);
       const payText = sale.paymentMethod === 'cash' ? 'NAKİT' : sale.paymentMethod === 'card' ? 'KREDİ KARTI' : 'VERESİYE';
-      doc.text(`Ödeme Türü: ${payText}`, 5, y);
+      doc.text(`${isRefund ? 'İade Şekli' : 'Ödeme Türü'}: ${payText}`, 5, y);
       y += 4;
-      if (sale.paymentMethod === 'cash') {
+      if (sale.paymentMethod === 'cash' && !isRefund) {
         doc.text(`Alınan: ₺${(sale.cashGiven || sale.grandTotal).toFixed(2)}`, 5, y);
         y += 4;
         doc.text(`Para Üstü: ₺${(sale.changeGiven || 0).toFixed(2)}`, 5, y);
@@ -65,32 +71,32 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
 
       doc.text('------------------------------------------', 40, y, { align: 'center' });
       y += 5;
-      doc.text(storeInfo?.footer || 'Teşekkür Ederiz!', 40, y, { align: 'center' });
+      doc.text(storeInfo?.footer || (isRefund ? 'İade İşlemi Tamamlandı.' : 'Teşekkür Ederiz!'), 40, y, { align: 'center' });
 
-      doc.save(`Fis-${sale.receiptNo}.pdf`);
+      doc.save(`${isRefund ? 'Iade' : 'Fis'}-${sale.receiptNo}.pdf`);
     } catch (err) {
       console.error('PDF oluşturma hatası:', err);
     }
   };
 
   const handleShareWhatsApp = () => {
-    let text = `🧾 *${storeInfo?.name || 'MARKET'} BİLGİ FİŞİ*\n`;
+    let text = `🧾 *${storeInfo?.name || 'MARKET'} ${isRefund ? 'İADE GİDER MAKBUZU' : 'BİLGİ FİŞİ'}*\n`;
     text += `Fiş No: ${sale.receiptNo}\n`;
     text += `Tarih: ${new Date(sale.date).toLocaleString('tr-TR')}\n`;
     text += `--------------------------------\n`;
     sale.items.forEach((item) => {
-      text += `• ${item.name} x${item.quantity} = ₺${item.total.toFixed(2)}\n`;
+      text += `• ${item.name} x${Math.abs(item.quantity)} = ₺${Math.abs(item.total).toFixed(2)}\n`;
     });
     text += `--------------------------------\n`;
-    text += `*TOPLAM TUTAR: ₺${sale.grandTotal.toFixed(2)}*\n`;
-    text += `Ödeme: ${sale.paymentMethod === 'cash' ? 'Nakit' : sale.paymentMethod === 'card' ? 'Kredi Kartı' : 'Veresiye'}\n`;
-    if (sale.paymentMethod === 'cash' && sale.changeGiven > 0) {
+    text += `*${isRefund ? 'İADE EDİLEN TUTAR' : 'TOPLAM TUTAR'}: ₺${displayTotal.toFixed(2)}*\n`;
+    text += `${isRefund ? 'İade Şekli' : 'Ödeme'}: ${sale.paymentMethod === 'cash' ? 'Nakit' : sale.paymentMethod === 'card' ? 'Kredi Kartı' : 'Veresiye'}\n`;
+    if (!isRefund && sale.paymentMethod === 'cash' && sale.changeGiven > 0) {
       text += `Para Üstü: ₺${sale.changeGiven.toFixed(2)}\n`;
     }
     if (sale.customerName) {
-      text += `Cari Hesap: ${sale.customerName}\n`;
+      text += `Cari / Müşteri: ${sale.customerName}\n`;
     }
-    text += `\n${storeInfo?.footer || 'Bizi tercih ettiğiniz için teşekkür ederiz!'}`;
+    text += `\n${storeInfo?.footer || (isRefund ? 'İade işlemi başarıyla gerçekleştirilmiştir.' : 'Bizi tercih ettiğiniz için teşekkür ederiz!')}`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -132,8 +138,14 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
               <p className="text-[10px] text-gray-500">{storeInfo?.taxId || 'VKN: 1234567890'}</p>
             </div>
 
+            {isRefund && (
+              <div className="bg-amber-100 border border-amber-400 text-amber-950 font-bold text-center py-1 rounded my-1.5 text-xs tracking-wider">
+                🔄 ÜRÜN İADE MAKBUZU
+              </div>
+            )}
+
             <div className="border-t border-b border-dashed border-gray-400 py-1.5 my-2 text-[10px] flex justify-between text-gray-700">
-              <span>Fiş: {sale.receiptNo}</span>
+              <span>{isRefund ? 'İade No:' : 'Fiş:'} {sale.receiptNo}</span>
               <span>{new Date(sale.date).toLocaleDateString('tr-TR')} {new Date(sale.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
 
@@ -144,10 +156,10 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
                   <div className="flex-1 pr-2">
                     <p className="font-bold leading-tight">{item.name}</p>
                     <p className="text-[10px] text-gray-500">
-                      {item.quantity} {item.unit} x ₺{item.price.toFixed(2)} (%{item.taxRate} KDV)
+                      {Math.abs(item.quantity)} {item.unit || 'Adet'} x ₺{item.price.toFixed(2)} (%{item.taxRate} KDV)
                     </p>
                   </div>
-                  <span className="font-bold whitespace-nowrap">₺{item.total.toFixed(2)}</span>
+                  <span className="font-bold whitespace-nowrap">₺{Math.abs(item.total).toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -156,7 +168,7 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
             <div className="border-t border-dashed border-gray-400 pt-2 space-y-1 text-[11px]">
               <div className="flex justify-between text-gray-600">
                 <span>Ara Toplam:</span>
-                <span>₺{sale.subtotal.toFixed(2)}</span>
+                <span>₺{Math.abs(sale.subtotal || 0).toFixed(2)}</span>
               </div>
               {sale.discount > 0 && (
                 <div className="flex justify-between text-rose-600">
@@ -166,21 +178,21 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
               )}
               <div className="flex justify-between text-gray-600">
                 <span>KDV Toplamı:</span>
-                <span>₺{sale.taxTotal.toFixed(2)}</span>
+                <span>₺{Math.abs(sale.taxTotal || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-base font-black border-t-2 border-black pt-1 mt-1">
-                <span>TOPLAM:</span>
-                <span>₺{sale.grandTotal.toFixed(2)}</span>
+                <span>{isRefund ? 'İADE EDİLEN TUTAR:' : 'TOPLAM:'}</span>
+                <span>₺{displayTotal.toFixed(2)}</span>
               </div>
             </div>
 
             {/* Payment Details */}
             <div className="bg-gray-100 p-2 rounded mt-3 text-[10px] space-y-0.5">
               <div className="flex justify-between font-bold">
-                <span>ÖDEME TÜRÜ:</span>
+                <span>{isRefund ? 'İADE ŞEKLİ:' : 'ÖDEME TÜRÜ:'}</span>
                 <span>{paymentLabel}</span>
               </div>
-              {sale.paymentMethod === 'cash' && (
+              {sale.paymentMethod === 'cash' && !isRefund && (
                 <>
                   <div className="flex justify-between text-gray-600">
                     <span>Alınan Nakit:</span>
@@ -194,7 +206,7 @@ export default function ReceiptModal({ sale, onClose, storeInfo }) {
               )}
               {sale.customerName && (
                 <div className="flex justify-between text-amber-700 font-bold border-t border-gray-300 pt-0.5">
-                  <span>Müşteri (Veresiye):</span>
+                  <span>{isRefund ? 'İade Düşülen Müşteri:' : 'Müşteri (Veresiye):'}</span>
                   <span>{sale.customerName}</span>
                 </div>
               )}

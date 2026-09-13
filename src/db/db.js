@@ -21,6 +21,14 @@ db.version(3).stores({
   customerTransactions: '++id, customerId, date, type'
 });
 
+db.version(4).stores({
+  purchaseInvoices: '++id, invoiceNo, supplierName, date, createdAt'
+});
+
+db.version(5).stores({
+  supplierPayments: '++id, supplierName, date, paymentMethod, createdAt'
+});
+
 /**
  * Arka plan kütüphanesinden sisteme yüklenmiş veya eski örnek ürünleri temizler.
  * Kullanıcı "Tüm Ürünler"de sadece kendi eklediği veya okutup fiyat belirlediği ürünleri görür.

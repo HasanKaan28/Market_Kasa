@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Crown, Trophy, Medal, TrendingUp, Users, ShoppingCart, 
-  Package, BarChart3, Settings, ShieldAlert, ArrowRight, 
+  Package, Boxes, BarChart3, Settings, ShieldAlert, ArrowRight, 
   Clock, Cloud, RefreshCw, Sparkles, DollarSign, Receipt, 
   ChevronRight, AlertCircle, Calendar, Award, Star, Zap, Target,
   Flame, CheckCircle2, ArrowUpRight, ShieldCheck, LogOut, UserCheck,
-  Bell, BellRing, Volume2, Share2, Globe, Check, X
+  Bell, BellRing, Volume2, Share2, Globe, Check, X, FileText
 } from 'lucide-react';
 import { db } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage, SUPPORTED_LANGUAGES } from '../context/LanguageContext';
+import DailyInvoiceModal from './DailyInvoiceModal';
 import { calculateStaffLeaderboard } from '../utils/staffStats';
 import { googleDriveSync } from '../utils/googleDriveSync';
 import { sync } from '../utils/sync';
@@ -36,6 +37,7 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
   const [targetSavedMsg, setTargetSavedMsg] = useState(false);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [celebrationModal, setCelebrationModal] = useState(null); // { target, currentRevenue }
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   // Live Database Queries
   const sales = useLiveQuery(() => db.sales.reverse().toArray(), []) || [];
@@ -693,29 +695,57 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
           {/* RAF 2: ÜRÜN & STOK YÖNETİMİ */}
           <button
             onClick={() => onNavigate('products')}
-            className="group text-left bg-gradient-to-br from-slate-900 to-slate-900/80 hover:to-slate-800/80 border border-slate-800 hover:border-sky-500/50 rounded-2xl p-4 shadow-lg transition-all duration-200 active:scale-98 flex flex-col justify-between"
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-sky-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center font-bold">
                   <Package className="w-5 h-5" />
                 </div>
                 {lowStockCount > 0 && (
-                  <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
                     {lowStockCount} Kritik
                   </span>
                 )}
               </div>
-              <h3 className="text-sm font-bold text-white group-hover:text-sky-400 transition">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-sky-700 transition">
                 {t('shelf_products_title', 'Ürün & Stok Rafı')}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 {t('shelf_products_desc', 'Toplam kayıtlı ürün, hazır internet barkodları ve fiyat güncellemeleri.')}
               </p>
             </div>
-            <div className="mt-4 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-sky-400 font-bold">
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-sky-700 font-bold">
               <span>{t('shelf_products_action', 'Stokları İncele')} ({products.length})</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+            </div>
+          </button>
+
+          {/* RAF: HIZLI STOK GÜNCELLEME & MAL KABUL */}
+          <button
+            onClick={() => onNavigate('stock')}
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-blue-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center font-bold">
+                  <Boxes className="w-5 h-5" />
+                </div>
+                <span className="bg-blue-100 text-blue-800 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Zap className="w-3 h-3" />
+                  Hızlı Giriş
+                </span>
+              </div>
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-700 transition">
+                Alış Faturası & Mal Kabul
+              </h3>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Toptancı faturalarını seri girin, stokları anında arttırın ve geçmiş faturaları arşivleyin.
+              </p>
+            </div>
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-blue-700 font-bold">
+              <span>Fatura & Stok Girişi</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
             </div>
           </button>
@@ -723,25 +753,25 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
           {/* RAF 3: VERESİYE DEFTERİ */}
           <button
             onClick={() => onNavigate('customers')}
-            className="group text-left bg-gradient-to-br from-slate-900 to-slate-900/80 hover:to-slate-800/80 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-4 shadow-lg transition-all duration-200 active:scale-98 flex flex-col justify-between"
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
                   <Users className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] font-mono bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
                   ₺{totalDebt.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} Alacak
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-amber-700 transition">
                 {t('shelf_customers_title', 'Veresiye & Müşteri Defteri')}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                <strong className="text-white">{indebtedCustomersCount}</strong> {t('shelf_customers_desc', 'borçlu müşteri takibi, tahsilat ve ekstre.')}
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                <strong className="text-slate-900">{indebtedCustomersCount}</strong> {t('shelf_customers_desc', 'borçlu müşteri takibi, tahsilat ve ekstre.')}
               </p>
             </div>
-            <div className="mt-4 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-amber-400 font-bold">
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-amber-700 font-bold">
               <span>{t('shelf_customers_action', 'Defteri Aç')}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
             </div>
@@ -750,26 +780,53 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
           {/* RAF 4: Z RAPORU & MALİ ANALİZ */}
           <button
             onClick={() => onNavigate('reports')}
-            className="group text-left bg-gradient-to-br from-slate-900 to-slate-900/80 hover:to-slate-800/80 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-4 shadow-lg transition-all duration-200 active:scale-98 flex flex-col justify-between"
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-purple-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 border border-purple-200 flex items-center justify-center font-bold">
                   <BarChart3 className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-full font-bold">
                   Mali Döküm
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-white group-hover:text-purple-400 transition">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-purple-700 transition">
                 {t('shelf_reports_title', 'Raporlar & Z Raporu')}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 {t('shelf_reports_desc', 'Nakit/Kart dağılımı, gün sonu Z raporu alma, PDF çıktısı ve geçmiş satış iptalleri.')}
               </p>
             </div>
-            <div className="mt-4 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-purple-400 font-bold">
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-purple-700 font-bold">
               <span>{t('shelf_reports_action', 'Z Raporu Al')}</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+            </div>
+          </button>
+
+          {/* RAF: GÜNLÜK SATIŞ FATURASI */}
+          <button
+            onClick={() => setShowInvoiceModal(true)}
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                  Resmi Fatura
+                </span>
+              </div>
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition">
+                Günlük Satış Faturası
+              </h3>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Günün tüm satışlarını kalem bazında A4 resmi fatura formatında dökün ve yazdırın.
+              </p>
+            </div>
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-emerald-700 font-bold">
+              <span>Fatura Çıkar (A4)</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
             </div>
           </button>
@@ -777,25 +834,25 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
           {/* RAF 5: PERSONEL & PIN YÖNETİMİ */}
           <button
             onClick={() => onNavigate('users')}
-            className="group text-left bg-gradient-to-br from-slate-900 to-slate-900/80 hover:to-slate-800/80 border border-slate-800 hover:border-teal-500/50 rounded-2xl p-4 shadow-lg transition-all duration-200 active:scale-98 flex flex-col justify-between"
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-teal-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 border border-teal-200 flex items-center justify-center font-bold">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded-full font-bold font-mono">
+                <span className="text-[10px] bg-teal-100 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full font-bold font-mono">
                   {users.length} Çalışan
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-white group-hover:text-teal-400 transition">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-teal-700 transition">
                 {t('shelf_users_title', 'Personel & PIN Yönetimi')}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 {t('shelf_users_desc', 'Kasiyer ekleme, PIN şifreleri belirleme, ekran yetkilerini kısıtlama veya açma.')}
               </p>
             </div>
-            <div className="mt-4 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-teal-400 font-bold">
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-teal-700 font-bold">
               <span>{t('shelf_users_action', 'Personeli Yönet')}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
             </div>
@@ -804,27 +861,27 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
           {/* RAF 6: GOOGLE DRIVE & SİSTEM AYARLARI */}
           <button
             onClick={() => onNavigate('settings')}
-            className="group text-left bg-gradient-to-br from-slate-900 to-slate-900/80 hover:to-slate-800/80 border border-slate-800 hover:border-sky-500/50 rounded-2xl p-4 shadow-lg transition-all duration-200 active:scale-98 flex flex-col justify-between"
+            className="group text-left bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-sky-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 active:scale-98 flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center font-bold">
                   <Cloud className="w-5 h-5" />
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold font-mono ${
-                  gdriveState.isConfigured ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800 text-slate-400'
+                  gdriveState.isConfigured ? 'bg-sky-100 text-sky-800 border border-sky-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
                 }`}>
                   {gdriveState.isConfigured ? '1s Canlı' : 'Bağlı Değil'}
                 </span>
               </div>
-              <h3 className="text-sm font-bold text-white group-hover:text-sky-400 transition">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-sky-700 transition">
                 {t('shelf_settings_title', 'Ayarlar & Google Drive')}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 {t('shelf_settings_desc', 'Apps Script bağlantısı, mağaza adı ve fiş ayarları, veritabanı yedekleme ve geri yükleme.')}
               </p>
             </div>
-            <div className="mt-4 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-sky-400 font-bold">
+            <div className="mt-4 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs text-sky-700 font-bold">
               <span>{t('shelf_settings_action', 'Ayarları Aç')}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
             </div>
@@ -877,6 +934,13 @@ export default function AdminDashboard({ onNavigate, cartItemCount = 0 }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Daily Sales Invoice Modal */}
+      {showInvoiceModal && (
+        <DailyInvoiceModal
+          onClose={() => setShowInvoiceModal(false)}
+        />
       )}
 
     </div>

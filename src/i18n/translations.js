@@ -7,6 +7,7 @@ export const translations = {
   tr: {
     // Navigation
     nav_pos: 'Kasa (Satış)',
+    nav_stock: 'Alış Faturası & Stok',
     nav_products: 'Ürün & Stok',
     nav_customers: 'Veresiye',
     nav_reports: 'Rapor & Z',
@@ -97,6 +98,7 @@ export const translations = {
   en: {
     // Navigation
     nav_pos: 'POS (Sales)',
+    nav_stock: 'Invoice & Stock',
     nav_products: 'Products & Stock',
     nav_customers: 'Credit Ledger',
     nav_reports: 'Reports & Z',
@@ -187,6 +189,7 @@ export const translations = {
   ar: {
     // Navigation
     nav_pos: 'نقطة البيع',
+    nav_stock: 'فاتورة الشراء والمخزون',
     nav_products: 'المنتجات والمخزون',
     nav_customers: 'سجل الديون',
     nav_reports: 'التقارير و Z',
@@ -277,6 +280,7 @@ export const translations = {
   de: {
     // Navigation
     nav_pos: 'Kasse (Verkauf)',
+    nav_stock: 'Einkauf & Lager',
     nav_products: 'Waren & Lager',
     nav_customers: 'Kundenbuch',
     nav_reports: 'Berichte & Z',

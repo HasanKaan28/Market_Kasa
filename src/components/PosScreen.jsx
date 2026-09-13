@@ -3,7 +3,7 @@ import {
   Scan, Search, Plus, Minus, Trash2, PauseCircle, 
   RotateCcw, Sparkles, Percent, Tag, AlertCircle, ShoppingBag, X, Globe, Loader2,
   Banknote, CreditCard, Keyboard, Monitor, Layers, CheckCircle2, ChevronRight,
-  Receipt, Printer, Clock
+  Receipt, Printer, Clock, Star, Zap
 } from 'lucide-react';
 import { db } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -27,6 +27,15 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
   const [completedSale, setCompletedSale] = useState(null);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+
+  // Return / Refund Mode states
+  const [isRefundMode, setIsRefundMode] = useState(false);
+  const [refundPaymentMethod, setRefundPaymentMethod] = useState('cash'); // 'cash' | 'card' | 'debt'
+  const [refundQty, setRefundQty] = useState(1);
+  const [refundCustomerId, setRefundCustomerId] = useState('');
+  const [refundCustomerName, setRefundCustomerName] = useState('');
+  const [refundToast, setRefundToast] = useState(null);
+  const customers = useLiveQuery(() => db.customers.toArray(), []) || [];
 
   // Top Toast Notification for Completed Sales
   const [saleSuccessToast, setSaleSuccessToast] = useState(null);
@@ -66,6 +75,25 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
   const [quickCategory, setQuickCategory] = useState('Genel');
   const [quickTaxRate, setQuickTaxRate] = useState(1);
 
+  // Barkodsuz (Kiralama, Masa-Sandalye, Mangal, Top, Hizmet vb.) Modal ve Form State'i
+  const [nonBarcodeModal, setNonBarcodeModal] = useState(false);
+  const [nonBarcodeName, setNonBarcodeName] = useState('');
+  const [nonBarcodePrice, setNonBarcodePrice] = useState('');
+  const [nonBarcodeCategory, setNonBarcodeCategory] = useState('Kiralama & Hizmet');
+  const [nonBarcodeIsQuick, setNonBarcodeIsQuick] = useState(true);
+  const [nonBarcodeStock, setNonBarcodeStock] = useState('999');
+
+  // Hızlı öneri şablonları
+  const NON_BARCODE_PRESETS = [
+    { name: 'Kiralık Mangal', price: 150, category: 'Kiralama & Hizmet', icon: '🥩' },
+    { name: 'Kiralık Masa & Sandalye', price: 75, category: 'Kiralama & Hizmet', icon: '🪑' },
+    { name: 'Futbol / Voleybol Topu', price: 30, category: 'Kiralama & Hizmet', icon: '⚽' },
+    { name: 'Semaver Çay Hizmeti', price: 100, category: 'Kiralama & Hizmet', icon: '☕' },
+    { name: 'Şezlong & Şemsiye', price: 80, category: 'Kiralama & Hizmet', icon: '⛱️' },
+    { name: 'Ekmek / Unlu Mamul', price: 10, category: 'Unlu Mamul', icon: '🍞' },
+    { name: 'Açık Su / Meşrubat', price: 30, category: 'İçecek', icon: '💧' },
+  ];
+
   // Products from Dexie (Yalnızca kullanıcının kendi eklediği veya fiyatlandırdığı aktif ürünler)
   const allDbProducts = useLiveQuery(() => db.products.toArray(), []);
   const products = useMemo(() => (allDbProducts || []).filter(p => !p.needsPricing && p.price > 0), [allDbProducts]);
@@ -97,7 +125,13 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
   const desktopDisplayProducts = useMemo(() => {
     if (!products) return [];
     if (searchTerm.trim()) {
+      if (selectedCategory === 'FAVORITES') {
+        return filteredProducts.filter(p => p.isQuick);
+      }
       return filteredProducts;
+    }
+    if (selectedCategory === 'FAVORITES') {
+      return products.filter(p => p.isQuick);
     }
     if (selectedCategory === 'ALL') {
       return products;
@@ -159,10 +193,156 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
     });
   };
 
+  // Process Return / Refund
+  const processRefund = async (product, quantity = 1, method = refundPaymentMethod, custId = refundCustomerId, custName = refundCustomerName) => {
+    if (!product) return;
+    const qty = Math.max(1, parseInt(quantity) || 1);
+    const unitPrice = product.price || 0;
+    const buyPrice = product.buyPrice || 0;
+    const refundTotal = unitPrice * qty;
+    const refundCost = buyPrice * qty;
+    const refundProfit = -(refundTotal - refundCost);
+    const taxRate = product.taxRate || 1;
+    const taxTotal = -(refundTotal - (refundTotal / (1 + taxRate / 100)));
+
+    // 1. Ürün stoğuna geri ekle
+    const currentProd = await db.products.get(product.id);
+    const prevStock = currentProd?.stock || 0;
+    const newStock = prevStock + qty;
+    await db.products.update(product.id, {
+      stock: newStock,
+      updatedAt: new Date().toISOString()
+    });
+
+    // 2. Satış / İade kaydını oluştur
+    const now = new Date();
+    const receiptNo = `IAD-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Date.now().toString().slice(-4)}`;
+
+    const saleRecord = {
+      receiptNo,
+      date: now.toISOString(),
+      items: [
+        {
+          id: product.id,
+          barcode: product.barcode,
+          name: product.name,
+          price: unitPrice,
+          buyPrice: buyPrice,
+          taxRate: taxRate,
+          unit: product.unit || 'Adet',
+          quantity: -qty,
+          total: -refundTotal
+        }
+      ],
+      subtotal: -refundTotal,
+      discount: 0,
+      taxTotal: taxTotal,
+      grandTotal: -refundTotal,
+      profit: refundProfit,
+      paymentMethod: method,
+      cashGiven: method === 'cash' ? refundTotal : 0,
+      changeGiven: 0,
+      customerId: method === 'debt' ? (custId ? parseInt(custId) : null) : null,
+      customerName: method === 'debt' ? custName : null,
+      sellerId: currentUser?.id || 'user_kasiyer',
+      sellerName: currentUser?.name || 'Kasiyer',
+      status: 'completed',
+      isRefund: true,
+      type: 'refund',
+      note: `Ürün İadesi: ${product.name} (${qty} ${product.unit || 'Adet'})`
+    };
+
+    const saleId = await db.sales.add(saleRecord);
+    saleRecord.id = saleId;
+
+    // 3. Veresiye ise müşterinin borcundan düş
+    if (method === 'debt' && custId) {
+      const cust = await db.customers.get(parseInt(custId));
+      if (cust) {
+        const newBalance = Math.max(0, (cust.balance || 0) - refundTotal);
+        await db.customers.update(cust.id, { balance: newBalance });
+        await db.customerTransactions.add({
+          customerId: cust.id,
+          type: 'payment',
+          amount: refundTotal,
+          date: now.toISOString(),
+          note: `Ürün İadesi: ${product.name} (Fiş #${receiptNo})`,
+          receiptNo
+        });
+      }
+    }
+
+    // 4. WebSocket & Google Drive eşitleme
+    sync.broadcast('SALE_REFUNDED', {
+      sale: saleRecord,
+      productId: product.id,
+      newStock
+    });
+    googleDriveSync.triggerOnSaleSync();
+
+    // 5. Ses ve Bildirim
+    playCashRegisterSound();
+
+    if (window._refundToastTimer) clearTimeout(window._refundToastTimer);
+    setRefundToast({
+      sale: saleRecord,
+      saleId: saleId,
+      productId: product.id,
+      productName: product.name,
+      qty: qty,
+      unit: product.unit || 'Adet',
+      amount: refundTotal,
+      method: method,
+      receiptNo,
+      time: now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+    });
+    window._refundToastTimer = setTimeout(() => {
+      setRefundToast(null);
+    }, 7000);
+  };
+
+  const handleUndoRefund = async (toast) => {
+    if (!toast) return;
+    try {
+      const prod = await db.products.get(toast.productId);
+      if (prod) {
+        await db.products.update(prod.id, {
+          stock: Math.max(0, prod.stock - toast.qty),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      await db.sales.update(toast.saleId, { status: 'cancelled' });
+
+      if (toast.sale?.paymentMethod === 'debt' && toast.sale?.customerId) {
+        const cust = await db.customers.get(toast.sale.customerId);
+        if (cust) {
+          await db.customers.update(cust.id, { balance: (cust.balance || 0) + toast.amount });
+        }
+      }
+
+      setRefundToast(null);
+      playBarcodeBeep();
+    } catch (err) {
+      console.error('İade geri alma hatası:', err);
+    }
+  };
+
   // Handle barcode scanned from camera, bluetooth or USB barcode gun
   const handleBarcodeScanned = async (barcode) => {
     const cleanBarcode = barcode.trim();
     if (!cleanBarcode) return;
+
+    // İade modu aktifse: doğrudan iade işlemini yap
+    if (isRefundMode) {
+      const found = await db.products.where('barcode').equals(cleanBarcode).first();
+      if (found) {
+        await processRefund(found, refundQty);
+        return;
+      }
+      playErrorBeep();
+      alert(`[İADE] "${cleanBarcode}" barkodlu ürün sistemde kayıtlı değil! İade alabilmek için ürünün veritabanında kayıtlı olması gerekir.`);
+      return;
+    }
 
     // 1. Önce yerel veritabanında ara
     const found = await db.products.where('barcode').equals(cleanBarcode).first();
@@ -276,10 +456,135 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
     addToCart(savedProduct, 1);
   };
 
+  // Hazır şablonu form alanlarına uygula
+  const applyNonBarcodePreset = (preset) => {
+    setNonBarcodeName(preset.name);
+    setNonBarcodePrice(preset.price.toString());
+    setNonBarcodeCategory(preset.category);
+    setNonBarcodeIsQuick(true);
+  };
+
+  // Barkodsuz (Mangal, Masa-Sandalye, Top, Hizmet vb.) Ürün Kaydet & Sepete Ekle
+  const handleNonBarcodeSubmit = async (e, shouldAddToCart = true) => {
+    if (e) e.preventDefault();
+    if (!nonBarcodeName.trim() || !nonBarcodePrice) {
+      alert('Lütfen ürün / hizmet adını ve satış fiyatını girin.');
+      return;
+    }
+
+    const sellP = parseFloat(nonBarcodePrice) || 0;
+    const cleanCode = `BRK-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 90 + 10)}`;
+
+    try {
+      const newId = await db.products.add({
+        barcode: cleanCode,
+        name: nonBarcodeName.trim(),
+        category: nonBarcodeCategory.trim() || 'Kiralama & Hizmet',
+        price: sellP,
+        buyPrice: 0,
+        taxRate: 1,
+        stock: parseFloat(nonBarcodeStock) || 999,
+        unit: 'Adet',
+        needsPricing: false,
+        isQuick: nonBarcodeIsQuick,
+        isNoBarcode: true,
+        color: '#f59e0b',
+        updatedAt: new Date().toISOString()
+      });
+
+      const savedProduct = await db.products.get(newId);
+      sync.broadcast('PRODUCT_SAVED', { product: savedProduct });
+      googleDriveSync.triggerOnSaleSync();
+
+      if (shouldAddToCart) {
+        addToCart(savedProduct, 1);
+      }
+
+      setNonBarcodeModal(false);
+      setNonBarcodeName('');
+      setNonBarcodePrice('');
+    } catch (err) {
+      alert('Kayıt sırasında hata oluştu: ' + err.message);
+    }
+  };
+
+  // Tek Tıkla Örnek Kiralama Paketini Sisteme Ekle (Mangal, Masa-Sandalye, Top)
+  const handleQuickRentalPackSeed = async () => {
+    try {
+      const itemsToSeed = [
+        { name: 'Kiralık Mangal', price: 150, category: 'Kiralama & Hizmet', code: `BRK-MAN${Date.now().toString().slice(-4)}` },
+        { name: 'Kiralık Masa & Sandalye', price: 75, category: 'Kiralama & Hizmet', code: `BRK-MAS${Date.now().toString().slice(-4)}` },
+        { name: 'Futbol / Voleybol Topu', price: 30, category: 'Kiralama & Hizmet', code: `BRK-TOP${Date.now().toString().slice(-4)}` },
+      ];
+
+      for (const item of itemsToSeed) {
+        const exists = await db.products.filter(p => p.name.toLowerCase() === item.name.toLowerCase()).first();
+        if (!exists) {
+          const newId = await db.products.add({
+            barcode: item.code,
+            name: item.name,
+            category: item.category,
+            price: item.price,
+            buyPrice: 0,
+            taxRate: 1,
+            stock: 999,
+            unit: 'Adet',
+            needsPricing: false,
+            isQuick: true,
+            isNoBarcode: true,
+            color: '#f59e0b',
+            updatedAt: new Date().toISOString()
+          });
+          const prod = await db.products.get(newId);
+          sync.broadcast('PRODUCT_SAVED', { product: prod });
+        } else if (!exists.isQuick) {
+          await db.products.update(exists.id, { isQuick: true });
+        }
+      }
+      googleDriveSync.triggerOnSaleSync();
+      setNonBarcodeModal(false);
+    } catch (err) {
+      console.error('Kiralama paketi yüklenemedi:', err);
+    }
+  };
+
+  // Ürünü Hızlı Satış Butonlarına (isQuick) Ekle / Çıkar
+  const toggleQuickProduct = async (product, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const updatedStatus = !product.isQuick;
+      await db.products.update(product.id, {
+        isQuick: updatedStatus,
+        updatedAt: new Date().toISOString()
+      });
+      sync.broadcast('PRODUCT_SAVED', { product: { ...product, isQuick: updatedStatus } });
+      googleDriveSync.triggerOnSaleSync();
+    } catch (err) {
+      console.error('Hızlı ürün durumu güncellenemedi:', err);
+    }
+  };
+
   // Handle Search Input submit (e.g. Enter pressed by barcode gun)
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
+
+    if (isRefundMode) {
+      const matched = products?.find(p => p.barcode === searchTerm.trim());
+      if (matched) {
+        processRefund(matched, refundQty);
+        setSearchTerm('');
+        return;
+      }
+      if (filteredProducts.length === 1) {
+        processRefund(filteredProducts[0], refundQty);
+        setSearchTerm('');
+        return;
+      }
+      handleBarcodeScanned(searchTerm);
+      setSearchTerm('');
+      return;
+    }
 
     const matched = products?.find(p => p.barcode === searchTerm.trim());
     if (matched) {
@@ -462,13 +767,14 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
 
     const handleKeyDown = (e) => {
       // If modal is open, let Escape close it
-      if (showPayment || showScanner || showSuspended || quickAddModal.isOpen || showDiscountModal || completedSale) {
+      if (showPayment || showScanner || showSuspended || quickAddModal.isOpen || showDiscountModal || completedSale || nonBarcodeModal) {
         if (e.key === 'Escape') {
           e.preventDefault();
           setShowPayment(false);
           setShowScanner(false);
           setShowSuspended(false);
           setShowDiscountModal(false);
+          setNonBarcodeModal(false);
           setQuickAddModal({ isOpen: false, barcode: '', productId: null, isCatalogMatch: false, title: '' });
           setCompletedSale(null);
         }
@@ -504,6 +810,12 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
         return;
       }
 
+      if (e.key === 'F7') {
+        e.preventDefault();
+        setIsRefundMode(prev => !prev);
+        return;
+      }
+
       if (e.key === 'F8') {
         e.preventDefault();
         if (cart.length > 0) {
@@ -520,7 +832,9 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
 
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (showRecentSales) {
+        if (isRefundMode) {
+          setIsRefundMode(false);
+        } else if (showRecentSales) {
           setShowRecentSales(false);
         } else if (completedSale) {
           setCompletedSale(null);
@@ -569,7 +883,7 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, grandTotal, showPayment, showScanner, showSuspended, quickAddModal, showDiscountModal, completedSale, searchTerm, barcodeInput, scanMode]);
+  }, [cart, grandTotal, showPayment, showScanner, showSuspended, quickAddModal, showDiscountModal, nonBarcodeModal, completedSale, searchTerm, barcodeInput, scanMode, isRefundMode]);
 
   return (
     <div className="h-full flex flex-col lg:flex-row gap-0 lg:gap-3 w-full max-w-lg lg:max-w-7xl mx-auto overflow-hidden relative">
@@ -580,7 +894,7 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
         {/* Modern Minimalist Header / Mode Switcher */}
         <div className="shrink-0 p-2 sm:p-2.5 bg-zinc-900/90 backdrop-blur border-b border-zinc-800/80 space-y-2">
           
-          {/* Mode Switcher Segmented Control (Barkod Okuyucu vs Kamera) */}
+          {/* Mode Switcher Segmented Control (Barkod Okuyucu vs Kamera vs İade Modu) */}
           <div className="flex items-center p-0.5 bg-zinc-950 border border-zinc-800 rounded-xl gap-1">
             <button
               type="button"
@@ -615,6 +929,23 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
               <span>Kamera Barkod</span>
             </button>
 
+            {/* Return / Refund Mode Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsRefundMode(prev => !prev)}
+              className={`relative px-2.5 py-1 rounded-lg border transition active:scale-95 shrink-0 flex items-center gap-1.5 ${
+                isRefundMode
+                  ? 'bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-500/30 animate-pulse'
+                  : 'bg-zinc-850 text-rose-300 hover:text-white hover:bg-rose-600/20 border-rose-500/30'
+              }`}
+              title="Ürün İade Modu [F7]"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold">
+                {isRefundMode ? 'İADE AÇIK' : 'İade [F7]'}
+              </span>
+            </button>
+
             {/* Suspended Carts Trigger */}
             <button
               onClick={() => setShowSuspended(true)}
@@ -645,6 +976,115 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
             </button>
           </div>
 
+          {/* ================= ACTIVE REFUND MODE BANNER ================= */}
+          {isRefundMode && (
+            <div className="bg-gradient-to-r from-rose-950/90 via-amber-950/90 to-rose-950/90 border border-rose-500/70 rounded-xl p-2.5 space-y-2 shadow-lg animate-fade-in text-white">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-rose-500 flex items-center justify-center text-white shrink-0 shadow-md">
+                    <RotateCcw className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black tracking-wider text-rose-300 uppercase">🔄 İADE MODU AKTİF</span>
+                      <span className="text-[10px] bg-rose-500/30 text-rose-200 px-1.5 py-0.2 rounded font-semibold border border-rose-500/30">
+                        Anında İade & Stok Girişi
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-300 leading-tight">
+                      Barkod okutun veya ürüne dokunun — <strong>anında iade alınır</strong>, tutar kasadan düşülür ve stok artırılır.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRefundMode(false)}
+                  className="shrink-0 p-1 rounded-lg bg-zinc-800/80 hover:bg-rose-500 text-zinc-400 hover:text-white transition flex items-center gap-1 text-xs px-2"
+                  title="İade Modunu Kapat [Esc]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span className="font-bold hidden sm:inline">Kapat (Esc)</span>
+                </button>
+              </div>
+
+              {/* Controls: Refund Method & Quantity */}
+              <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-rose-500/20">
+                <span className="text-[11px] font-bold text-rose-200">İade Ödemesi:</span>
+                <div className="flex items-center bg-zinc-950/80 border border-zinc-800 rounded-lg p-0.5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setRefundPaymentMethod('cash')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      refundPaymentMethod === 'cash' ? 'bg-emerald-500 text-zinc-950 font-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    💵 Nakit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefundPaymentMethod('card')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      refundPaymentMethod === 'card' ? 'bg-sky-500 text-zinc-950 font-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    💳 Kart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefundPaymentMethod('debt')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      refundPaymentMethod === 'debt' ? 'bg-amber-500 text-zinc-950 font-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    👤 Veresiye
+                  </button>
+                </div>
+
+                {/* Customer Picker for Debt */}
+                {refundPaymentMethod === 'debt' && (
+                  <select
+                    value={refundCustomerId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setRefundCustomerId(id);
+                      const c = customers.find(cust => cust.id === parseInt(id));
+                      setRefundCustomerName(c ? c.name : '');
+                    }}
+                    className="bg-zinc-950 border border-amber-500/50 text-amber-300 text-xs rounded-lg px-2 py-1 focus:outline-none"
+                  >
+                    <option value="">Borçtan düşülecek müşteri...</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} (Bakiye: ₺{(c.balance || 0).toFixed(2)})</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Quantity adjustment */}
+                <div className="flex items-center gap-1 ml-auto">
+                  <span className="text-[11px] font-bold text-zinc-400">İade Adedi:</span>
+                  <div className="flex items-center bg-zinc-950/80 border border-zinc-800 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setRefundQty(prev => Math.max(1, prev - 1))}
+                      className="w-6 h-6 flex items-center justify-center text-zinc-400 hover:text-white font-bold text-sm"
+                    >
+                      -
+                    </button>
+                    <span className="px-2 text-xs font-mono font-black text-rose-300">{refundQty}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRefundQty(prev => prev + 1)}
+                      className="w-6 h-6 flex items-center justify-center text-zinc-400 hover:text-white font-bold text-sm"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ================= MODE 1: BARKOD OKUYUCU (SAYI GİRİŞİ / NUMPAD) ================= */}
           {scanMode === 'reader' ? (
             <div className="space-y-1.5">
@@ -658,10 +1098,18 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
                     pattern="[0-9]*"
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="Barkod sayısını okutun / yazın..."
-                    className="w-full bg-zinc-950 border border-emerald-500/50 focus:border-emerald-400 rounded-xl pl-8 pr-8 py-2 text-xs text-emerald-300 font-mono font-bold tracking-wider placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 shadow-inner"
+                    placeholder={isRefundMode ? "🔄 İade edilecek barkodu okutun / yazın..." : "Barkod sayısını okutun / yazın..."}
+                    className={`w-full bg-zinc-950 rounded-xl pl-8 pr-8 py-2 text-xs font-mono font-bold tracking-wider placeholder-zinc-500 focus:outline-none shadow-inner transition ${
+                      isRefundMode
+                        ? 'border-2 border-rose-500 focus:border-rose-400 text-rose-300'
+                        : 'border border-emerald-500/50 focus:border-emerald-400 text-emerald-300'
+                    }`}
                   />
-                  <Keyboard className="w-3.5 h-3.5 text-emerald-400 absolute left-2.5 top-2.5" />
+                  {isRefundMode ? (
+                    <RotateCcw className="w-3.5 h-3.5 text-rose-400 absolute left-2.5 top-2.5" />
+                  ) : (
+                    <Keyboard className="w-3.5 h-3.5 text-emerald-400 absolute left-2.5 top-2.5" />
+                  )}
                   {barcodeInput && (
                     <button
                       type="button"
@@ -676,9 +1124,13 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
                 <button
                   type="submit"
                   disabled={!barcodeInput.trim()}
-                  className="bg-emerald-400 hover:bg-emerald-300 disabled:opacity-30 text-zinc-950 font-black px-3 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-xs shrink-0"
+                  className={`${
+                    isRefundMode
+                      ? 'bg-rose-500 hover:bg-rose-400 text-white'
+                      : 'bg-emerald-400 hover:bg-emerald-300 text-zinc-950'
+                  } disabled:opacity-30 font-black px-3 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-xs shrink-0`}
                 >
-                  <span>Ekle</span>
+                  <span>{isRefundMode ? 'İade Al' : 'Ekle'}</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </form>
@@ -769,9 +1221,13 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
                       type="button"
                       onClick={handleBarcodeSubmit}
                       disabled={!barcodeInput.trim()}
-                      className="col-span-3 py-2 bg-emerald-400 hover:bg-emerald-300 disabled:opacity-35 text-zinc-950 font-black text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 active:scale-98"
+                      className={`col-span-3 py-2 disabled:opacity-35 font-black text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 active:scale-98 ${
+                        isRefundMode
+                          ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
+                          : 'bg-emerald-400 hover:bg-emerald-300 text-zinc-950'
+                      }`}
                     >
-                      <span>↵ Sepete Ekle</span>
+                      <span>{isRefundMode ? '↵ İadeyi Al' : '↵ Sepete Ekle'}</span>
                     </button>
                   </div>
                 )}
@@ -786,10 +1242,18 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Ürün adı veya barkod arayın..."
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl pl-8 pr-10 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition shadow-inner"
+                  placeholder={isRefundMode ? "🔄 İade edilecek ürün adı veya barkod..." : "Ürün adı veya barkod arayın..."}
+                  className={`w-full bg-zinc-950 rounded-xl pl-8 pr-10 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition shadow-inner ${
+                    isRefundMode
+                      ? 'border-2 border-rose-500 focus:border-rose-400'
+                      : 'border border-zinc-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                  }`}
                 />
-                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+                {isRefundMode ? (
+                  <RotateCcw className="w-3.5 h-3.5 text-rose-400 absolute left-2.5 top-2.5 animate-spin-slow" />
+                ) : (
+                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+                )}
                 {searchTerm && (
                   <button
                     type="button"
@@ -822,50 +1286,132 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
                 filteredProducts.map((prod) => (
                   <div
                     key={prod.id}
-                    onClick={() => { addToCart(prod, 1); setSearchTerm(''); }}
-                    className="p-2 flex items-center justify-between hover:bg-zinc-800 cursor-pointer active:bg-zinc-700"
+                    onClick={() => {
+                      if (isRefundMode) {
+                        processRefund(prod, refundQty);
+                      } else {
+                        addToCart(prod, 1);
+                      }
+                      setSearchTerm('');
+                    }}
+                    className={`p-2 flex items-center justify-between cursor-pointer active:bg-zinc-700 transition ${
+                      isRefundMode ? 'hover:bg-rose-950/30' : 'hover:bg-zinc-800'
+                    }`}
                   >
                     <div>
-                      <p className="text-xs font-bold text-white">{prod.name}</p>
-                      <p className="text-[10px] text-zinc-400 font-mono">{prod.barcode} • Stok: {prod.stock}</p>
+                      <p className={`text-xs font-bold ${isRefundMode ? 'text-rose-300' : 'text-white'}`}>{prod.name}</p>
+                      <p className="text-[10px] text-zinc-400 font-mono">
+                        {prod.barcode} • {isRefundMode ? '🔄 İade Alınacak' : `Stok: ${prod.stock}`}
+                      </p>
                     </div>
-                    <span className="text-xs font-black text-emerald-400 font-mono">₺{prod.price.toFixed(2)}</span>
+                    <span className={`text-xs font-black font-mono ${isRefundMode ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      ₺{prod.price.toFixed(2)}
+                    </span>
                   </div>
                 ))
               )}
             </div>
           )}
 
-          {/* Quick Items Chips (Horizontal Scroll) */}
-          {quickProducts.length > 0 && !searchTerm.trim() && (
+          {/* Quick Items & Non-Barcode Quick Access Bar */}
+          {!searchTerm.trim() && (
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
-              {quickProducts.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p, 1)}
-                  className="shrink-0 bg-zinc-850 hover:bg-zinc-800 border border-zinc-750/70 hover:border-zinc-600 rounded-lg px-2 py-1 text-left active:scale-95 transition flex items-center gap-1.5"
-                >
-                  <span className="text-xs font-medium text-zinc-200 truncate max-w-[100px]">{p.name}</span>
-                  <span className="text-[10px] font-mono text-emerald-400 font-bold">₺{p.price.toFixed(2)}</span>
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setNonBarcodeName('');
+                  setNonBarcodePrice('');
+                  setNonBarcodeCategory('Kiralama & Hizmet');
+                  setNonBarcodeIsQuick(true);
+                  setNonBarcodeModal(true);
+                }}
+                className="shrink-0 border border-dashed border-amber-500/70 hover:border-amber-600 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 active:scale-95 transition shadow-2xs"
+                title="Barkodsuz kiralama, mangal, masa veya hizmet ürünü ekle"
+              >
+                <Plus className="w-3.5 h-3.5 text-amber-600 font-black" />
+                <span>+ Barkodsuz / Kiralama</span>
+              </button>
+
+              {quickProducts.map((p) => {
+                const isRental = p.isNoBarcode || p.barcode?.startsWith('BRK-') || p.category?.toLowerCase().includes('kira') || p.category?.toLowerCase().includes('hizmet');
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      if (isRefundMode) {
+                        processRefund(p, refundQty);
+                      } else {
+                        addToCart(p, 1);
+                      }
+                    }}
+                    className={`shrink-0 border rounded-lg px-2.5 py-1 text-left active:scale-95 transition flex items-center gap-1.5 shadow-2xs group ${
+                      isRefundMode
+                        ? 'bg-rose-50 hover:bg-rose-100 border-rose-300'
+                        : isRental
+                        ? 'bg-amber-50 hover:bg-amber-100/90 border-amber-300'
+                        : 'bg-white hover:bg-slate-50 border-slate-300'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-800 truncate max-w-[120px]">
+                      {isRental && <span className="mr-1 text-[11px]">⚡</span>}
+                      {p.name}
+                    </span>
+                    <span className={`text-[10px] font-mono font-black ${
+                      isRefundMode
+                        ? 'text-rose-600'
+                        : isRental
+                        ? 'text-amber-700'
+                        : 'text-emerald-700'
+                    }`}>
+                      {isRefundMode ? `İade ₺${p.price.toFixed(2)}` : `₺${p.price.toFixed(2)}`}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Desktop Category Filter Chips (lg:flex) */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-zinc-950/60 border-b border-zinc-800 overflow-x-auto no-scrollbar shrink-0">
-          {categories.map((cat) => (
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-slate-100/80 border-b border-slate-200 overflow-x-auto no-scrollbar shrink-0">
+          <button
+            onClick={() => setSelectedCategory('ALL')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
+              selectedCategory === 'ALL'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-1 ring-emerald-500 font-extrabold'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 shadow-2xs font-semibold'
+            }`}
+          >
+            Tüm Ürünler
+          </button>
+
+          {/* ⭐ Favoriler Filtre Butonu */}
+          <button
+            onClick={() => setSelectedCategory('FAVORITES')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+              selectedCategory === 'FAVORITES'
+                ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-1 ring-amber-500 font-extrabold'
+                : 'bg-white text-amber-900 border-amber-300 hover:bg-amber-50 shadow-2xs font-semibold'
+            }`}
+          >
+            <Star className={`w-3.5 h-3.5 ${selectedCategory === 'FAVORITES' ? 'fill-white text-white' : 'fill-amber-500 text-amber-500'}`} />
+            <span>Favoriler</span>
+            <span className={`px-1.5 py-0.2 text-[10px] rounded-md font-mono ${selectedCategory === 'FAVORITES' ? 'bg-black/25 text-white font-bold' : 'bg-amber-100 text-amber-900 font-bold'}`}>
+              {quickProducts.length}
+            </span>
+          </button>
+
+          {categories.filter(c => c !== 'ALL').map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
                 selectedCategory === cat
-                  ? 'bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/20'
-                  : 'bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-1 ring-emerald-500 font-extrabold'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 shadow-2xs font-semibold'
               }`}
             >
-              {cat === 'ALL' ? 'Tüm Ürünler' : cat}
+              {cat}
             </button>
           ))}
         </div>
@@ -874,33 +1420,94 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
         <div className="hidden lg:block flex-1 min-h-0 overflow-y-auto p-3">
           {desktopDisplayProducts.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-zinc-500 py-10">
-              <ShoppingBag className="w-12 h-12 mb-2 opacity-30 stroke-1" />
-              <p className="text-xs font-medium">Bu kategoride ürün bulunamadı.</p>
+              {selectedCategory === 'FAVORITES' ? (
+                <div className="text-center p-6 flex flex-col items-center">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-500 mb-2.5 shadow-inner">
+                    <Star className="w-7 h-7 fill-amber-400 text-amber-400" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-800">Henüz Favori Ürün Eklenmedi</p>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                    Ürün kartlarının sağ üstündeki <b>Yıldız (⭐)</b> simgesine tıklayarak favorilerinize ve hızlı satış çubuğuna ürün ekleyebilirsiniz.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <ShoppingBag className="w-12 h-12 mb-2 opacity-30 stroke-1" />
+                  <p className="text-xs font-medium">Bu kategoride ürün bulunamadı.</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">
-              {desktopDisplayProducts.map((prod) => (
-                <div
-                  key={prod.id}
-                  onClick={() => addToCart(prod, 1)}
-                  className="bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800/80 hover:border-emerald-500/50 rounded-xl p-2.5 cursor-pointer transition active:scale-98 shadow-sm flex flex-col justify-between group"
-                >
-                  <div>
-                    <h4 className="text-xs font-bold text-white line-clamp-2 group-hover:text-emerald-300 transition">
-                      {prod.name}
-                    </h4>
-                    <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                      {prod.barcode}
-                    </p>
+              {desktopDisplayProducts.map((prod) => {
+                const isRental = prod.isNoBarcode || prod.barcode?.startsWith('BRK-') || prod.category?.toLowerCase().includes('kira') || prod.category?.toLowerCase().includes('hizmet');
+                return (
+                  <div
+                    key={prod.id}
+                    onClick={() => {
+                      if (isRefundMode) {
+                        processRefund(prod, refundQty);
+                      } else {
+                        addToCart(prod, 1);
+                      }
+                    }}
+                    className={`border rounded-xl p-2.5 cursor-pointer transition active:scale-98 shadow-sm flex flex-col justify-between group relative ${
+                      isRefundMode
+                        ? 'bg-rose-50 hover:bg-rose-100 border-rose-300'
+                        : isRental
+                        ? 'bg-amber-50/40 hover:bg-amber-50/90 border-amber-200/90 hover:border-amber-400'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-emerald-500/50'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-1">
+                        <h4 className={`text-xs font-bold transition line-clamp-2 ${isRefundMode ? 'text-rose-900' : 'text-slate-900 group-hover:text-emerald-700'}`}>
+                          {prod.name}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={(e) => toggleQuickProduct(prod, e)}
+                          className={`p-1 rounded-md transition shrink-0 ${
+                            prod.isQuick
+                              ? 'text-amber-500 hover:text-amber-600 bg-amber-100/60'
+                              : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'
+                          }`}
+                          title={prod.isQuick ? 'Hızlı satış çubuğundan kaldır' : 'Hızlı satış çubuğuna sabitle (Basarak ekle)'}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${prod.isQuick ? 'fill-amber-500' : ''}`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {isRental ? (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded font-sans flex items-center gap-0.5">
+                            <Zap className="w-2.5 h-2.5 text-amber-600 fill-amber-600" />
+                            Kiralama/Hizmet
+                          </span>
+                        ) : (
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            {prod.barcode}
+                          </p>
+                        )}
+                        {prod.isQuick && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 rounded">
+                            Hızlı Buton
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between">
+                      <span className={`text-[10px] font-medium ${isRefundMode ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
+                        {isRefundMode ? '🔄 İade Et' : isRental ? 'Hizmet / Sınırsız' : `Stok: ${prod.stock}`}
+                      </span>
+                      <span className={`text-xs font-black font-mono ${isRefundMode ? 'text-rose-600' : 'text-emerald-700'}`}>
+                        ₺{prod.price.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-zinc-800/80 flex items-center justify-between">
-                    <span className="text-[10px] text-zinc-400 font-medium">Stok: {prod.stock}</span>
-                    <span className="text-xs font-black text-emerald-400 font-mono">
-                      ₺{prod.price.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -988,6 +1595,18 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
             </div>
 
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsRefundMode(prev => !prev)}
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition ${
+                  isRefundMode
+                    ? 'bg-rose-500 text-white border-rose-600 shadow-xs animate-pulse'
+                    : 'text-rose-400 hover:text-rose-300 bg-rose-500/10 border-rose-500/20'
+                }`}
+                title="Ürün İade Modu [F7]"
+              >
+                {isRefundMode ? 'İADE AÇIK' : 'İade [F7]'}
+              </button>
               {hasPermission('canApplyDiscount') && (
                 <button
                   onClick={() => setShowDiscountModal(true)}
@@ -1051,12 +1670,8 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
               </div>
             </div>
           ) : (
-            <div className="w-full bg-zinc-950/80 border border-zinc-850 text-zinc-500 py-2.5 px-4 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 opacity-40" />
-                <span className="text-xs font-medium">Sepet Bekleniyor</span>
-              </div>
-              <span className="text-sm font-mono font-bold text-zinc-600">₺0.00</span>
+            <div className="py-2 text-center text-xs text-zinc-500">
+              Sepet boş • Ürün ekleyin veya okutun
             </div>
           )}
         </div>
@@ -1067,59 +1682,85 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
       <div className="hidden lg:flex w-96 xl:w-[430px] min-h-0 flex-col bg-zinc-900/70 border border-zinc-700/70 rounded-2xl overflow-hidden shadow-2xl shadow-black/25 shrink-0 backdrop-blur-sm">
         
         {/* Cart Top Header */}
-        <div className="shrink-0 p-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-              <ShoppingBag className="w-4 h-4" />
+        <div className="shrink-0 p-2.5 bg-zinc-950/90 border-b border-zinc-800 space-y-2">
+          {/* Row 1: Header Title & prominent [Esc] İptal button (guaranteed to be inside screen) */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-xs font-bold text-white truncate">Alışveriş Sepeti</h3>
+                <p className="text-[10px] text-zinc-400 font-mono">
+                  {cart.reduce((s, i) => s + i.quantity, 0)} Adet ({cart.length} Kalem)
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xs font-bold text-white">Alışveriş Sepeti</h3>
-              <p className="text-[10px] text-zinc-400 font-mono">
-                {cart.reduce((s, i) => s + i.quantity, 0)} Adet ({cart.length} Kalem)
-              </p>
-            </div>
+
+            {/* [Esc] İptal button: permanently positioned in top-right, visible and high-contrast */}
+            <button
+              type="button"
+              onClick={clearCart}
+              disabled={cart.length === 0}
+              className="shrink-0 text-xs text-rose-300 hover:text-white bg-rose-500/20 hover:bg-rose-600 disabled:opacity-30 disabled:hover:bg-rose-500/20 disabled:hover:text-rose-300 border border-rose-500/40 hover:border-rose-400 px-2.5 py-1 rounded-lg transition font-bold flex items-center gap-1.5 shadow-sm active:scale-95"
+              title="Sepeti Temizle [Esc]"
+            >
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+              <span>[Esc] İptal</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          {/* Row 2: Action Hotkey Buttons (F7 İade, % İndirim, F9 Fişler, F8 Beklet) */}
+          <div className={`grid ${hasPermission('canApplyDiscount') ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 pt-0.5`}>
+            <button
+              type="button"
+              onClick={() => setIsRefundMode(prev => !prev)}
+              className={`text-[11px] font-bold py-1 px-1 rounded-lg border transition flex items-center justify-center gap-1 ${
+                isRefundMode
+                  ? 'bg-rose-500 text-white border-rose-400 shadow-sm animate-pulse'
+                  : 'bg-rose-500/10 text-rose-400 hover:text-rose-300 border-rose-500/20'
+              }`}
+              title="Ürün İade Modu [F7]"
+            >
+              <RotateCcw className="w-3 h-3 shrink-0" />
+              <span className="truncate">{isRefundMode ? 'İade Açık' : '[F7] İade'}</span>
+            </button>
+
             {hasPermission('canApplyDiscount') && (
               <button
+                type="button"
                 onClick={() => setShowDiscountModal(true)}
-                className={`text-[11px] font-semibold px-2 py-1 rounded-lg border transition ${
+                className={`text-[11px] font-semibold py-1 px-1 rounded-lg border transition flex items-center justify-center gap-1 ${
                   discountPercent > 0
                     ? 'bg-amber-500 text-zinc-950 border-amber-400 font-bold'
-                    : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white'
+                    : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:bg-zinc-750'
                 }`}
                 title="Sepet İndirimi"
               >
-                %{discountPercent > 0 ? discountPercent : ' İndirim'}
+                <Percent className="w-3 h-3 shrink-0 text-amber-400" />
+                <span className="truncate">%{discountPercent > 0 ? discountPercent : ' İndirim'}</span>
               </button>
             )}
 
             <button
+              type="button"
               onClick={() => setShowRecentSales(true)}
-              className="text-[11px] text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg transition font-bold flex items-center gap-1"
+              className="text-[11px] text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 py-1 px-1 rounded-lg transition font-bold flex items-center justify-center gap-1"
               title="Son Yapılan İşlemler ve Fişler [F9]"
             >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>[F9] Fişler</span>
+              <Receipt className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">[F9] Fişler</span>
             </button>
 
             <button
+              type="button"
               onClick={handleSuspendCart}
               disabled={cart.length === 0}
-              className="text-[11px] text-amber-300/90 hover:text-amber-200 bg-amber-500/10 disabled:opacity-30 border border-amber-500/20 px-2 py-1 rounded-lg transition"
+              className="text-[11px] text-amber-300/90 hover:text-amber-200 bg-amber-500/10 disabled:opacity-30 border border-amber-500/20 hover:bg-amber-500/20 py-1 px-1 rounded-lg transition font-medium flex items-center justify-center gap-1"
               title="Sepeti Askıya Al [F8]"
             >
-              [F8] Beklet
-            </button>
-
-            <button
-              onClick={clearCart}
-              disabled={cart.length === 0}
-              className="text-[11px] text-rose-400 hover:text-rose-300 bg-rose-500/10 disabled:opacity-30 border border-rose-500/20 px-2 py-1 rounded-lg transition"
-              title="Sepeti Temizle [Esc]"
-            >
-              [Esc] İptal
+              <PauseCircle className="w-3 h-3 shrink-0" />
+              <span className="truncate">[F8] Beklet</span>
             </button>
           </div>
         </div>
@@ -1259,6 +1900,69 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
       </div>
 
       {/* ================= MODALS ================= */}
+      {/* Top Notification Toast (İade Alındı) */}
+      {refundToast && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-lg pointer-events-auto animate-in slide-in-from-top-4 duration-300">
+          <div className="bg-zinc-900/95 border-2 border-rose-500/80 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-2xl shadow-rose-950/50 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/40 shadow-inner">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-rose-400 font-mono font-black text-sm sm:text-base">
+                    -₺{refundToast.amount.toFixed(2)}
+                  </span>
+                  <span className="text-zinc-200 text-xs font-bold truncate">
+                    iade alındı (+{refundToast.qty} stok)
+                  </span>
+                </div>
+                <div className="text-[11px] text-zinc-300 truncate mt-0.5 font-medium">
+                  {refundToast.productName}
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-mono mt-0.5">
+                  <span className="text-amber-300 font-semibold">
+                    {refundToast.method === 'cash' ? 'Nakit İade' : refundToast.method === 'card' ? 'Kart İade' : 'Veresiye / Cari Düşüm'}
+                  </span>
+                  <span>•</span>
+                  <span>#{refundToast.receiptNo}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setCompletedSale(refundToast.sale);
+                  setRefundToast(null);
+                }}
+                className="bg-rose-500 hover:bg-rose-400 text-white px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 active:scale-95 transition shadow-sm"
+                title="İade Fişini Görüntüle ve Yazdır"
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>İade Fişi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUndoRefund(refundToast)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white px-2 py-1.5 rounded-xl text-xs font-semibold border border-zinc-750 active:scale-95 transition"
+                title="İade İşlemini Geri Al"
+              >
+                Geri Al
+              </button>
+              <button
+                type="button"
+                onClick={() => setRefundToast(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Notification Toast (Ödeme Alındı) */}
       {saleSuccessToast && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-md pointer-events-auto animate-in slide-in-from-top-4 duration-300">
@@ -1370,60 +2074,78 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
                   <p className="text-xs font-bold text-zinc-400">Henüz kayıtlı satış işlemi bulunamadı.</p>
                 </div>
               ) : (
-                filteredRecentSales.map((sale) => (
-                  <div
-                    key={sale.id || sale.receiptNo}
-                    className="bg-zinc-950/70 hover:bg-zinc-850/90 border border-zinc-800/90 hover:border-emerald-500/40 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 transition group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold font-mono text-white">
-                          #{sale.receiptNo}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          sale.paymentMethod === 'cash'
-                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                            : sale.paymentMethod === 'card'
-                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                            : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                filteredRecentSales.map((sale) => {
+                  const isRefund = sale.isRefund || sale.grandTotal < 0 || sale.receiptNo?.startsWith('IAD');
+                  return (
+                    <div
+                      key={sale.id || sale.receiptNo}
+                      className={`border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 transition group ${
+                        isRefund
+                          ? 'bg-amber-950/20 border-amber-600/40 hover:border-amber-500'
+                          : 'bg-zinc-950/70 hover:bg-zinc-850/90 border-zinc-800/90 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold font-mono text-white">
+                            #{sale.receiptNo}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            sale.paymentMethod === 'cash'
+                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              : sale.paymentMethod === 'card'
+                              ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                              : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                          }`}>
+                            {sale.paymentMethod === 'cash' ? 'Nakit' : sale.paymentMethod === 'card' ? 'Kredi Kartı' : `Veresiye (${sale.customerName || 'Müşteri'})`}
+                          </span>
+                          {isRefund && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-500/20 text-rose-300 border-rose-500/40">
+                              İADE
+                            </span>
+                          )}
+                          <span className="text-[10px] text-zinc-500 font-mono">
+                            {new Date(sale.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                            {' • '}
+                            {new Date(sale.date).toLocaleDateString('tr-TR')}
+                          </span>
+                        </div>
+
+                        {/* Items preview snippet */}
+                        <p className="text-[11px] text-zinc-400 truncate mt-1">
+                          {sale.items?.map(i => `${i.name} (x${Math.abs(i.quantity)})`).join(', ') || 'Ürün bilgisi yok'}
+                        </p>
+                        
+                        <div className="text-[10px] text-zinc-500 mt-0.5">
+                          Kasiyer: {sale.sellerName || 'Kasiyer'} • {sale.items?.length || 0} Kalem
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                        <div className={`text-sm sm:text-base font-black font-mono ${
+                          isRefund ? 'text-rose-400' : 'text-emerald-400'
                         }`}>
-                          {sale.paymentMethod === 'cash' ? 'Nakit' : sale.paymentMethod === 'card' ? 'Kredi Kartı' : `Veresiye (${sale.customerName || 'Müşteri'})`}
-                        </span>
-                        <span className="text-[10px] text-zinc-500 font-mono">
-                          {new Date(sale.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                          {' • '}
-                          {new Date(sale.date).toLocaleDateString('tr-TR')}
-                        </span>
-                      </div>
-
-                      {/* Items preview snippet */}
-                      <p className="text-[11px] text-zinc-400 truncate mt-1">
-                        {sale.items?.map(i => `${i.name} (x${i.quantity})`).join(', ') || 'Ürün bilgisi yok'}
-                      </p>
-                      
-                      <div className="text-[10px] text-zinc-500 mt-0.5">
-                        Kasiyer: {sale.sellerName || 'Kasiyer'} • {sale.items?.length || 0} Kalem
+                          {sale.grandTotal < 0 ? `-₺${Math.abs(sale.grandTotal).toFixed(2)}` : `₺${sale.grandTotal.toFixed(2)}`}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCompletedSale(sale);
+                            setShowRecentSales(false);
+                          }}
+                          className={`${
+                            isRefund
+                              ? 'bg-rose-500 hover:bg-rose-400 text-white'
+                              : 'bg-emerald-400 hover:bg-emerald-300 text-zinc-950'
+                          } font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition`}
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>{isRefund ? 'İade Fişi' : 'Fişi Aç'}</span>
+                        </button>
                       </div>
                     </div>
-
-                    <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                      <div className="text-sm sm:text-base font-black font-mono text-emerald-400">
-                        ₺{sale.grandTotal.toFixed(2)}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCompletedSale(sale);
-                          setShowRecentSales(false);
-                        }}
-                        className="bg-emerald-400 hover:bg-emerald-300 text-zinc-950 font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/10 active:scale-95 transition"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Fişi Aç & Yazdır</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -1651,6 +2373,149 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Non-Barcode / Rental / Quick Service Modal */}
+      {nonBarcodeModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 safe-bottom animate-fade-in">
+          <div className="bg-white border border-slate-200 w-full max-w-lg rounded-3xl p-5 space-y-4 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-700">
+                  <Zap className="w-5 h-5 fill-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Barkodsuz Ürün &amp; Kiralama / Hizmet Ekle
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Mangal, masa-sandalye, top gibi barkodsuz ürünleri tek dokunuşla sepete ve hızlı butonlara ekleyin.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNonBarcodeModal(false)}
+                className="p-1.5 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick 1-Click Suggestion Chips */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600">⚡ Sık Kullanılan Hazır Şablonlar (Tıklayın Dolsun):</span>
+                <button
+                  type="button"
+                  onClick={handleQuickRentalPackSeed}
+                  className="text-[10px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg transition active:scale-95"
+                  title="Mangal, Masa-Sandalye ve Top butonlarını tek tıkla sisteme yükle"
+                >
+                  Paketi Otomatik Yükle
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                {NON_BARCODE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => applyNonBarcodePreset(preset)}
+                    className="shrink-0 text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-slate-800 font-semibold transition active:scale-95 flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>{preset.icon}</span>
+                    <span>{preset.name}</span>
+                    <span className="text-[10px] font-bold text-emerald-700 font-mono ml-0.5">₺{preset.price}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={(e) => handleNonBarcodeSubmit(e, true)} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-800 block mb-1">
+                  Ürün / Hizmet Adı *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={nonBarcodeName}
+                  onChange={(e) => setNonBarcodeName(e.target.value)}
+                  placeholder="Örn: Kiralık Mangal, Masa & Sandalye, Top"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-xs font-bold text-emerald-700 block mb-1">
+                    Satış Fiyatı (₺) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={nonBarcodePrice}
+                    onChange={(e) => setNonBarcodePrice(e.target.value)}
+                    placeholder="Örn: 150.00"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-black text-emerald-700 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Kategori
+                  </label>
+                  <input
+                    type="text"
+                    value={nonBarcodeCategory}
+                    onChange={(e) => setNonBarcodeCategory(e.target.value)}
+                    placeholder="Örn: Kiralama & Hizmet"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Bar Toggle */}
+              <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    Hızlı Satış Butonlarına Sabitle
+                  </p>
+                  <p className="text-[11px] text-amber-700">
+                    Kasa ekranında üst çubukta tek dokunuşla eklenen buton olsun.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={nonBarcodeIsQuick}
+                  onChange={(e) => setNonBarcodeIsQuick(e.target.checked)}
+                  className="w-5 h-5 accent-amber-600 rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+                <button
+                  type="submit"
+                  className="w-full sm:flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition active:scale-98 flex items-center justify-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Sepete Ekle &amp; Buton Yap</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleNonBarcodeSubmit(e, false)}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition active:scale-98"
+                >
+                  Sadece Buton Olarak Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

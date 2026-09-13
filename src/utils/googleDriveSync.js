@@ -52,6 +52,14 @@ class GoogleDriveSyncManager {
         this.lastSyncTime = lastSyncSetting.value;
       }
 
+      if (typeof window !== 'undefined' && !this.onlineListenerRegistered) {
+        this.onlineListenerRegistered = true;
+        window.addEventListener('online', () => {
+          console.log('[GDrive] Cihaz internete bağlandı, otomatik tam eşitleme başlatılıyor...');
+          this.fullSync();
+        });
+      }
+
       this.startPollingLoop();
     } catch (e) {
       console.warn('[GDrive] Başlatma hatası:', e);
@@ -229,6 +237,8 @@ class GoogleDriveSyncManager {
     const customerTransactions = await db.customerTransactions.toArray();
     const users = await db.users.toArray();
     const settings = await db.settings.toArray();
+    const purchaseInvoices = db.purchaseInvoices ? await db.purchaseInvoices.toArray() : [];
+    const supplierPayments = db.supplierPayments ? await db.supplierPayments.toArray() : [];
 
     return {
       appName: 'MarketKasa',
@@ -239,6 +249,8 @@ class GoogleDriveSyncManager {
       customers,
       customerTransactions,
       users,
+      purchaseInvoices,
+      supplierPayments,
       marketId: this.marketId,
       marketName: this.marketName,
       settings: settings.filter(s => !s.key.includes('gdrive_')) // Don't overwrite Drive configs
@@ -371,6 +383,32 @@ class GoogleDriveSyncManager {
         if (!localPinMap.has(cu.pin)) {
           const { id, ...newUser } = cu;
           await db.users.add(newUser);
+        }
+      }
+    }
+
+    // 6. Merge Purchase Invoices
+    if (Array.isArray(cloud.purchaseInvoices) && db.purchaseInvoices) {
+      const localInvoices = await db.purchaseInvoices.toArray();
+      const localInvoiceKeys = new Set(localInvoices.map(i => `${i.invoiceNo}_${i.supplierName}`));
+      for (const ci of cloud.purchaseInvoices) {
+        const key = `${ci.invoiceNo}_${ci.supplierName}`;
+        if (!localInvoiceKeys.has(key)) {
+          const { id, ...newInvoice } = ci;
+          await db.purchaseInvoices.add(newInvoice);
+        }
+      }
+    }
+
+    // 7. Merge Supplier Payments
+    if (Array.isArray(cloud.supplierPayments) && db.supplierPayments) {
+      const localPayments = await db.supplierPayments.toArray();
+      const localPaymentKeys = new Set(localPayments.map(p => `${p.supplierName}_${p.date}_${p.amount}_${p.createdAt}`));
+      for (const cp of cloud.supplierPayments) {
+        const key = `${cp.supplierName}_${cp.date}_${cp.amount}_${cp.createdAt}`;
+        if (!localPaymentKeys.has(key)) {
+          const { id, ...newPayment } = cp;
+          await db.supplierPayments.add(newPayment);
         }
       }
     }

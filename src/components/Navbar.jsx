@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Package, Users, BarChart3, Settings, Clock, Wifi, WifiOff, LogOut, UserCheck, Cloud, CloudOff, RefreshCw, X, Check, Crown, Globe, Maximize2, Minimize2, Monitor, Pencil, ImagePlus } from 'lucide-react';
+import { ShoppingCart, Package, Boxes, Users, BarChart3, Settings, Clock, Wifi, WifiOff, LogOut, UserCheck, Cloud, CloudOff, RefreshCw, X, Check, Crown, Globe, Maximize2, Minimize2, Monitor, Pencil, ImagePlus } from 'lucide-react';
 import { db } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../context/AuthContext';
@@ -121,6 +121,7 @@ export default function Navbar({ activeTab, setActiveTab, cartItemCount = 0, onI
 
   const allNavItems = [
     { id: 'pos', label: t('nav_pos', 'Kasa (Satış)'), icon: ShoppingCart, badge: cartItemCount, permission: 'canAccessPos' },
+    { id: 'stock', label: t('nav_stock', 'Hızlı Stok'), icon: Boxes, permission: 'canAccessProducts' },
     { id: 'products', label: t('nav_products', 'Ürün & Stok'), icon: Package, permission: 'canAccessProducts' },
     { id: 'customers', label: t('nav_customers', 'Veresiye'), icon: Users, permission: 'canAccessCustomers' },
     { id: 'reports', label: t('nav_reports', 'Rapor & Z'), icon: BarChart3, permission: 'canAccessReports' },

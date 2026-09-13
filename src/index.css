@@ -8,17 +8,17 @@
   
   :root {
     color-scheme: light;
-    --app-bg: #f5f7fb;
-    --app-panel: rgba(255, 255, 255, 0.9);
-    --app-border: rgba(148, 163, 184, 0.18);
+    --app-bg: #f1f5f9;
+    --app-panel: #ffffff;
+    --app-border: #cbd5e1;
     --app-accent: #2563eb;
-    --app-accent-soft: #eef4ff;
-    --app-text: #111827;
+    --app-accent-soft: #eff6ff;
+    --app-text: #0f172a;
     --app-muted: #475569;
   }
 
   html {
-    background: var(--app-bg);
+    background-color: var(--app-bg);
   }
 
   body {
@@ -26,14 +26,15 @@
     min-width: 320px;
     padding-bottom: env(safe-area-inset-bottom);
     padding-top: env(safe-area-inset-top);
-    background: linear-gradient(180deg, #f5f7fb 0%, #eef3f8 100%);
+    background-color: #f1f5f9;
     color: var(--app-text);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
 .app-shell {
-  background: linear-gradient(180deg, #f5f7fb 0%, #eef3f8 100%);
+  background-color: #f1f5f9;
 }
 
 .app-shell-main {
@@ -41,11 +42,9 @@
 }
 
 .glass-surface {
-  background: var(--app-panel);
-  border: 1px solid var(--app-border);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08);
 }
 
 button,
@@ -67,176 +66,432 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .app-shell::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.35;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 0.6px, transparent 0.6px);
-    background-size: 18px 18px;
-    mask-image: linear-gradient(to bottom, black, transparent 75%);
-  }
+/* =========================================================================
+   COMPREHENSIVE HIGH-CONTRAST LIGHT THEME SYSTEM
+   Transforms all dark/low-contrast utility classes into crisp, highly legible 
+   surfaces, text, and interactive elements across the ENTIRE application.
+   ========================================================================= */
 
-  .glass-surface {
-    animation: surface-in 420ms ease-out both;
-  }
-}
-
-/* Blue-white minimal POS palette */
+/* 1. Main Backgrounds, Cards, Tables, and Panel Containers */
 .bg-zinc-950,
 .bg-zinc-950\/60,
 .bg-zinc-900,
 .bg-zinc-900\/90,
+.bg-zinc-900\/80,
 .bg-zinc-850,
 .bg-zinc-800,
-.bg-zinc-700,
-.bg-zinc-600,
-.bg-zinc-500,
 .bg-slate-950,
+.bg-slate-950\/90,
+.bg-slate-950\/80,
 .bg-slate-950\/60,
+.bg-slate-950\/40,
 .bg-slate-900,
 .bg-slate-900\/90,
-.bg-slate-800,
-.bg-slate-700,
-.bg-slate-600,
-.bg-slate-500,
-.bg-black,
-.bg-black\/40 {
-  background-color: #eff6ff !important;
-}
-
-/* Keep every dark utility surface in the same light blue/white system,
-   including opacity variants and gradient utilities. */
+.bg-slate-900\/80,
+.bg-slate-900\/60,
+.bg-slate-900\/50,
+.bg-slate-900\/40,
+.bg-slate-850,
+.bg-slate-850\/80,
+.bg-slate-800\/60,
+.bg-slate-800\/40,
 [class*="bg-slate-9"],
 [class*="bg-zinc-9"],
 [class*="bg-gray-9"],
 [class*="bg-neutral-9"] {
-  background-color: #f8fbff !important;
+  background-color: #ffffff !important;
   background-image: none !important;
 }
 
+/* Secondary Panels, Table Header Bars, and Subtle Backings */
+.bg-slate-950,
+thead.bg-slate-950,
+.bg-slate-950\/80,
+.bg-slate-900\/60 {
+  background-color: #f8fafc !important;
+}
+
+/* Gradient backgrounds normalized to clean white/light slate */
 [class*="from-slate-"],
 [class*="from-zinc-"],
 [class*="from-gray-"],
 [class*="from-neutral-"],
 [class*="via-slate-"],
 [class*="via-zinc-"],
-[class*="via-gray-"],
-[class*="via-neutral-"],
 [class*="to-slate-"],
-[class*="to-zinc-"],
-[class*="to-gray-"],
-[class*="to-neutral-"] {
-  --tw-gradient-from: #f8fbff !important;
-  --tw-gradient-to: #eff6ff !important;
-  --tw-gradient-stops: #f8fbff, #eff6ff !important;
+[class*="to-zinc-"] {
+  --tw-gradient-from: #ffffff !important;
+  --tw-gradient-to: #f8fafc !important;
+  --tw-gradient-stops: #ffffff, #f8fafc !important;
 }
 
-[class*="bg-slate-9"] .text-white,
-[class*="bg-zinc-9"] .text-white,
-[class*="bg-gray-9"] .text-white,
-[class*="bg-neutral-9"] .text-white,
-[class*="from-slate-"] .text-white,
-[class*="from-zinc-"] .text-white,
-[class*="from-gray-"] .text-white,
-[class*="from-neutral-"] .text-white {
-  color: #0f172a !important;
-}
-
-[class*="bg-slate-9"] .text-slate-300,
-[class*="bg-slate-9"] .text-slate-400,
-[class*="bg-zinc-9"] .text-slate-300,
-[class*="bg-zinc-9"] .text-slate-400,
-[class*="from-slate-"] .text-slate-300,
-[class*="from-slate-"] .text-slate-400 {
-  color: #475569 !important;
-}
-
+/* 2. Global Borders - Clean, Visible, and High-Contrast */
 .border-zinc-800,
 .border-zinc-750,
 .border-zinc-700,
 .border-zinc-600,
-.border-zinc-500,
 .border-slate-800,
+.border-slate-800\/90,
+.border-slate-800\/80,
+.border-slate-800\/60,
 .border-slate-700,
+.border-slate-700\/60,
 .border-slate-600,
 .border-slate-500,
-.border-slate-200,
-.border-slate-300 {
-  border-color: #dbeafe !important;
+.border-slate-400 {
+  border-color: #cbd5e1 !important;
 }
 
-.bg-emerald-500,
-.bg-emerald-400,
-.bg-emerald-600,
-.bg-emerald-300,
+/* 3. Typography & Text Colors on Light Backgrounds */
+/* Primary Headings, Titles, and Main Labels (100% Crisp Obsidian) */
+h1, h2, h3, h4, h5, h6,
+.text-white,
+.text-slate-100,
+.text-slate-50,
+.text-zinc-100,
+.text-zinc-50 {
+  color: #0f172a !important;
+}
+
+/* Secondary Text, Values, and Descriptions */
+.text-slate-200,
+.text-slate-300,
+.text-zinc-200,
+.text-zinc-300 {
+  color: #334155 !important;
+}
+
+/* Muted Labels, Metadata, Subtitles, and Notes */
+.text-slate-400,
+.text-zinc-400 {
+  color: #475569 !important;
+}
+
+.text-slate-500,
+.text-zinc-500 {
+  color: #64748b !important;
+}
+
+/* 4. SOLID ACTION BUTTONS - Text MUST be Pure Crisp White */
+button.bg-blue-600,
+button.bg-blue-500,
+button.bg-blue-700,
 .bg-blue-600,
 .bg-blue-500,
-.bg-sky-600,
-.bg-sky-500,
+.bg-blue-700,
+button.bg-emerald-600,
+button.bg-emerald-500,
+button.bg-emerald-700,
+.bg-emerald-600,
+.bg-emerald-500,
+.bg-emerald-700,
+button.bg-rose-600,
+button.bg-rose-500,
+button.bg-rose-700,
+.bg-rose-600,
+.bg-rose-500,
+.bg-rose-700,
+button.bg-amber-600,
+button.bg-amber-500,
+.bg-amber-600,
+.bg-amber-500,
+button.bg-indigo-600,
+button.bg-indigo-500,
 .bg-indigo-600,
-.bg-indigo-500,
-.bg-teal-600,
-.bg-teal-500 {
-  background-color: #2563eb !important;
+.bg-indigo-500 {
+  color: #ffffff !important;
 }
 
-.text-emerald-400,
+button.bg-blue-600 *,
+button.bg-blue-500 *,
+button.bg-blue-700 *,
+.bg-blue-600 *,
+.bg-blue-500 *,
+button.bg-emerald-600 *,
+button.bg-emerald-500 *,
+.bg-emerald-600 *,
+.bg-emerald-500 *,
+button.bg-rose-600 *,
+button.bg-rose-500 *,
+.bg-rose-600 *,
+.bg-rose-500 *,
+button.bg-amber-600 *,
+button.bg-amber-500 *,
+.bg-amber-600 *,
+.bg-amber-500 * {
+  color: #ffffff !important;
+}
+
+/* Button hover states */
+button.bg-blue-600:hover,
+button.bg-blue-500:hover {
+  background-color: #1d4ed8 !important;
+}
+
+button.bg-emerald-600:hover,
+button.bg-emerald-500:hover {
+  background-color: #047857 !important;
+}
+
+button.bg-rose-600:hover,
+button.bg-rose-500:hover {
+  background-color: #be123c !important;
+}
+
+/* Secondary, Neutral & Unselected Filter Buttons */
+button.bg-slate-800,
+button.bg-slate-800\/80,
+button.bg-slate-700,
+button.bg-slate-850,
+button.bg-slate-900,
+button.bg-slate-950,
+button.bg-zinc-800,
+button.bg-zinc-800\/80,
+button.bg-zinc-750,
+button.bg-zinc-700,
+button.bg-zinc-850,
+button.bg-zinc-900,
+button.bg-zinc-950,
+.bg-slate-800,
+.bg-slate-700 {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+button.bg-slate-800:hover,
+button.bg-slate-800\/80:hover,
+button.bg-slate-700:hover,
+button.bg-slate-850:hover,
+button.bg-slate-900:hover,
+button.bg-slate-950:hover,
+button.bg-zinc-800:hover,
+button.bg-zinc-800\/80:hover,
+button.bg-zinc-750:hover,
+button.bg-zinc-700:hover,
+button.bg-zinc-850:hover,
+button.bg-zinc-900:hover,
+button.bg-zinc-950:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+button.bg-slate-800 *,
+button.bg-slate-800\/80 *,
+button.bg-slate-700 *,
+button.bg-zinc-800 *,
+button.bg-zinc-800\/80 *,
+button.bg-zinc-750 *,
+button.bg-zinc-700 *,
+button.bg-zinc-850 *,
+button.bg-zinc-900 *,
+button.bg-zinc-950 * {
+  color: #1e293b !important;
+}
+
+/* 5. Inputs, Selects, and Textareas - Sharp, Crisp, and Legible */
+input,
+select,
+textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #2563eb !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+}
+
+/* 6. High-Contrast Status Badges and Chips */
+/* Red / Debt / Danger Badges */
+.bg-rose-500\/20,
+.bg-rose-500\/10,
+.bg-red-500\/20,
+.bg-red-500\/10 {
+  background-color: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+}
+
+.text-rose-300,
+.text-rose-400,
+.text-red-300,
+.text-red-400 {
+  color: #b91c1c !important;
+}
+
+.text-rose-500,
+.text-rose-600,
+.text-red-500,
+.text-red-600 {
+  color: #dc2626 !important;
+}
+
+/* Green / Success / Paid Badges */
+.bg-emerald-500\/20,
+.bg-emerald-500\/10,
+.bg-green-500\/20,
+.bg-green-500\/10 {
+  background-color: #dcfce7 !important;
+  border-color: #86efac !important;
+}
+
 .text-emerald-300,
+.text-emerald-400,
+.text-green-300,
+.text-green-400 {
+  color: #15803d !important;
+}
+
 .text-emerald-500,
 .text-emerald-600,
-.text-blue-600,
+.text-green-500,
+.text-green-600 {
+  color: #059669 !important;
+}
+
+/* Yellow / Amber Badges */
+.bg-amber-500\/20,
+.bg-amber-500\/15,
+.bg-amber-500\/10,
+.bg-yellow-500\/20,
+.bg-yellow-500\/15,
+.bg-yellow-500\/10 {
+  background-color: #fef3c7 !important;
+  border-color: #fcd34d !important;
+}
+
+.text-amber-300,
+.text-amber-400,
+.text-yellow-300,
+.text-yellow-400 {
+  color: #b45309 !important;
+}
+
+.text-amber-500,
+.text-amber-600 {
+  color: #d97706 !important;
+}
+
+/* Blue / Info Badges */
+.bg-blue-500\/20,
+.bg-blue-500\/15,
+.bg-blue-500\/10,
+.bg-sky-500\/20,
+.bg-sky-500\/15,
+.bg-sky-500\/10 {
+  background-color: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+.text-blue-300,
+.text-blue-400,
+.text-sky-300,
+.text-sky-400 {
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+}
+
 .text-blue-500,
-.text-sky-600,
+.text-blue-600,
 .text-sky-500,
-.text-indigo-600,
-.text-indigo-500,
-.text-teal-600,
-.text-teal-500 {
+.text-sky-600 {
   color: #2563eb !important;
 }
 
-.bg-white,
-.bg-slate-50,
-.bg-slate-100,
-.bg-slate-200,
-.glass-surface {
-  color: #0f172a !important;
+/* Purple / Violet / Fuchsia Badges (e.g. Mali Döküm, Z Raporu) */
+.bg-purple-500\/20,
+.bg-purple-500\/15,
+.bg-purple-500\/10,
+.bg-violet-500\/20,
+.bg-violet-500\/15,
+.bg-fuchsia-500\/20 {
+  background-color: #f3e8ff !important;
+  border-color: #d8b4fe !important;
 }
 
-.bg-white .text-white,
-.bg-slate-50 .text-white,
-.bg-slate-100 .text-white,
-.bg-slate-200 .text-white,
-.bg-white .text-slate-300,
-.bg-slate-50 .text-slate-300,
-.bg-slate-100 .text-slate-300,
-.bg-slate-200 .text-slate-300,
-.bg-white .text-slate-400,
-.bg-slate-50 .text-slate-400,
-.bg-slate-100 .text-slate-400,
-.bg-slate-200 .text-slate-400,
-.bg-white .text-slate-500,
-.bg-slate-50 .text-slate-500,
-.bg-slate-100 .text-slate-500,
-.bg-slate-200 .text-slate-500 {
-  color: #0f172a !important;
+.text-purple-300,
+.text-purple-400,
+.text-violet-300,
+.text-violet-400,
+.text-fuchsia-300,
+.text-fuchsia-400 {
+  color: #7e22ce !important;
+  font-weight: 700 !important;
 }
 
-@keyframes surface-in {
-  from {
-    opacity: 0.82;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.text-purple-500,
+.text-purple-600,
+.text-violet-500,
+.text-violet-600 {
+  color: #6b21a8 !important;
 }
 
-/* Print styling for receipts */
+/* Teal Badges (e.g. Personel / Çalışanlar) */
+.bg-teal-500\/20,
+.bg-teal-500\/15,
+.bg-teal-500\/10 {
+  background-color: #ccfbf1 !important;
+  border-color: #5eead4 !important;
+}
+
+.text-teal-300,
+.text-teal-400 {
+  color: #0f766e !important;
+  font-weight: 700 !important;
+}
+
+.text-teal-500,
+.text-teal-600 {
+  color: #047857 !important;
+}
+
+/* Gray / Inactive Badges */
+.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* 7. Monospace Financial Numbers & Amounts */
+.font-mono.text-rose-400,
+.font-mono.text-rose-500,
+.font-mono.text-rose-600 {
+  color: #dc2626 !important;
+  font-weight: 900 !important;
+}
+
+.font-mono.text-emerald-400,
+.font-mono.text-emerald-500,
+.font-mono.text-emerald-600 {
+  color: #059669 !important;
+  font-weight: 900 !important;
+}
+
+.font-mono.text-blue-400,
+.font-mono.text-blue-500,
+.font-mono.text-blue-600 {
+  color: #2563eb !important;
+  font-weight: 900 !important;
+}
+
+/* 8. Modals, Backdrops, and Popups */
+.fixed.inset-0.bg-black\/80,
+.fixed.inset-0.bg-black\/70,
+.fixed.inset-0.bg-black\/60 {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* 9. Print Styling */
 @media print {
   body * {
     visibility: hidden;
@@ -256,19 +511,18 @@ textarea:focus-visible {
   }
 }
 
-/* Custom scrollbar for mobile feel */
+/* 10. Clean Scrollbars */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #cbd5e1;
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
+  background: #94a3b8;
 }
