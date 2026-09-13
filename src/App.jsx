@@ -38,12 +38,24 @@ function getMarketRegistry() {
   }
 }
 
+export function generateMarketId(name) {
+  if (!name) return 'unassigned';
+  const trMap = { 'ç':'c', 'ğ':'g', 'ı':'i', 'i':'i', 'ö':'o', 'ş':'s', 'ü':'u', 'Ç':'c', 'Ğ':'g', 'I':'i', 'İ':'i', 'Ö':'o', 'Ş':'s', 'Ü':'u' };
+  const cleaned = String(name).replace(/[çğlıöşüÇĞIİÖŞÜ]/g, m => trMap[m] || m)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  return cleaned || 'unassigned';
+}
+
 function persistMarketSession(market) {
   const registry = getMarketRegistry();
   const normalizedName = (market.name || '').trim();
-  const existingIndex = registry.findIndex(item => item.name.toLowerCase() === normalizedName.toLowerCase());
+  const marketId = market.id || generateMarketId(normalizedName);
+  const existingIndex = registry.findIndex(item => item.name.toLowerCase() === normalizedName.toLowerCase() || item.id === marketId);
   const nextMarket = {
-    id: market.id || `${normalizedName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+    id: marketId,
     name: normalizedName,
     email: (market.email || '').trim(),
     password: market.password || '',
@@ -92,88 +104,40 @@ async function sendVerificationEmail(recipient, code) {
 }
 
 function MarketSetupScreen({ onComplete }) {
-  const [mode, setMode] = useState('create');
+  const [mode, setMode] = useState('join');
   const [marketName, setMarketName] = useState('');
   const [marketEmail, setMarketEmail] = useState('');
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verificationInput, setVerificationInput] = useState('');
-  const [verificationSent, setVerificationSent] = useState(false);
-  const [emailDeliveryMode, setEmailDeliveryMode] = useState('api');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isCheckingCloud, setIsCheckingCloud] = useState(false);
+  const [cloudDetectedMarket, setCloudDetectedMarket] = useState(null);
 
-  const resetVerificationState = () => {
-    setVerificationCode('');
-    setVerificationInput('');
-    setVerificationSent(false);
-    setEmailVerified(false);
-    setError('');
-    setSuccess('');
-  };
-
-  const validateCurrentEmail = async () => {
-    if (!marketEmail.trim()) {
-      setError('Market sahibi e-posta adresi gerekli.');
-      setEmailVerified(false);
-      return false;
+  useEffect(() => {
+    // Cloud detection on mount
+    async function checkCloud() {
+      try {
+        const data = await googleDriveSync.fetchMarketDirectly();
+        if (data && !data.empty) {
+          const cloudName = data.marketName || data.settings?.find(s => s.key === 'storeName')?.value;
+          if (cloudName) {
+            setCloudDetectedMarket({
+              id: data.marketId || generateMarketId(cloudName),
+              name: cloudName,
+              password: data.marketPassword || '',
+              productCount: data.products?.length || 0,
+              salesCount: data.sales?.length || 0
+            });
+            setMarketName(cloudName);
+            setMode('join');
+          }
+        }
+      } catch (err) {
+        console.warn('Cloud discovery check:', err);
+      }
     }
-
-    if (!validateEmail(marketEmail)) {
-      setError('Geçerli bir e-posta adresi girin.');
-      setEmailVerified(false);
-      return false;
-    }
-
-    const nextCode = generateVerificationCode();
-    setVerificationCode(nextCode);
-    setVerificationInput('');
-    setVerificationSent(true);
-    setEmailVerified(false);
-
-    try {
-      await sendVerificationEmail(marketEmail.trim(), nextCode);
-      setEmailDeliveryMode('api');
-      setSuccess('6 haneli doğrulama kodu e-posta adresinize gönderildi.');
-    } catch {
-      setEmailDeliveryMode('fallback');
-      const mailBody = [
-        'Market Kasa e-posta doğrulama',
-        '',
-        'Aşağıdaki doğrulama kodunu uygulamaya girin.',
-        `Kod: ${nextCode}`,
-        '',
-        'Bu e-posta otomatik olarak oluşturulmuştur.'
-      ].join('\n');
-      openMailTo(marketEmail, 'Market Kasa e-posta doğrulama', mailBody);
-      setSuccess('E-posta API kullanılamadı; mail taslağı açıldı. Kod aşağıda gösteriliyor.');
-    }
-    setError('');
-    return true;
-  };
-
-  const confirmVerificationCode = () => {
-    if (!verificationSent) {
-      setError('Önce doğrulama kodu gönderilmelidir.');
-      return false;
-    }
-
-    if (!verificationInput.trim()) {
-      setError('Doğrulama kodunu girin.');
-      return false;
-    }
-
-    if (verificationInput.trim() !== verificationCode) {
-      setError('Doğrulama kodu yanlış. Lütfen e-postadaki kodu kontrol edin.');
-      return false;
-    }
-
-    setEmailVerified(true);
-    setError('');
-    setSuccess('E-posta doğrulandı. Artık marketinizi oluşturabilirsiniz.');
-    return true;
-  };
+    checkCloud();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -187,25 +151,19 @@ function MarketSetupScreen({ onComplete }) {
 
     const registry = getMarketRegistry();
     const normalized = name.toLowerCase();
+    const targetId = generateMarketId(name);
 
     if (mode === 'create') {
-      if (!marketEmail.trim() || !validateEmail(marketEmail)) {
-        setError('Market oluşturmak için geçerli bir e-posta adresi girmeniz gerekir.');
+      if (marketEmail.trim() && !validateEmail(marketEmail)) {
+        setError('Geçerli bir e-posta adresi giriniz.');
         return;
       }
 
-      if (!verificationSent || !emailVerified) {
-        setError('Lütfen önce e-posta doğrulamasını tamamlayın.');
-        return;
-      }
-
-      const exists = registry.some(item => item.name.toLowerCase() === normalized);
-      if (exists) {
-        setError('Bu market adı zaten mevcut. Lütfen farklı bir isim seçin veya "Markete Katıl" modunu kullanın.');
-        return;
-      }
+      setIsCheckingCloud(true);
+      setError('');
 
       const market = persistMarketSession({
+        id: targetId,
         name,
         email: marketEmail,
         password: pass,
@@ -214,43 +172,86 @@ function MarketSetupScreen({ onComplete }) {
         members: []
       });
 
-      setSuccess('Market oluşturuldu. Giriş başlatılıyor...');
+      // Push initial market profile to Google Drive
+      try {
+        googleDriveSync.setMarketContext(market.id, market.name, market.password, market.email);
+        await googleDriveSync.fullSync();
+      } catch (err) {
+        console.warn('[Setup] İlk bulut eşitleme bildirimi:', err);
+      }
+
+      setIsCheckingCloud(false);
+      setSuccess('Market oluşturuldu ve buluta kaydedildi. Giriş başlatılıyor...');
       onComplete(market);
       return;
     }
 
-    const found = registry.find(item => item.name.toLowerCase() === normalized);
-    if (!found) {
-      setError('Bu isimde kayıtlı market bulunamadı. Önce market oluşturun.');
+    // MODE === 'join'
+    setIsCheckingCloud(true);
+    setError('');
+
+    // 1. Check local registry first
+    let found = registry.find(item => item.name.toLowerCase() === normalized || item.id === targetId);
+
+    if (found) {
+      if (found.password && found.password !== pass) {
+        setError('Market şifresi yanlış.');
+        setIsCheckingCloud(false);
+        return;
+      }
+      setIsCheckingCloud(false);
+      onComplete(found);
       return;
     }
-    if (found.password !== pass) {
-      setError('Market şifresi yanlış.');
+
+    // 2. Not in local registry! Check Google Drive!
+    try {
+      let cloudData = await googleDriveSync.fetchMarketDirectly(targetId);
+
+      // Fallback: check unassigned if not found by specific targetId
+      if (!cloudData || cloudData.empty) {
+        const fallback = await googleDriveSync.fetchMarketDirectly('unassigned');
+        if (fallback && !fallback.empty) {
+          const storeName = fallback.marketName || fallback.settings?.find(s => s.key === 'storeName')?.value;
+          if (storeName && (storeName.toLowerCase() === normalized || generateMarketId(storeName) === targetId)) {
+            cloudData = { ...fallback, marketId: targetId, marketName: storeName };
+          }
+        }
+      }
+
+      if (cloudData && !cloudData.empty) {
+        if (cloudData.marketPassword && cloudData.marketPassword !== pass) {
+          setError('Market şifresi yanlış.');
+          setIsCheckingCloud(false);
+          return;
+        }
+
+        const market = persistMarketSession({
+          id: targetId,
+          name: cloudData.marketName || name,
+          password: pass,
+          email: cloudData.marketEmail || '',
+          createdAt: cloudData.exportedAt || new Date().toISOString(),
+          members: []
+        });
+
+        googleDriveSync.setMarketContext(market.id, market.name, market.password, market.email);
+        await googleDriveSync.mergeCloudData(cloudData);
+
+        setIsCheckingCloud(false);
+        setSuccess('Buluttaki market başarıyla yüklendi! Giriş yapılıyor...');
+        onComplete(market);
+        return;
+      } else {
+        setError('Bu isimde kayıtlı market ne bu cihazda ne de Google Drive bulutunda bulunamadı. Lütfen market adını ve şifreyi kontrol edin.');
+        setIsCheckingCloud(false);
+        return;
+      }
+    } catch (err) {
+      setError('Bulut kontrolü başarısız: ' + (err.message || err.toString()));
+      setIsCheckingCloud(false);
       return;
     }
-    const memberInfo = {
-      name: 'Market kullanıcısı',
-      joinedAt: new Date().toISOString(),
-      market: found.name
-    };
-
-    const updatedRegistry = getMarketRegistry().map(item => item.name.toLowerCase() === normalized ? { ...item, members: [...(item.members || []), memberInfo] } : item);
-    localStorage.setItem(MARKET_REGISTRY_KEY, JSON.stringify(updatedRegistry));
-
-    const mailBody = [
-      'Yeni market katılım bildirimi',
-      '',
-      `Market: ${found.name}`,
-      `Katılım Tarihi: ${new Date().toLocaleString('tr-TR')}`,
-      '',
-      'Bu e-posta otomatik olarak oluşturulmuştur.'
-    ].join('\n');
-
-    openMailTo(found.email, `Yeni katılım: ${found.name}`, mailBody);
-
-    const market = persistMarketSession({ ...found, members: updatedRegistry.find(item => item.name.toLowerCase() === normalized)?.members || found.members || [] });
-    setSuccess('Katılım onayı için market sahibine e-posta hazırlandı.');
-    onComplete(market);
   };
 
   return (
@@ -261,29 +262,51 @@ function MarketSetupScreen({ onComplete }) {
             M
           </div>
           <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Market Giriş</h1>
-          <p className="mt-1 text-xs text-slate-500">Her market kendi arayüzü ve verisiyle çalışır.</p>
+          <p className="mt-1 text-xs text-slate-500">Google Drive bulut senkronizasyonu ile tüm cihazlarınız bağlı çalışır.</p>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
           <button
             type="button"
-            onClick={() => { setMode('create'); setError(''); setSuccess(''); resetVerificationState(); }}
+            onClick={() => { setMode('join'); setError(''); setSuccess(''); }}
             className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-              mode === 'create' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600'
+              mode === 'join' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Market Oluştur
+            Markete Katıl / Giriş
           </button>
           <button
             type="button"
-            onClick={() => { setMode('join'); setError(''); setSuccess(''); resetVerificationState(); }}
+            onClick={() => { setMode('create'); setError(''); setSuccess(''); }}
             className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-              mode === 'join' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600'
+              mode === 'create' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Markete Katıl
+            Yeni Market Oluştur
           </button>
         </div>
+
+        {cloudDetectedMarket && mode === 'join' && (
+          <div className="mb-3 p-3 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-center justify-between gap-2 text-xs text-blue-900 animate-fade-in">
+            <div className="min-w-0">
+              <p className="font-bold flex items-center gap-1">
+                <span>☁️</span> <span>Buluttaki Marketiniz:</span>
+              </p>
+              <p className="font-extrabold text-blue-700 truncate">{cloudDetectedMarket.name}</p>
+              <p className="text-[10px] text-blue-600 font-mono">({cloudDetectedMarket.productCount} Ürün, {cloudDetectedMarket.salesCount} Satış Kayıtlı)</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMarketName(cloudDetectedMarket.name);
+                if (cloudDetectedMarket.password) setPassword(cloudDetectedMarket.password);
+              }}
+              className="shrink-0 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition shadow-xs"
+            >
+              Bilgileri Doldur
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -291,60 +314,22 @@ function MarketSetupScreen({ onComplete }) {
             <input
               value={marketName}
               onChange={(e) => setMarketName(e.target.value)}
-              placeholder="Örn. Aysu Market"
+              placeholder="Örn. Kurşunlu Market"
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
             />
           </div>
 
           {mode === 'create' && (
-            <>
-              <div>
-                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Market sahibi e-posta</label>
-                <input
-                  type="email"
-                  value={marketEmail}
-                  onChange={(e) => {
-                    setMarketEmail(e.target.value);
-                    resetVerificationState();
-                  }}
-                  placeholder="market@sahibi.com"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={validateCurrentEmail}
-                className="w-full rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
-              >
-                {emailVerified ? 'E-posta Doğrulandı' : verificationSent ? 'Yeniden Kod Gönder' : 'E-posta Doğrula'}
-              </button>
-
-              {verificationSent && !emailVerified && (
-                <div className="space-y-2 rounded-2xl border border-blue-100 bg-blue-50/80 p-3">
-                  {emailDeliveryMode === 'fallback' && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-700">E-posta gönderilemedi</p>
-                      <p className="mt-1 text-[10px] text-amber-700">Mail taslağındaki kodu kullanın veya e-posta API ayarlarını kontrol edin.</p>
-                    </div>
-                  )}
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Doğrulama kodu</label>
-                  <input
-                    value={verificationInput}
-                    onChange={(e) => setVerificationInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="6 haneli kod"
-                    className="w-full rounded-2xl border border-blue-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={confirmVerificationCode}
-                    className="w-full rounded-2xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
-                  >
-                    Kodu Onayla
-                  </button>
-                </div>
-              )}
-            </>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Market sahibi e-posta (İsteğe Bağlı)</label>
+              <input
+                type="email"
+                value={marketEmail}
+                onChange={(e) => setMarketEmail(e.target.value)}
+                placeholder="market@sahibi.com"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
           )}
 
           <div>
@@ -359,7 +344,7 @@ function MarketSetupScreen({ onComplete }) {
           </div>
 
           {error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 animate-shake">
               {error}
             </div>
           )}
@@ -372,9 +357,19 @@ function MarketSetupScreen({ onComplete }) {
 
           <button
             type="submit"
-            className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition active:scale-[0.99]"
+            disabled={isCheckingCloud}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition active:scale-[0.99] disabled:opacity-50"
           >
-            {mode === 'create' ? 'Market Oluştur ve Giriş Yap' : 'Markete Katıl'}
+            {isCheckingCloud ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Bulut Kontrol Ediliyor...</span>
+              </>
+            ) : mode === 'create' ? (
+              'Market Oluştur ve Buluta Kaydet'
+            ) : (
+              'Markete Giriş Yap / Katıl'
+            )}
           </button>
         </form>
       </div>
@@ -503,7 +498,12 @@ function AppContent({ marketSession, onMarketUpdate, onMarketExit }) {
 
     // Start real-time sync manager and Google Drive sync
     sync.init(marketSession.id);
-    googleDriveSync.setMarketContext(marketSession.id, marketSession.name);
+    googleDriveSync.setMarketContext(
+      marketSession.id,
+      marketSession.name,
+      marketSession.password,
+      marketSession.email
+    );
     googleDriveSync.init();
 
     // Catch PWA install prompt event
@@ -519,7 +519,7 @@ function AppContent({ marketSession, onMarketUpdate, onMarketExit }) {
     }
 
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-  }, [marketSession.id, marketSession.name]);
+  }, [marketSession.id, marketSession.name, marketSession.password, marketSession.email]);
 
   // Ensure user cannot stay on an unauthorized tab & default Admin to single-page Kitaplık
   useEffect(() => {

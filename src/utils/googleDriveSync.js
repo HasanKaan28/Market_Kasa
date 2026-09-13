@@ -16,11 +16,15 @@ class GoogleDriveSyncManager {
     this.pollTimer = null;
     this.isSyncing = false;
     this.hasPendingPush = false;
+    this.marketPassword = '';
+    this.marketEmail = '';
   }
 
-  setMarketContext(marketId, marketName = '') {
+  setMarketContext(marketId, marketName = '', marketPassword = '', marketEmail = '') {
     this.marketId = marketId || 'unassigned';
     this.marketName = marketName;
+    if (marketPassword) this.marketPassword = marketPassword;
+    if (marketEmail) this.marketEmail = marketEmail;
     this.lastCloudTimestamp = 0;
     this.lastSyncTime = null;
   }
@@ -253,8 +257,32 @@ class GoogleDriveSyncManager {
       supplierPayments,
       marketId: this.marketId,
       marketName: this.marketName,
+      marketPassword: this.marketPassword || '',
+      marketEmail: this.marketEmail || '',
       settings: settings.filter(s => !s.key.includes('gdrive_')) // Don't overwrite Drive configs
     };
+  }
+
+  /**
+   * Directly fetch market dataset from Google Drive without changing current state
+   */
+  async fetchMarketDirectly(targetMarketId) {
+    try {
+      const url = new URL(this.syncUrl || DEFAULT_GDRIVE_URL);
+      if (targetMarketId) {
+        url.searchParams.set('marketId', targetMarketId);
+      }
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      console.warn('[GDrive Direct Fetch Error]:', e);
+      return null;
+    }
   }
 
   /**
@@ -263,8 +291,8 @@ class GoogleDriveSyncManager {
    */
   async mergeCloudData(cloud) {
     if (!cloud || typeof cloud !== 'object') return { merged: false };
-    if (cloud.marketId !== this.marketId) {
-      throw new Error('Google Drive verisi bu market için ayrılmamış. Ayarlardaki Apps Script kodunu güncelleyin.');
+    if (cloud.marketId && cloud.marketId !== this.marketId && cloud.marketId !== 'unassigned' && this.marketId !== 'unassigned') {
+      console.warn(`[GDrive Sync] Market kimliği farklı (${cloud.marketId} -> ${this.marketId}), yine de birleştiriliyor.`);
     }
 
     let addedSales = 0;
