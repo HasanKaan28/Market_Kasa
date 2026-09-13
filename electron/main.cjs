@@ -4,6 +4,10 @@ const path = require('path');
 // Tekil Kopya Kilidi (Single Instance Lock)
 const gotTheLock = app.requestSingleInstanceLock();
 
+// Chromium bayrakları: file:// protokolünden yerel ES modüllerinin ve stil dosyalarının engelsiz yüklenmesi için
+app.commandLine.appendSwitch('allow-file-access-from-files');
+app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
+
 let mainWindow = null;
 
 function createWindow() {
@@ -18,13 +22,18 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true
+      sandbox: false,
+      webSecurity: false
     }
   });
 
   // dist/index.html dosyasını yükle
   const indexPath = path.join(__dirname, '../dist/index.html');
   mainWindow.loadFile(indexPath);
+
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('Yükleme hatası:', errorCode, errorDescription, validatedURL);
+  });
 
   const menuTemplate = [
     {
