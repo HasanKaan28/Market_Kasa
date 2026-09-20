@@ -62,7 +62,7 @@ export default function CustomerBook() {
 
   // Modals & Feedback
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAddDebtModal, setShowAddDebtModal] = useState(false);
   const [actionAmount, setActionAmount] = useState('');
@@ -81,6 +81,12 @@ export default function CustomerBook() {
   // Live queries
   const customers = useLiveQuery(() => db.customers.toArray(), []) || [];
   const allTransactions = useLiveQuery(() => db.customerTransactions.toArray(), []) || [];
+
+  // Selected customer automatically keeps in sync with db.customers
+  const selectedCustomer = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    return customers.find(c => String(c.id) === String(selectedCustomerId)) || null;
+  }, [customers, selectedCustomerId]);
 
   // Selected customer's specific transactions
   const transactions = useMemo(() => {
@@ -105,7 +111,10 @@ export default function CustomerBook() {
       const cTxs = txMap[String(c.id)] || [];
       cTxs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      const balance = Number(c.balance) || 0;
+      const rawBalance = Number(c.balance) || 0;
+      const computedBalance = cTxs.reduce((sum, t) => t.type === 'debt' ? sum + (Number(t.amount) || 0) : sum - (Number(t.amount) || 0), 0);
+      const balance = rawBalance > 0 ? rawBalance : Math.max(0, computedBalance);
+
       let firstDebtDate = null;
       let lastActivityDate = null;
       let daysWaiting = 0;
@@ -242,10 +251,14 @@ export default function CustomerBook() {
 
   // Create new customer
   const handleCreateCustomer = async (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+    if (e && e.preventDefault) e.preventDefault();
+    if (!name.trim()) {
+      alert('Lütfen müşteri adını girin!');
+      return;
+    }
 
     const normalizedPhone = normalizePhoneNumber(phone);
+    const nowIso = new Date().toISOString();
     const newCust = {
       name: name.trim(),
       phone: normalizedPhone,
@@ -253,7 +266,8 @@ export default function CustomerBook() {
       balance: 0,
       limit: parseFloat(limit) || 2000,
       notes: notes.trim(),
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
+      updatedAt: nowIso,
       autoReminderEnabled: autoReminderEnabled,
       reminderFrequency: reminderFrequency,
       lastReminderAt: null,
@@ -273,6 +287,7 @@ export default function CustomerBook() {
     setReminderFrequency('weekly');
     setAutoReminderEnabled(true);
     setIsAddModalOpen(false);
+    setSelectedCustomerId(newId);
   };
 
   // Helper to normalize and update customer balance safely in Dexie regardless of ID type
@@ -281,22 +296,27 @@ export default function CustomerBook() {
       ? Number(customerId)
       : customerId;
 
+    const nowIso = new Date().toISOString();
+
     let updateCount = await db.customers.update(targetId, {
       balance: newBalance,
-      lastPaymentDate: new Date().toISOString()
+      lastPaymentDate: nowIso,
+      updatedAt: nowIso
     });
 
     if (!updateCount && String(targetId) !== String(customerId)) {
       updateCount = await db.customers.update(customerId, {
         balance: newBalance,
-        lastPaymentDate: new Date().toISOString()
+        lastPaymentDate: nowIso,
+        updatedAt: nowIso
       });
     }
 
     if (!updateCount && typeof targetId === 'number') {
       updateCount = await db.customers.update(String(targetId), {
         balance: newBalance,
-        lastPaymentDate: new Date().toISOString()
+        lastPaymentDate: nowIso,
+        updatedAt: nowIso
       });
     }
 
@@ -305,21 +325,29 @@ export default function CustomerBook() {
 
   // Record Payment (Tahsilat Al)
   const handleRecordPayment = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const cleanAmount = String(actionAmount).replace(',', '.').trim();
     const amount = parseFloat(cleanAmount);
-    if (!amount || amount <= 0 || !selectedCustomer) return;
+    if (!amount || amount <= 0) {
+      alert('Lütfen geçerli bir tahsilat tutarı girin!');
+      return;
+    }
+    if (!selectedCustomer) {
+      alert('Lütfen bir müşteri seçin!');
+      return;
+    }
 
     const currentBalance = Number(selectedCustomer.balance) || 0;
     const newBalance = Math.max(0, currentBalance - amount);
 
     const targetId = await updateCustomerBalanceSafe(selectedCustomer.id, newBalance);
 
+    const nowIso = new Date().toISOString();
     const tx = {
       customerId: targetId,
       type: 'payment',
       amount: amount,
-      date: new Date().toISOString(),
+      date: nowIso,
       note: actionNote.trim() || 'Nakit Tahsilat'
     };
     await db.customerTransactions.add(tx);
@@ -332,7 +360,6 @@ export default function CustomerBook() {
     googleDriveSync.triggerOnSaleSync();
     playCashRegisterSound();
 
-    setSelectedCustomer(prev => prev ? { ...prev, balance: newBalance } : null);
     setActionAmount('');
     setActionNote('');
     setShowPaymentModal(false);
@@ -346,21 +373,29 @@ export default function CustomerBook() {
 
   // Add Manual Debt (Borç Ekle)
   const handleAddManualDebt = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const cleanAmount = String(actionAmount).replace(',', '.').trim();
     const amount = parseFloat(cleanAmount);
-    if (!amount || amount <= 0 || !selectedCustomer) return;
+    if (!amount || amount <= 0) {
+      alert('Lütfen geçerli bir borç tutarı girin!');
+      return;
+    }
+    if (!selectedCustomer) {
+      alert('Lütfen bir müşteri seçin!');
+      return;
+    }
 
     const currentBalance = Number(selectedCustomer.balance) || 0;
     const newBalance = currentBalance + amount;
 
     const targetId = await updateCustomerBalanceSafe(selectedCustomer.id, newBalance);
 
+    const nowIso = new Date().toISOString();
     const tx = {
       customerId: targetId,
       type: 'debt',
       amount: amount,
-      date: new Date().toISOString(),
+      date: nowIso,
       note: actionNote.trim() || 'Manuel Veresiye Alışveriş'
     };
     await db.customerTransactions.add(tx);
@@ -373,7 +408,6 @@ export default function CustomerBook() {
     googleDriveSync.triggerOnSaleSync();
     playBarcodeBeep();
 
-    setSelectedCustomer(prev => prev ? { ...prev, balance: newBalance } : null);
     setActionAmount('');
     setActionNote('');
     setShowAddDebtModal(false);
@@ -453,7 +487,7 @@ export default function CustomerBook() {
       });
     }
 
-    setSelectedCustomer(null);
+    setSelectedCustomerId(null);
     setToast({
       type: 'success',
       message: `${customer.name} başarıyla arşivlendi.`
@@ -842,7 +876,7 @@ export default function CustomerBook() {
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 
-                      onClick={() => setSelectedCustomer(cust)}
+                      onClick={() => setSelectedCustomerId(cust.id)}
                       className="text-sm sm:text-base font-black text-white hover:text-blue-400 cursor-pointer transition truncate"
                     >
                       {cust.name}
@@ -925,9 +959,9 @@ export default function CustomerBook() {
               <div className="w-full lg:w-36 shrink-0 text-left lg:text-right py-1 lg:py-0 border-t lg:border-t-0 lg:border-l border-slate-800 lg:pl-4 flex flex-row lg:flex-col justify-between items-center lg:items-end">
                 <span className="text-[10px] uppercase font-bold text-slate-500 block">Kişisel Borç</span>
                 <span className={`text-base sm:text-xl font-black font-mono ${
-                  cust.balance > 0 ? 'text-rose-400' : 'text-emerald-400'
+                  (Number(cust.balance) || 0) > 0 ? 'text-rose-400' : 'text-emerald-400'
                 }`}>
-                  ₺{cust.balance.toFixed(2)}
+                  ₺{(Number(cust.balance) || 0).toFixed(2)}
                 </span>
               </div>
 
@@ -938,8 +972,8 @@ export default function CustomerBook() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedCustomer(cust);
-                      setActionAmount(cust.balance > 0 ? cust.balance.toString() : '');
+                      setSelectedCustomerId(cust.id);
+                      setActionAmount((Number(cust.balance) || 0) > 0 ? (Number(cust.balance) || 0).toString() : '');
                       setActionNote('');
                       setShowPaymentModal(true);
                     }}
@@ -956,7 +990,7 @@ export default function CustomerBook() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedCustomer(cust);
+                      setSelectedCustomerId(cust.id);
                       setActionAmount('');
                       setActionNote('');
                       setShowAddDebtModal(true);
@@ -969,7 +1003,7 @@ export default function CustomerBook() {
                 )}
 
                 {/* WhatsApp Hatırlat */}
-                {cust.phone && cust.balance > 0 && (
+                {cust.phone && (Number(cust.balance) || 0) > 0 && (
                   <button
                     type="button"
                     onClick={() => sendWhatsAppReminder(cust)}
@@ -983,7 +1017,7 @@ export default function CustomerBook() {
                 {/* Ekstre & Detay */}
                 <button
                   type="button"
-                  onClick={() => setSelectedCustomer(cust)}
+                  onClick={() => setSelectedCustomerId(cust.id)}
                   className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition active:scale-95"
                   title="Hesap Hareketleri ve Ekstre İncele"
                 >
@@ -1013,7 +1047,7 @@ export default function CustomerBook() {
                 </div>
               </div>
               <button
-                onClick={() => setSelectedCustomer(null)}
+                onClick={() => setSelectedCustomerId(null)}
                 className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
               >
                 <X className="w-5 h-5" />
@@ -1025,8 +1059,8 @@ export default function CustomerBook() {
               <div className="flex items-center justify-between gap-3 bg-slate-900 p-3 rounded-2xl border border-slate-800">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500">Mevcut Borç Tutarı</span>
-                  <div className={`text-2xl font-black font-mono ${selectedCustomer.balance > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    ₺{selectedCustomer.balance.toFixed(2)}
+                  <div className={`text-2xl font-black font-mono ${(Number(selectedCustomer.balance) || 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    ₺{(Number(selectedCustomer.balance) || 0).toFixed(2)}
                   </div>
                   <span className="text-[10px] text-slate-500 font-mono">Limit: ₺{(selectedCustomer.limit || 2000).toFixed(0)}</span>
                 </div>
@@ -1042,7 +1076,7 @@ export default function CustomerBook() {
                     <span>PDF Ekstre</span>
                   </button>
 
-                  {selectedCustomer.phone && selectedCustomer.balance > 0 && (
+                  {selectedCustomer.phone && (Number(selectedCustomer.balance) || 0) > 0 && (
                     <button
                       onClick={() => sendWhatsAppReminder(selectedCustomer)}
                       className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 active:scale-95 transition"
@@ -1204,7 +1238,8 @@ export default function CustomerBook() {
                 İptal
               </button>
               <button
-                type="submit"
+                type="button"
+                onClick={handleRecordPayment}
                 className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition"
               >
                 Tahsilatı Kaydet
@@ -1262,7 +1297,8 @@ export default function CustomerBook() {
                 İptal
               </button>
               <button
-                type="submit"
+                type="button"
+                onClick={handleAddManualDebt}
                 className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/20 active:scale-95 transition"
               >
                 Borcu Kaydet
@@ -1368,7 +1404,8 @@ export default function CustomerBook() {
             </div>
 
             <button
-              type="submit"
+              type="button"
+              onClick={handleCreateCustomer}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 rounded-xl text-xs sm:text-sm shadow-lg shadow-blue-600/20 active:scale-98 transition mt-2"
             >
               Müşteriyi Kaydet

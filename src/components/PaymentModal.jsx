@@ -25,7 +25,8 @@ export default function PaymentModal({ total, onComplete, onClose }) {
   const splitCard = Math.max(0, total - numSplitCash);
 
   const selectedCustomer = useMemo(() => {
-    return customers?.find(c => c.id === parseInt(selectedCustomerId));
+    if (!selectedCustomerId) return null;
+    return customers?.find(c => String(c.id) === String(selectedCustomerId)) || null;
   }, [customers, selectedCustomerId]);
 
   const handleKeypadPress = (val) => {
@@ -45,16 +46,21 @@ export default function PaymentModal({ total, onComplete, onClose }) {
   };
 
   const handleCreateCustomer = async (e) => {
-    e.preventDefault();
-    if (!newCustomerName.trim()) return;
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newCustomerName.trim()) {
+      alert('Lütfen müşteri adını girin!');
+      return;
+    }
+    const nowIso = new Date().toISOString();
     const id = await db.customers.add({
       name: newCustomerName.trim(),
       phone: newCustomerPhone.trim(),
       balance: 0,
       limit: 2500,
-      createdAt: new Date().toISOString()
+      createdAt: nowIso,
+      updatedAt: nowIso
     });
-    setSelectedCustomerId(id.toString());
+    setSelectedCustomerId(String(id));
     setShowAddCustomer(false);
     setNewCustomerName('');
     setNewCustomerPhone('');
@@ -85,8 +91,8 @@ export default function PaymentModal({ total, onComplete, onClose }) {
       paymentMethod: method,
       cashGiven: method === 'cash' ? numCashGiven : (method === 'split' ? numSplitCash : total),
       changeGiven: method === 'cash' ? changeGiven : 0,
-      customerId: method === 'debt' ? parseInt(selectedCustomerId) : null,
-      customerName: method === 'debt' ? selectedCustomer?.name : null,
+      customerId: method === 'debt' ? (selectedCustomer ? selectedCustomer.id : selectedCustomerId) : null,
+      customerName: method === 'debt' ? (selectedCustomer ? selectedCustomer.name : 'Müşteri') : null,
       splitDetails: method === 'split' ? { cash: numSplitCash, card: splitCard } : null
     });
   };
@@ -285,7 +291,8 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleCreateCustomer}
                     className="w-full bg-emerald-500 text-slate-950 font-bold py-2 rounded-xl text-xs active:scale-95 transition"
                   >
                     Kaydet ve Bu Müşteriye Yaz
@@ -301,7 +308,7 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                     <option value="">-- Müşteri Seçin --</option>
                     {customers?.map((cust) => (
                       <option key={cust.id} value={cust.id}>
-                        {cust.name} (Mevcut Borç: ₺{cust.balance.toFixed(2)})
+                        {cust.name} (Mevcut Borç: ₺{(Number(cust.balance) || 0).toFixed(2)})
                       </option>
                     ))}
                   </select>
@@ -310,7 +317,7 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                     <div className="bg-amber-950/20 border border-amber-500/30 p-3 rounded-2xl space-y-1.5">
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-400">Mevcut Borç:</span>
-                        <span className="text-white font-mono font-bold">₺{selectedCustomer.balance.toFixed(2)}</span>
+                        <span className="text-white font-mono font-bold">₺{(Number(selectedCustomer.balance) || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-400">Bu Satış:</span>
@@ -318,7 +325,7 @@ export default function PaymentModal({ total, onComplete, onClose }) {
                       </div>
                       <div className="flex justify-between text-sm font-bold border-t border-amber-500/20 pt-1 text-amber-300">
                         <span>Yeni Toplam Borç:</span>
-                        <span className="font-mono">₺{(selectedCustomer.balance + total).toFixed(2)}</span>
+                        <span className="font-mono">₺{((Number(selectedCustomer.balance) || 0) + total).toFixed(2)}</span>
                       </div>
                       {selectedCustomer.notes && (
                         <p className="text-[10px] text-slate-400 italic mt-1">Not: {selectedCustomer.notes}</p>

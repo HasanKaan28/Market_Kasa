@@ -371,20 +371,43 @@ class GoogleDriveSyncManager {
     }
 
     // 3. Merge Customers (by phone or name)
+    const cloudToLocalCustomerIdMap = new Map();
     if (Array.isArray(cloud.customers)) {
       const localCustomers = await db.customers.toArray();
-      const localPhoneMap = new Map(localCustomers.filter(c => c.phone).map(c => [c.phone, c]));
-      const localNameMap = new Map(localCustomers.map(c => [c.name?.toLowerCase(), c]));
+      const localPhoneMap = new Map(localCustomers.filter(c => c.phone).map(c => [c.phone.trim(), c]));
+      const localNameMap = new Map(localCustomers.map(c => [c.name?.toLowerCase().trim(), c]));
 
       for (const cc of cloud.customers) {
-        const match = (cc.phone && localPhoneMap.get(cc.phone)) || localNameMap.get(cc.name?.toLowerCase());
+        if (!cc.name) continue;
+        const normPhone = cc.phone ? cc.phone.trim() : '';
+        const normName = cc.name.toLowerCase().trim();
+        const match = (normPhone && localPhoneMap.get(normPhone)) || localNameMap.get(normName);
+
         if (!match) {
           const { id, ...newCust } = cc;
-          await db.customers.add(newCust);
+          const newLocalId = await db.customers.add({
+            ...newCust,
+            updatedAt: cc.updatedAt || new Date().toISOString()
+          });
+          cloudToLocalCustomerIdMap.set(cc.id, newLocalId);
           addedCustomers++;
-        } else if (cc.balance !== undefined && match.balance !== cc.balance) {
-          // If balance is different, keep latest
-          await db.customers.update(match.id, { balance: cc.balance });
+        } else {
+          cloudToLocalCustomerIdMap.set(cc.id, match.id);
+          const cloudTime = cc.updatedAt ? new Date(cc.updatedAt).getTime() : 0;
+          const localTime = match.updatedAt ? new Date(match.updatedAt).getTime() : 0;
+
+          // Only update local from cloud if cloud is genuinely newer
+          if (cloudTime > localTime || (cloudTime === 0 && localTime === 0 && (!match.balance || match.balance === 0) && cc.balance > 0)) {
+            await db.customers.update(match.id, {
+              balance: cc.balance !== undefined ? cc.balance : match.balance,
+              phone: cc.phone || match.phone,
+              name: cc.name || match.name,
+              address: cc.address !== undefined ? cc.address : match.address,
+              notes: cc.notes !== undefined ? cc.notes : match.notes,
+              limit: cc.limit !== undefined ? cc.limit : match.limit,
+              updatedAt: cc.updatedAt || new Date().toISOString()
+            });
+          }
         }
       }
     }
@@ -394,10 +417,14 @@ class GoogleDriveSyncManager {
       const localTxs = await db.customerTransactions.toArray();
       const localTxKeys = new Set(localTxs.map(t => `${t.customerId}_${t.date}_${t.amount}`));
       for (const ctx of cloud.customerTransactions) {
-        const key = `${ctx.customerId}_${ctx.date}_${ctx.amount}`;
+        const localCid = cloudToLocalCustomerIdMap.get(ctx.customerId) || ctx.customerId;
+        const key = `${localCid}_${ctx.date}_${ctx.amount}`;
         if (!localTxKeys.has(key)) {
           const { id, ...newTx } = ctx;
-          await db.customerTransactions.add(newTx);
+          await db.customerTransactions.add({
+            ...newTx,
+            customerId: localCid
+          });
         }
       }
     }

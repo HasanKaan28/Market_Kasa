@@ -257,15 +257,37 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
 
     // 3. Veresiye ise müşterinin borcundan düş
     if (method === 'debt' && custId) {
-      const cust = await db.customers.get(parseInt(custId));
+      let cust = await db.customers.get(custId);
+      if (!cust && !isNaN(Number(custId))) cust = await db.customers.get(Number(custId));
+      if (!cust) cust = await db.customers.get(String(custId));
       if (cust) {
-        const newBalance = Math.max(0, (cust.balance || 0) - refundTotal);
-        await db.customers.update(cust.id, { balance: newBalance });
+        const currentBal = Number(cust.balance) || 0;
+        const newBalance = Math.max(0, currentBal - refundTotal);
+        const targetId = cust.id;
+        const nowIso = now.toISOString();
+
+        let updated = await db.customers.update(targetId, {
+          balance: newBalance,
+          updatedAt: nowIso
+        });
+        if (!updated && !isNaN(Number(targetId))) {
+          updated = await db.customers.update(Number(targetId), {
+            balance: newBalance,
+            updatedAt: nowIso
+          });
+        }
+        if (!updated) {
+          await db.customers.update(String(targetId), {
+            balance: newBalance,
+            updatedAt: nowIso
+          });
+        }
+
         await db.customerTransactions.add({
           customerId: cust.id,
           type: 'payment',
           amount: refundTotal,
-          date: now.toISOString(),
+          date: nowIso,
           note: `Ürün İadesi: ${product.name} (Fiş #${receiptNo})`,
           receiptNo
         });
@@ -314,9 +336,20 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
       await db.sales.update(toast.saleId, { status: 'cancelled' });
 
       if (toast.sale?.paymentMethod === 'debt' && toast.sale?.customerId) {
-        const cust = await db.customers.get(toast.sale.customerId);
+        let cust = await db.customers.get(toast.sale.customerId);
+        if (!cust && !isNaN(Number(toast.sale.customerId))) cust = await db.customers.get(Number(toast.sale.customerId));
+        if (!cust) cust = await db.customers.get(String(toast.sale.customerId));
         if (cust) {
-          await db.customers.update(cust.id, { balance: (cust.balance || 0) + toast.amount });
+          const newBal = (Number(cust.balance) || 0) + toast.amount;
+          const targetId = cust.id;
+          const nowIso = new Date().toISOString();
+          let updated = await db.customers.update(targetId, { balance: newBal, updatedAt: nowIso });
+          if (!updated && !isNaN(Number(targetId))) {
+            updated = await db.customers.update(Number(targetId), { balance: newBal, updatedAt: nowIso });
+          }
+          if (!updated) {
+            await db.customers.update(String(targetId), { balance: newBal, updatedAt: nowIso });
+          }
         }
       }
 
@@ -692,18 +725,46 @@ export default function PosScreen({ cart, setCart, onCartChange }) {
     }
 
     if (paymentDetails.paymentMethod === 'debt' && paymentDetails.customerId) {
-      const cust = await db.customers.get(paymentDetails.customerId);
+      let cust = await db.customers.get(paymentDetails.customerId);
+      if (!cust && !isNaN(Number(paymentDetails.customerId))) {
+        cust = await db.customers.get(Number(paymentDetails.customerId));
+      }
+      if (!cust) {
+        cust = await db.customers.get(String(paymentDetails.customerId));
+      }
       if (cust) {
-        const newBalance = (cust.balance || 0) + grandTotal;
-        await db.customers.update(cust.id, { balance: newBalance });
+        const currentBal = Number(cust.balance) || 0;
+        const newBalance = currentBal + grandTotal;
+        const targetId = cust.id;
+        const nowIso = now.toISOString();
+
+        let updated = await db.customers.update(targetId, {
+          balance: newBalance,
+          updatedAt: nowIso
+        });
+        if (!updated && !isNaN(Number(targetId))) {
+          updated = await db.customers.update(Number(targetId), {
+            balance: newBalance,
+            updatedAt: nowIso
+          });
+        }
+        if (!updated) {
+          await db.customers.update(String(targetId), {
+            balance: newBalance,
+            updatedAt: nowIso
+          });
+        }
+
         await db.customerTransactions.add({
           customerId: cust.id,
           type: 'debt',
           amount: grandTotal,
-          date: now.toISOString(),
+          date: nowIso,
           note: `Satış Fişi #${receiptNo}`,
           receiptNo
         });
+      } else {
+        console.error('[POS] Veresiye müşterisi bulunamadı:', paymentDetails.customerId);
       }
     }
 

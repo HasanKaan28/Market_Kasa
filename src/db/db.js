@@ -76,16 +76,21 @@ export async function seedInitialData() {
 
   const allCustomers = await db.customers.toArray();
   for (const c of allCustomers) {
-    const shouldUpdate = !('autoReminderEnabled' in c) || !('reminderFrequency' in c) || !('nextReminderAt' in c) || !('lastReminderAt' in c);
+    const shouldUpdate = !('autoReminderEnabled' in c) || !('reminderFrequency' in c) || !('nextReminderAt' in c) || !('lastReminderAt' in c) || !('updatedAt' in c);
     if (shouldUpdate) {
       await db.customers.update(c.id, {
         autoReminderEnabled: c.autoReminderEnabled ?? (c.balance > 0),
         reminderFrequency: c.reminderFrequency ?? 'weekly',
         lastReminderAt: c.lastReminderAt ?? null,
-        nextReminderAt: c.nextReminderAt ?? new Date().toISOString()
+        nextReminderAt: c.nextReminderAt ?? new Date().toISOString(),
+        updatedAt: c.updatedAt || c.createdAt || new Date().toISOString()
       });
     }
   }
+
+  // Otomatik Bakiye İyileştirme (Self-Healing):
+  // Geçmişte veresiye kaydedilip bakiyesi 0'a sıfırlanan müşterileri hareketlerinden onarır
+  await reconcileCustomerBalances();
 
   // Seed default settings if empty
   const storeName = await db.settings.get('storeName');
@@ -212,4 +217,45 @@ export async function switchToMarket(marketId) {
     ]);
   }
   await db.settings.put({ key: 'active_market_id', value: marketId });
+}
+
+/**
+ * Otomatik Bakiye İyileştirme (Reconciliation):
+ * Müşterinin hareketlerindeki (customerTransactions) net borç-tahsilat farkı ile
+ * müşterinin balance alanını karşılaştırır; 0'a düşmüş veya eksik kayıtları onarır.
+ */
+export async function reconcileCustomerBalances() {
+  try {
+    const customers = await db.customers.toArray();
+    const transactions = await db.customerTransactions.toArray();
+
+    const txByCust = new Map();
+    for (const tx of transactions) {
+      if (!tx.customerId) continue;
+      const cid = String(tx.customerId);
+      if (!txByCust.has(cid)) txByCust.set(cid, []);
+      txByCust.get(cid).push(tx);
+    }
+
+    for (const cust of customers) {
+      const cid = String(cust.id);
+      const custTxs = txByCust.get(cid) || [];
+      if (custTxs.length > 0) {
+        const totalDebt = custTxs.filter(t => t.type === 'debt').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const totalPayment = custTxs.filter(t => t.type === 'payment').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const netBalance = Math.max(0, totalDebt - totalPayment);
+        const currentBalance = Number(cust.balance) || 0;
+
+        if (currentBalance === 0 && netBalance > 0) {
+          console.log(`[DB] Otomatik onarım: ${cust.name} bakiyesi ₺${netBalance.toFixed(2)} olarak güncellendi.`);
+          await db.customers.update(cust.id, {
+            balance: netBalance,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[DB] reconcileCustomerBalances hatası:', err);
+  }
 }

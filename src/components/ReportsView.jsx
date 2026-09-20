@@ -150,15 +150,28 @@ export default function ReportsView() {
 
       // If debt, adjust customer balance
       if (sale.paymentMethod === 'debt' && sale.customerId) {
-        const cust = await db.customers.get(sale.customerId);
+        let cust = await db.customers.get(sale.customerId);
+        if (!cust && !isNaN(Number(sale.customerId))) cust = await db.customers.get(Number(sale.customerId));
+        if (!cust) cust = await db.customers.get(String(sale.customerId));
         if (cust) {
           const balanceDelta = isRefund ? Math.abs(sale.grandTotal) : -Math.abs(sale.grandTotal);
-          await db.customers.update(cust.id, { balance: Math.max(0, (cust.balance || 0) + balanceDelta) });
+          const newBal = Math.max(0, (Number(cust.balance) || 0) + balanceDelta);
+          const targetId = cust.id;
+          const nowIso = new Date().toISOString();
+
+          let updated = await db.customers.update(targetId, { balance: newBal, updatedAt: nowIso });
+          if (!updated && !isNaN(Number(targetId))) {
+            updated = await db.customers.update(Number(targetId), { balance: newBal, updatedAt: nowIso });
+          }
+          if (!updated) {
+            await db.customers.update(String(targetId), { balance: newBal, updatedAt: nowIso });
+          }
+
           await db.customerTransactions.add({
             customerId: cust.id,
             type: isRefund ? 'debt' : 'payment',
             amount: Math.abs(sale.grandTotal),
-            date: new Date().toISOString(),
+            date: nowIso,
             note: `İptal: ${sale.receiptNo}`,
             receiptNo: sale.receiptNo
           });

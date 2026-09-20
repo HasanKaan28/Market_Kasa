@@ -105,11 +105,20 @@ class SyncManager {
         }
         // Update customer balance if debt
         if (payload.customerId && payload.grandTotal) {
-          const cust = await db.customers.get(payload.customerId);
+          let cust = await db.customers.get(payload.customerId);
+          if (!cust && !isNaN(Number(payload.customerId))) cust = await db.customers.get(Number(payload.customerId));
+          if (!cust) cust = await db.customers.get(String(payload.customerId));
           if (cust) {
-            await db.customers.update(cust.id, {
-              balance: (cust.balance || 0) + payload.grandTotal
-            });
+            const newBal = (Number(cust.balance) || 0) + payload.grandTotal;
+            const targetId = cust.id;
+            const nowIso = new Date().toISOString();
+            let updated = await db.customers.update(targetId, { balance: newBal, updatedAt: nowIso });
+            if (!updated && !isNaN(Number(targetId))) {
+              updated = await db.customers.update(Number(targetId), { balance: newBal, updatedAt: nowIso });
+            }
+            if (!updated) {
+              await db.customers.update(String(targetId), { balance: newBal, updatedAt: nowIso });
+            }
           }
         }
         break;
@@ -154,11 +163,27 @@ class SyncManager {
 
       case 'CUSTOMER_BALANCE_UPDATED':
         if (payload.customerId) {
-          await db.customers.update(payload.customerId, {
-            balance: payload.newBalance
+          const targetId = (!isNaN(Number(payload.customerId)) && typeof payload.customerId !== 'object') ? Number(payload.customerId) : payload.customerId;
+          const nowIso = new Date().toISOString();
+          let uCount = await db.customers.update(targetId, {
+            balance: payload.newBalance,
+            updatedAt: nowIso
           });
+          if (!uCount && String(targetId) !== String(payload.customerId)) {
+            uCount = await db.customers.update(payload.customerId, {
+              balance: payload.newBalance,
+              updatedAt: nowIso
+            });
+          }
+          if (!uCount && typeof targetId === 'number') {
+            await db.customers.update(String(targetId), {
+              balance: payload.newBalance,
+              updatedAt: nowIso
+            });
+          }
           if (payload.transaction) {
-            await db.customerTransactions.add(payload.transaction);
+            const { id, ...txWithoutId } = payload.transaction;
+            await db.customerTransactions.add(txWithoutId);
           }
         }
         break;
