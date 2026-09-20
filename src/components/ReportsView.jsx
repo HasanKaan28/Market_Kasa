@@ -21,6 +21,7 @@ export default function ReportsView() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   const sales = useLiveQuery(() => db.sales.reverse().toArray(), []);
+  const customerTransactions = useLiveQuery(() => db.customerTransactions.toArray(), []) || [];
   const storeSettings = useLiveQuery(async () => {
     const list = await db.settings.toArray();
     return list.reduce((acc, cur) => ({ ...acc, [cur.key]: cur.value }), {});
@@ -77,6 +78,31 @@ export default function ReportsView() {
     const cardTotal = completed.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.grandTotal, 0);
     const debtTotal = completed.filter(s => s.paymentMethod === 'debt').reduce((sum, s) => sum + s.grandTotal, 0);
 
+    // Calculate collected debts (tahsilat) for period
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - (24 * 60 * 60 * 1000);
+    const weekStart = todayStart - (7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const filteredDebtPayments = customerTransactions.filter(tx => {
+      if (tx.type !== 'payment') return false;
+      const txTime = new Date(tx.date).getTime();
+      if (period === 'today') return txTime >= todayStart;
+      if (period === 'yesterday') return txTime >= yesterdayStart && txTime < todayStart;
+      if (period === 'week') return txTime >= weekStart;
+      if (period === 'month') return txTime >= monthStart;
+      if (period === 'custom') {
+        const start = new Date(`${customStartDate}T00:00:00`).getTime();
+        const end = new Date(`${customEndDate}T23:59:59.999`).getTime();
+        return txTime >= start && txTime <= end;
+      }
+      return true;
+    });
+
+    const debtCollectedTotal = filteredDebtPayments.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+    const totalCashInRegister = cashTotal + debtCollectedTotal;
+
     // Top selling items
     const itemMap = {};
     completed.forEach(s => {
@@ -99,9 +125,11 @@ export default function ReportsView() {
       cashTotal,
       cardTotal,
       debtTotal,
+      debtCollectedTotal,
+      totalCashInRegister,
       topItems
     };
-  }, [filteredSales]);
+  }, [filteredSales, customerTransactions, period, customStartDate, customEndDate]);
 
   // Refund / Cancel sale
   const handleCancelSale = async (sale) => {
@@ -159,7 +187,9 @@ export default function ReportsView() {
 
       let y = 35;
       doc.text(`Toplam Fiş Adedi   : ${stats.salesCount}`, 5, y); y += 5;
-      doc.text(`Nakit Tahsilat     : ₺${stats.cashTotal.toFixed(2)}`, 5, y); y += 5;
+      doc.text(`Nakit Satış        : ₺${stats.cashTotal.toFixed(2)}`, 5, y); y += 5;
+      doc.text(`Veresiye Tahsilatı : ₺${stats.debtCollectedTotal.toFixed(2)}`, 5, y); y += 5;
+      doc.text(`Kasadaki Toplam N. : ₺${stats.totalCashInRegister.toFixed(2)}`, 5, y); y += 5;
       doc.text(`Kredi Kartı        : ₺${stats.cardTotal.toFixed(2)}`, 5, y); y += 5;
       doc.text(`Veresiye Satış     : ₺${stats.debtTotal.toFixed(2)}`, 5, y); y += 5;
       doc.text(`KDV Toplamı        : ₺${stats.totalTax.toFixed(2)}`, 5, y); y += 5;
@@ -301,13 +331,23 @@ export default function ReportsView() {
 
         {/* Breakdown by Payment Method */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Ödeme Kanalları</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Ödeme & Kasa Kanalları</span>
+            {stats.debtCollectedTotal > 0 && (
+              <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-lg">
+                +₺{stats.debtCollectedTotal.toFixed(2)} Tahsilat
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
               <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                <Banknote className="w-3 h-3" /> Nakit
+                <Banknote className="w-3 h-3" /> Kasadaki Nakit
               </span>
-              <p className="text-xs font-black text-white font-mono mt-1">₺{stats.cashTotal.toFixed(2)}</p>
+              <p className="text-xs font-black text-white font-mono mt-1">₺{stats.totalCashInRegister.toFixed(2)}</p>
+              <span className="text-[9px] text-slate-500 block truncate" title={`Satış: ₺${stats.cashTotal.toFixed(2)} | Tahsilat: ₺${stats.debtCollectedTotal.toFixed(2)}`}>
+                Satış: ₺{stats.cashTotal.toFixed(0)} | Tahsilat: ₺{stats.debtCollectedTotal.toFixed(0)}
+              </span>
             </div>
 
             <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
@@ -315,13 +355,15 @@ export default function ReportsView() {
                 <CreditCard className="w-3 h-3" /> Kart
               </span>
               <p className="text-xs font-black text-white font-mono mt-1">₺{stats.cardTotal.toFixed(2)}</p>
+              <span className="text-[9px] text-slate-500 block">Banka POS</span>
             </div>
 
             <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
               <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
-                <UserCheck className="w-3 h-3" /> Veresiye
+                <UserCheck className="w-3 h-3" /> Veresiye Satış
               </span>
               <p className="text-xs font-black text-white font-mono mt-1">₺{stats.debtTotal.toFixed(2)}</p>
+              <span className="text-[9px] text-slate-500 block">Açık Hesap</span>
             </div>
           </div>
         </div>

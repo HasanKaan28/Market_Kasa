@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 
 # Production builds & packaging
@@ -24,3 +24,5 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+start.sh
+icon.png

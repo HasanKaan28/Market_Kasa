@@ -60,13 +60,14 @@ export default function CustomerBook() {
   const [filterMode, setFilterMode] = useState('with_debt'); // 'with_debt' | 'overdue' | 'all' | 'settled' | 'reminders'
   const [sortBy, setSortBy] = useState('highest_debt'); // 'highest_debt' | 'oldest_debt' | 'newest_debt' | 'name_asc'
 
-  // Modals
+  // Modals & Feedback
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAddDebtModal, setShowAddDebtModal] = useState(false);
   const [actionAmount, setActionAmount] = useState('');
   const [actionNote, setActionNote] = useState('');
+  const [toast, setToast] = useState(null);
 
   // Form state for new customer
   const [name, setName] = useState('');
@@ -85,7 +86,7 @@ export default function CustomerBook() {
   const transactions = useMemo(() => {
     if (!selectedCustomer) return [];
     return allTransactions
-      .filter(tx => tx.customerId === selectedCustomer.id)
+      .filter(tx => String(tx.customerId) === String(selectedCustomer.id))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [allTransactions, selectedCustomer]);
 
@@ -93,14 +94,15 @@ export default function CustomerBook() {
   const enrichedCustomers = useMemo(() => {
     const txMap = {};
     allTransactions.forEach(tx => {
-      if (!txMap[tx.customerId]) txMap[tx.customerId] = [];
-      txMap[tx.customerId].push(tx);
+      const cid = String(tx.customerId);
+      if (!txMap[cid]) txMap[cid] = [];
+      txMap[cid].push(tx);
     });
 
     const now = Date.now();
 
     return customers.map(c => {
-      const cTxs = txMap[c.id] || [];
+      const cTxs = txMap[String(c.id)] || [];
       cTxs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
       const balance = Number(c.balance) || 0;
@@ -273,17 +275,48 @@ export default function CustomerBook() {
     setIsAddModalOpen(false);
   };
 
+  // Helper to normalize and update customer balance safely in Dexie regardless of ID type
+  const updateCustomerBalanceSafe = async (customerId, newBalance) => {
+    const targetId = (!isNaN(Number(customerId)) && typeof customerId !== 'object')
+      ? Number(customerId)
+      : customerId;
+
+    let updateCount = await db.customers.update(targetId, {
+      balance: newBalance,
+      lastPaymentDate: new Date().toISOString()
+    });
+
+    if (!updateCount && String(targetId) !== String(customerId)) {
+      updateCount = await db.customers.update(customerId, {
+        balance: newBalance,
+        lastPaymentDate: new Date().toISOString()
+      });
+    }
+
+    if (!updateCount && typeof targetId === 'number') {
+      updateCount = await db.customers.update(String(targetId), {
+        balance: newBalance,
+        lastPaymentDate: new Date().toISOString()
+      });
+    }
+
+    return targetId;
+  };
+
   // Record Payment (Tahsilat Al)
   const handleRecordPayment = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(actionAmount);
+    const cleanAmount = String(actionAmount).replace(',', '.').trim();
+    const amount = parseFloat(cleanAmount);
     if (!amount || amount <= 0 || !selectedCustomer) return;
 
-    const newBalance = Math.max(0, (selectedCustomer.balance || 0) - amount);
+    const currentBalance = Number(selectedCustomer.balance) || 0;
+    const newBalance = Math.max(0, currentBalance - amount);
 
-    await db.customers.update(selectedCustomer.id, { balance: newBalance });
+    const targetId = await updateCustomerBalanceSafe(selectedCustomer.id, newBalance);
+
     const tx = {
-      customerId: selectedCustomer.id,
+      customerId: targetId,
       type: 'payment',
       amount: amount,
       date: new Date().toISOString(),
@@ -292,30 +325,39 @@ export default function CustomerBook() {
     await db.customerTransactions.add(tx);
 
     sync.broadcast('CUSTOMER_BALANCE_UPDATED', {
-      customerId: selectedCustomer.id,
+      customerId: targetId,
       newBalance,
       transaction: tx
     });
     googleDriveSync.triggerOnSaleSync();
     playCashRegisterSound();
 
-    setSelectedCustomer(prev => ({ ...prev, balance: newBalance }));
+    setSelectedCustomer(prev => prev ? { ...prev, balance: newBalance } : null);
     setActionAmount('');
     setActionNote('');
     setShowPaymentModal(false);
+
+    setToast({
+      type: 'success',
+      message: `₺${amount.toFixed(2)} tutarında tahsilat başarıyla kaydedildi. Kalan borç: ₺${newBalance.toFixed(2)}`
+    });
+    setTimeout(() => setToast(null), 4000);
   };
 
   // Add Manual Debt (Borç Ekle)
   const handleAddManualDebt = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(actionAmount);
+    const cleanAmount = String(actionAmount).replace(',', '.').trim();
+    const amount = parseFloat(cleanAmount);
     if (!amount || amount <= 0 || !selectedCustomer) return;
 
-    const newBalance = (selectedCustomer.balance || 0) + amount;
+    const currentBalance = Number(selectedCustomer.balance) || 0;
+    const newBalance = currentBalance + amount;
 
-    await db.customers.update(selectedCustomer.id, { balance: newBalance });
+    const targetId = await updateCustomerBalanceSafe(selectedCustomer.id, newBalance);
+
     const tx = {
-      customerId: selectedCustomer.id,
+      customerId: targetId,
       type: 'debt',
       amount: amount,
       date: new Date().toISOString(),
@@ -324,17 +366,23 @@ export default function CustomerBook() {
     await db.customerTransactions.add(tx);
 
     sync.broadcast('CUSTOMER_BALANCE_UPDATED', {
-      customerId: selectedCustomer.id,
+      customerId: targetId,
       newBalance,
       transaction: tx
     });
     googleDriveSync.triggerOnSaleSync();
     playBarcodeBeep();
 
-    setSelectedCustomer(prev => ({ ...prev, balance: newBalance }));
+    setSelectedCustomer(prev => prev ? { ...prev, balance: newBalance } : null);
     setActionAmount('');
     setActionNote('');
     setShowAddDebtModal(false);
+
+    setToast({
+      type: 'success',
+      message: `₺${amount.toFixed(2)} veresiye borcu eklendi. Güncel bakiye: ₺${newBalance.toFixed(2)}`
+    });
+    setTimeout(() => setToast(null), 4000);
   };
 
   // Send WhatsApp Reminder
@@ -367,35 +415,56 @@ export default function CustomerBook() {
 
   // Toggle Reminder
   const handleToggleReminder = async (customerId, enabled) => {
-    const customer = customers.find(c => c.id === customerId);
+    const customer = customers.find(c => String(c.id) === String(customerId));
     if (!customer) return;
 
+    const targetId = (!isNaN(Number(customerId)) && typeof customerId !== 'object') ? Number(customerId) : customerId;
     const next = enabled ? getNextReminderDate(customer.reminderFrequency || 'weekly', new Date()) : null;
-    await db.customers.update(customerId, {
+    let updated = await db.customers.update(targetId, {
       autoReminderEnabled: enabled,
       nextReminderAt: next
     });
+    if (!updated && targetId !== customerId) {
+      await db.customers.update(customerId, {
+        autoReminderEnabled: enabled,
+        nextReminderAt: next
+      });
+    }
   };
 
   // Archive Settled Customer
   const handleArchiveSettledCustomer = async (customerId) => {
-    const customer = customers.find(c => c.id === customerId);
+    const customer = customers.find(c => String(c.id) === String(customerId));
     if (!customer) return;
 
-    await db.customers.update(customerId, {
+    const targetId = (!isNaN(Number(customerId)) && typeof customerId !== 'object') ? Number(customerId) : customerId;
+    let updated = await db.customers.update(targetId, {
       archived: true,
       archivedAt: new Date().toISOString(),
       autoReminderEnabled: false,
       nextReminderAt: null
     });
+    if (!updated && targetId !== customerId) {
+      await db.customers.update(customerId, {
+        archived: true,
+        archivedAt: new Date().toISOString(),
+        autoReminderEnabled: false,
+        nextReminderAt: null
+      });
+    }
 
     setSelectedCustomer(null);
+    setToast({
+      type: 'success',
+      message: `${customer.name} başarıyla arşivlendi.`
+    });
+    setTimeout(() => setToast(null), 3000);
   };
 
   // Download Official PDF Statement for Customer
   const handleDownloadCustomerStatementPDF = (customer) => {
     const custTxs = allTransactions
-      .filter(tx => tx.customerId === customer.id)
+      .filter(tx => String(tx.customerId) === String(customer.id))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -989,7 +1058,12 @@ export default function CustomerBook() {
               {hasPermission('canManageDebt') && (
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => { setShowPaymentModal(true); setActionAmount(selectedCustomer.balance.toString()); setActionNote(''); }}
+                    onClick={() => { 
+                      setShowPaymentModal(true); 
+                      const bal = Number(selectedCustomer.balance) || 0;
+                      setActionAmount(bal > 0 ? bal.toString() : ''); 
+                      setActionNote(''); 
+                    }}
                     className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 transition"
                   >
                     <ArrowDownLeft className="w-4 h-4" />
@@ -1082,16 +1156,16 @@ export default function CustomerBook() {
 
             <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-between text-xs font-mono">
               <span className="text-slate-400">Mevcut Borç:</span>
-              <span className="font-bold text-rose-400">₺{selectedCustomer.balance.toFixed(2)}</span>
+              <span className="font-bold text-rose-400">₺{(Number(selectedCustomer.balance) || 0).toFixed(2)}</span>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs text-slate-300 font-bold">Ödenen Tutar (₺)</label>
-                {selectedCustomer.balance > 0 && (
+                {(Number(selectedCustomer.balance) || 0) > 0 && (
                   <button
                     type="button"
-                    onClick={() => setActionAmount(selectedCustomer.balance.toString())}
+                    onClick={() => setActionAmount(String(Number(selectedCustomer.balance) || 0))}
                     className="text-[10px] text-emerald-400 hover:underline font-bold"
                   >
                     Tüm Borcu Kapat
@@ -1099,12 +1173,12 @@ export default function CustomerBook() {
                 )}
               </div>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
+                type="text"
+                inputMode="decimal"
                 required
                 value={actionAmount}
-                onChange={(e) => setActionAmount(e.target.value)}
+                onChange={(e) => setActionAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+                placeholder="0.00"
                 className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-xl text-emerald-400 font-mono font-black focus:outline-none focus:border-emerald-500"
                 autoFocus
               />
@@ -1157,12 +1231,12 @@ export default function CustomerBook() {
             <div>
               <label className="text-xs text-slate-300 font-bold block mb-1">Borç Tutarı (₺)</label>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
+                type="text"
+                inputMode="decimal"
                 required
                 value={actionAmount}
-                onChange={(e) => setActionAmount(e.target.value)}
+                onChange={(e) => setActionAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+                placeholder="0.00"
                 className="w-full bg-slate-950 border border-rose-500/50 rounded-xl px-3 py-2 text-xl text-rose-400 font-mono font-black focus:outline-none focus:border-rose-500"
                 autoFocus
               />
@@ -1300,6 +1374,21 @@ export default function CustomerBook() {
               Müşteriyi Kaydet
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ================= TOAST NOTIFICATION ================= */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-70 bg-emerald-500 text-slate-950 font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-4 border border-emerald-400">
+          <CheckCircle2 className="w-5 h-5 text-slate-950 shrink-0" />
+          <span className="text-xs sm:text-sm font-black">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 p-1 rounded-lg hover:bg-black/10 text-slate-950 transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
