@@ -11,14 +11,14 @@
 
 ---
 
-## 📲 Hızlı İndir & Kurulum (İş Yeri / Personel)
+## 📲 Quick Download & Install (Store / Staff)
 
-| Platform | Kurulum Türü | İndirme / Erişim Linki |
+| Platform | Install Type | Download / Access Link |
 | :--- | :--- | :--- |
-| 🤖 **Android** | APK Dosyası | [📥 Market-Kasa.apk İndir](https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa.apk) |
-| 💻 **Windows** | Setup Kurulumu (.exe) | [📥 Windows Kurulum Dosyası İndir](https://github.com/HasanKaan28/Market_Kasa/releases/latest) |
-| 🍏 **iPhone / iOS** | Web PWA (Ana Ekrana Ekle) | [🌐 iOS Canlı Web Adresi](https://hasankaan28.github.io/Market_Kasa/) *(Safari -> Paylaş -> Ana Ekrana Ekle)* |
-| 📦 **Tüm Sürümler** | GitHub Releases | [🏷️ Sürümler ve Dosyalar](https://github.com/HasanKaan28/Market_Kasa/releases) |
+| 🤖 **Android** | APK File | [📥 Download Market-Kasa.apk](https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa.apk) |
+| 💻 **Windows** | Setup Installer (.exe) | [📥 Download Windows Installer](https://github.com/HasanKaan28/Market_Kasa/releases/latest) |
+| 🍏 **iPhone / iOS** | Web PWA (Add to Home Screen) | [🌐 iOS Live Web App](https://hasankaan28.github.io/Market_Kasa/) *(Safari -> Share -> Add to Home Screen)* |
+| 📦 **All Releases** | GitHub Releases | [🏷️ Releases and Files](https://github.com/HasanKaan28/Market_Kasa/releases) |
 
 ---
 
