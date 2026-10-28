@@ -62,6 +62,7 @@
 | K10 | iOS için PWA | Capacitor iOS | Yerel iOS uygulaması Mac ve Apple geliştirici hesabı ister; sonraya kalır. |
 | K11 | LAN eşitleme kaldırılır | LAN WebSocket'i güvenli hale getirmek | Kimliksiz LAN sunucusu güvenlik açığı. Sunucu eşitlemesi yeterli. |
 | K12 | Arayüz yönü: sade ve profesyonel | Sıcak ve canlı; cesur ve modern; sade tasarım + siyah sepet karışımı | Uzun mesaide en az yoran, rapor ve tablo ekranlarına en kolay uyarlanan yön. Kullanıcı üç etkileşimli taslağı inceledikten sonra seçti. |
+| K13 | v2, geçiş gününe kadar `main` ile birleştirilmez; canlı uygulamaya (GitHub Pages, v1 release'leri) dokunulmaz | v1'i ayrı dala alıp eski iş akışını kapatarak birleştirmek; doğrudan birleştirmek | Canlı uygulamayı şu an kullanan marketler var. `main`'e her push eski `android-apk.yml` iş akışını tetikliyor; web uygulaması ve release dosyaları yeniden yayınlanıyor. PR #2 taslak kalır ve CI için açık tutulur. |
 
 ## 4. v1'den dersler
 
