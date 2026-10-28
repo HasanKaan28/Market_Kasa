@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Test and tool output
+coverage/
+.playwright-mcp/
+
 # Production builds & packaging
 dist/
 dist-electron/
