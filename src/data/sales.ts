@@ -15,6 +15,8 @@ import type { LedgerRecord, Payment, ProductRecord, SaleLine, SaleRecord } from 
 export type SaleLineInput = { productId: string; qtyMilli: number; lineDiscount?: Kurus };
 
 export type RecordSaleInput = {
+  /** Pass the cart's id: submitting the same id again returns the stored sale instead of selling twice. */
+  id?: string;
   deviceCode: string;
   at: Date;
   cutoffMinutes?: number;
@@ -47,6 +49,10 @@ export async function recordSale(db: MarketDb, input: RecordSaleInput): Promise<
     db.outbox,
   ];
   return db.transaction('rw', tables, async () => {
+    const alreadyStored = input.id ? await db.sales.get(input.id) : undefined;
+    if (alreadyStored) {
+      return alreadyStored;
+    }
     const products = await loadProducts(db, input.lines);
     const cart = computeCart(
       input.lines.map((line, index) => ({
@@ -209,7 +215,7 @@ function buildSale(
     });
   });
   return withoutUndefined({
-    id: newId(input.at.getTime()),
+    id: input.id ?? newId(input.at.getTime()),
     receiptNo: formatReceiptNo(input.deviceCode, numbering.day, numbering.seq),
     deviceCode: input.deviceCode,
     seq: numbering.seq,

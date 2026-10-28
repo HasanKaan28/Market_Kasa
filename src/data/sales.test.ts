@@ -157,6 +157,17 @@ describe('recordSale', () => {
     expect(await stockOf(db, ids.ekmek)).toBe(-2000);
   });
 
+  it('records a sale only once when the same id is submitted again', async () => {
+    const id = '01a181bc-da80-7001-8203-040506070809';
+    const first = await recordSale(db, { ...cashSale('2026-10-28T09:00:00Z'), id });
+    const before = await pendingCount(db);
+    const again = await recordSale(db, { ...cashSale('2026-10-28T09:00:01Z'), id });
+    expect(again).toEqual(first);
+    expect(await db.sales.count()).toBe(1);
+    expect(await stockOf(db, ids.ekmek)).toBe(-2000);
+    expect(await pendingCount(db)).toBe(before);
+  });
+
   it('lists recent sales newest first', async () => {
     await recordSale(db, cashSale('2026-10-28T09:00:00Z'));
     await recordSale(db, cashSale('2026-10-28T10:00:00Z'));

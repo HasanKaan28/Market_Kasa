@@ -101,6 +101,25 @@ describe('products', () => {
     expect((await searchProducts(db, '869')).map((p) => p.name)).toEqual(['Siyah Çay', 'Süt']);
   });
 
+  it('keeps defaults when optional fields are passed as undefined', async () => {
+    const p = await createProduct(
+      db,
+      { name: 'Simit', sellPrice: 1750, vatRate: 1, buyPrice: undefined, unit: undefined },
+      at,
+    );
+    expect(p).toMatchObject({ unit: 'piece', buyPrice: 0, isQuick: false, criticalLevelMilli: 0 });
+  });
+
+  it('finds capitals written with a plain I and ignores Turkish letters', async () => {
+    await createProduct(db, { name: 'LIPTON ICE TEA', sellPrice: 3500, vatRate: 20 }, at);
+    await createProduct(db, { name: 'Siyah Çay', sellPrice: 27900, vatRate: 1 }, at);
+    await createProduct(db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    expect((await searchProducts(db, 'lipton')).map((p) => p.name)).toEqual(['LIPTON ICE TEA']);
+    expect((await searchProducts(db, 'ice')).map((p) => p.name)).toEqual(['LIPTON ICE TEA']);
+    expect((await searchProducts(db, 'cay')).map((p) => p.name)).toEqual(['Siyah Çay']);
+    expect((await searchProducts(db, 'sut')).map((p) => p.name)).toEqual(['Süt']);
+  });
+
   it('rejects invalid prices and VAT rates', async () => {
     await expect(createProduct(db, { name: 'X', sellPrice: -1, vatRate: 1 }, at)).rejects.toThrow(
       RangeError,

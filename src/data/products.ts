@@ -34,19 +34,26 @@ export async function createProduct(
   at: Date,
 ): Promise<ProductRecord> {
   const stamp = at.toISOString();
-  const fields = validateFields({
+  // Validate first and drop absent fields, then fill defaults: an explicit undefined
+  // (an empty form box) must not wipe out a default.
+  const validated = withoutUndefined(validateFields(input));
+  const { name, sellPrice, vatRate } = validated;
+  if (name === undefined || sellPrice === undefined || vatRate === undefined) {
+    throw new RangeError('A product needs a name, a sell price and a VAT rate');
+  }
+  const record: ProductRecord = {
     unit: 'piece',
     buyPrice: 0,
     isQuick: false,
     criticalLevelMilli: 0,
-    ...input,
-  }) as ProductFields;
-  const record: ProductRecord = withoutUndefined({
+    ...validated,
+    name,
+    sellPrice,
+    vatRate,
     id: newId(at.getTime()),
-    ...fields,
     createdAt: stamp,
     updatedAt: stamp,
-  });
+  };
 
   await db.transaction('rw', db.products, db.outbox, async () => {
     await assertBarcodeFree(db, record.barcode, record.id);
