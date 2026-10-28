@@ -100,6 +100,7 @@ export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }
   | { kind: 'patch'; table: 'products' | 'customers'; recordId: string; patch: object };
 
-export type OutboxItem = OutboxOp & { seq?: number; createdAt: string };
+/** `opId` is unique per operation, so the server can skip a retry it already applied. */
+export type OutboxItem = OutboxOp & { seq?: number; opId: string; createdAt: string };
 
 export type MetaRecord = { key: string; value: unknown };

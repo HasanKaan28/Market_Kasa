@@ -1,11 +1,12 @@
 import type { MarketDb } from './db';
+import { newId } from './ids';
 import type { OutboxItem, OutboxOp } from './types';
 
 const DEFAULT_BATCH = 500;
 
 /** Queues one change for the server. Call it inside the transaction that makes the change. */
 export async function appendOutbox(db: MarketDb, op: OutboxOp, at: Date): Promise<void> {
-  await db.outbox.add({ ...op, createdAt: at.toISOString() });
+  await db.outbox.add({ ...op, opId: newId(at.getTime()), createdAt: at.toISOString() });
 }
 
 export function pendingOps(db: MarketDb, limit: number = DEFAULT_BATCH): Promise<OutboxItem[]> {

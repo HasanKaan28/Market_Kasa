@@ -38,4 +38,14 @@ describe('outbox', () => {
     await acknowledgeOps(db, [first?.seq ?? -1]);
     expect((await pendingOps(db)).map((op) => op.recordId)).toEqual(['b']);
   });
+
+  it('gives every operation its own opId', async () => {
+    await appendOutbox(db, { kind: 'insert', table: 'sales', recordId: 'a', record: {} }, at);
+    await appendOutbox(db, { kind: 'insert', table: 'sales', recordId: 'b', record: {} }, at);
+    const [first, second] = await pendingOps(db);
+    expect(first?.opId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(first?.opId).not.toBe(second?.opId);
+  });
 });
