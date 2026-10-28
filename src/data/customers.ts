@@ -1,7 +1,7 @@
 import { balance } from '@/domain/ledger';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import type { MarketDb } from './db';
-import { NotFoundError } from './errors';
+import { RecordNotFoundError } from './errors';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
 import { changedFields, toPatch, withoutUndefined } from './records';
@@ -44,7 +44,7 @@ export async function updateCustomer(
   return db.transaction('rw', db.customers, db.outbox, async () => {
     const current = await db.customers.get(id);
     if (!current) {
-      throw new NotFoundError('Customer', id);
+      throw new RecordNotFoundError('Customer', id);
     }
     const changed = changedFields(current, changes);
     const updated = withoutUndefined({ ...current, ...changed, updatedAt: stamp });
@@ -63,7 +63,7 @@ export async function archiveCustomer(db: MarketDb, id: string, at: Date): Promi
   await db.transaction('rw', db.customers, db.outbox, async () => {
     const current = await db.customers.get(id);
     if (!current) {
-      throw new NotFoundError('Customer', id);
+      throw new RecordNotFoundError('Customer', id);
     }
     if (current.archivedAt) {
       return;

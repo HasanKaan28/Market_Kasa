@@ -1,7 +1,7 @@
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { assertVatRate, type VatRate } from '@/domain/pricing';
 import type { MarketDb } from './db';
-import { DuplicateBarcodeError, NotFoundError } from './errors';
+import { DuplicateBarcodeError, RecordNotFoundError } from './errors';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
 import { changedFields, toPatch, withoutUndefined } from './records';
@@ -68,7 +68,7 @@ export async function updateProduct(
   return db.transaction('rw', db.products, db.outbox, async () => {
     const current = await db.products.get(id);
     if (!current) {
-      throw new NotFoundError('Product', id);
+      throw new RecordNotFoundError('Product', id);
     }
     if ('barcode' in changes) {
       await assertBarcodeFree(db, changes.barcode, id);
@@ -90,7 +90,7 @@ export async function deleteProduct(db: MarketDb, id: string, at: Date): Promise
   await db.transaction('rw', db.products, db.outbox, async () => {
     const current = await db.products.get(id);
     if (!current) {
-      throw new NotFoundError('Product', id);
+      throw new RecordNotFoundError('Product', id);
     }
     if (current.deletedAt) {
       return;
