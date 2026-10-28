@@ -1,0 +1,27 @@
+export class NotFoundError extends Error {
+  constructor(what: string, id: string) {
+    super(`${what} not found: ${id}`);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class DuplicateBarcodeError extends Error {
+  constructor(barcode: string) {
+    super(`Barcode already in use: ${barcode}`);
+    this.name = 'DuplicateBarcodeError';
+  }
+}
+
+export class PaymentMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentMismatchError';
+  }
+}
+
+export class CreditLimitError extends Error {
+  constructor(customerId: string, limit: number, balanceAfter: number) {
+    super(`Customer ${customerId} would owe ${balanceAfter}, above the limit of ${limit}`);
+    this.name = 'CreditLimitError';
+  }
+}
