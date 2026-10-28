@@ -711,3 +711,30 @@ Expected: PASS.
 git add src/data/sales.ts src/data/sales.test.ts
 git commit -m "feat(data): record a sale atomically with stock, ledger and receipt number"
 ```
+
+---
+
+## Uygulama notları (2026-10-29)
+
+Commit'ler `67abdd8`…`0ab6b2c`. Son inceleme: 0 kritik, 2 önemli (düzeltildi), 1 küçük bulgu önemliye yükseltildi (düzeltildi), 9 küçük bulgu ertelendi.
+
+**Verilen kararlar:**
+- `MarketDb` tabloları `declare` alanlarla tanımlandı (ES2022 sınıf alanları tabloları ezmesin diye).
+- `assertVatRate` domain'e taşındı ve tekrar kullanılıyor.
+- Temizlenen isteğe bağlı alan outbox'ta `null` olarak gider.
+- Yama yardımcıları `src/data/records.ts`'te ortak.
+- `NotFoundError` → `RecordNotFoundError`: Dexie, IndexedDB hata adlarını taşıyan hataları kendi tipine sarıyor.
+- Boş satış ve sıfır/eksi miktar reddediliyor.
+- Satışa isteğe bağlı `id` (sepet kimliği) verilebiliyor; aynı `id` tekrar gelirse kayıtlı satış döner (§15).
+- Arama Türkçe harfleri sadeleştiriyor: "lipton", "cay", "sut" bulunur.
+
+**Ertelenen küçük bulgular:**
+- Silinmiş ürünün barkodu çıkmaz sokak: arama göstermiyor, hata tutanı söylemiyor (M3'te geri getirme).
+- Barkodlar büyük/küçük harfe duyarlı.
+- `isQuick` indeksi kullanılamıyor (M1b şema sürüm 2'de kaldırılıyor).
+- Yalnız kartla ödemede `cashGiven` verilirse para üstü yazılıyor.
+- Bilinmeyen ödeme yöntemi çalışma anında denetlenmiyor (TypeScript engelliyor).
+- Veresiyesiz satışta `customerId` denetlenmiyor.
+- Satışın alt kayıtları satıştan önce kuyruğa giriyor; M0b sunucusu çocukları ebeveynden önce kabul etmeli.
+- Değişiklik olmayan güncelleme yine de `{updatedAt}` yaması gönderiyor.
+- Test boşlukları: arşivli/bilinmeyen veresiye müşterisi, güncellemede barkod çakışması, `cutoffMinutes`.

@@ -827,3 +827,17 @@ Expected: PASS.
 git add src/app/AppShell.tsx src/app/AppShell.test.tsx src/app/App.tsx
 git commit -m "feat(v2): add POS app shell in the clean professional direction"
 ```
+
+---
+
+## Uygulama notları (2026-10-28)
+
+Commit'ler `c9e235b`…`4bceb27`. Son inceleme: 0 kritik, 2 önemli (düzeltildi: tamsayı/KDV oranı denetimi, gün içi fiş sırası), 6 küçük bulgu ertelendi.
+
+**Ertelenen küçük bulgular:**
+- `parseTRY` binlik gruplamayı denetlemiyor ("0.500" → ₺500,00).
+- `debtAgeDays` gün dönümü ayarını ve saat dilimini dikkate almıyor.
+- `viewport-fit=cover` var, güvenli alan boşluğu yok.
+- Danger butonda kısayol etiketi kontrastı ~4,2:1.
+- `cutoffMinutes` için sınır yok.
+- `version.test.ts` sürüm metnini sabit yazıyor.
