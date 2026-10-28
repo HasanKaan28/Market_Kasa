@@ -1,0 +1,33 @@
+/* Direction K12 "sade ve profesyonel" (docs/v2/DESIGN.md §13). */
+@theme {
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-line: #e2e5ea;
+  --color-line-strong: #cdd2da;
+  --color-text: #12151a;
+  --color-text-2: #4a5260;
+  --color-muted: #5b6472;
+  --color-accent: #2350d8;
+  --color-accent-hover: #1a3fae;
+  --color-success: #0f6b49;
+  --color-success-bg: #e8f6ef;
+  --color-danger: #b42318;
+  --color-danger-bg: #fdecea;
+
+  --radius-control: 8px;
+  --radius-chip: 6px;
+
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-bg font-sans text-text tabular-nums antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
