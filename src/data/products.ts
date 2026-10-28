@@ -4,6 +4,7 @@ import type { MarketDb } from './db';
 import { DuplicateBarcodeError, NotFoundError } from './errors';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
+import { changedFields, toPatch, withoutUndefined } from './records';
 import { normalizeForSearch } from './text';
 import type { ProductRecord, ProductUnit } from './types';
 
@@ -72,11 +73,7 @@ export async function updateProduct(
     if ('barcode' in changes) {
       await assertBarcodeFree(db, changes.barcode, id);
     }
-    const changed = Object.fromEntries(
-      Object.entries(changes).filter(
-        ([key, value]) => current[key as keyof ProductRecord] !== value,
-      ),
-    );
+    const changed = changedFields(current, changes);
     const updated = withoutUndefined({ ...current, ...changed, updatedAt: stamp });
     await db.products.put(updated);
     await appendOutbox(
@@ -207,17 +204,4 @@ async function assertBarcodeFree(
   if (holder && holder.id !== ownerId) {
     throw new DuplicateBarcodeError(barcode);
   }
-}
-
-/** A cleared optional field travels as null, because JSON has no undefined. */
-function toPatch(changed: Record<string, unknown>, stamp: string): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(changed)) {
-    patch[key] = value === undefined ? null : value;
-  }
-  return { ...patch, updatedAt: stamp };
-}
-
-function withoutUndefined<T extends object>(record: T): T {
-  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as T;
 }
