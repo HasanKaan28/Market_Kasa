@@ -15,10 +15,20 @@ export function formatReceiptNo(deviceCode: string, businessDate: string, seq: n
   return `${deviceCode}-${businessDate.replaceAll('-', '')}-${String(seq).padStart(4, '0')}`;
 }
 
-/** Sequences restart at 1 on every new business day. */
-export function nextReceiptSeq(
-  last: { businessDate: string; seq: number } | null,
-  businessDate: string,
-): number {
-  return last !== null && last.businessDate === businessDate ? last.seq + 1 : 1;
+/**
+ * Next sequence for a receipt on one business day. Pass the highest sequence this device has
+ * already issued on that same day (null when none), never the device's latest receipt: when
+ * the clock moves back to an earlier day, the latest receipt belongs to another day and its
+ * sequence says nothing about which numbers that earlier day has used.
+ */
+export function nextReceiptSeq(highestSeqThatDay: number | null): number {
+  if (highestSeqThatDay === null) {
+    return 1;
+  }
+  if (!Number.isSafeInteger(highestSeqThatDay) || highestSeqThatDay < 1) {
+    throw new RangeError(
+      `The highest sequence must be a positive integer, got ${highestSeqThatDay}`,
+    );
+  }
+  return highestSeqThatDay + 1;
 }

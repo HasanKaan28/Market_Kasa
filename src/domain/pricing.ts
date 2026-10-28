@@ -1,4 +1,4 @@
-import { divRoundHalfUp, type Kurus } from './money';
+import { assertSafeInteger, divRoundHalfUp, type Kurus } from './money';
 
 export type VatRate = 0 | 1 | 10 | 20;
 
@@ -30,11 +30,17 @@ export type CartTotals = {
 
 /** Price of `qtyMilli` thousandths of a unit, rounded to the kuruş. */
 export function lineTotal(qtyMilli: number, unitPrice: Kurus): Kurus {
+  assertSafeInteger(qtyMilli, 'Quantity (thousandths)');
+  assertSafeInteger(unitPrice, 'Unit price');
   return divRoundHalfUp(qtyMilli * unitPrice, 1000);
 }
 
 /** The VAT contained in a VAT-inclusive amount. */
 export function vatIncluded(total: Kurus, rate: VatRate): Kurus {
+  assertSafeInteger(total, 'Amount');
+  if (!VAT_RATES.includes(rate)) {
+    throw new RangeError(`VAT rate must be one of ${VAT_RATES.join(', ')}, got ${rate}`);
+  }
   return total - divRoundHalfUp(total * 100, 100 + rate);
 }
 
@@ -44,6 +50,8 @@ export function vatIncluded(total: Kurus, rate: VatRate): Kurus {
  * the largest remainders, earlier lines first on ties.
  */
 export function distributeDiscount(lineTotals: readonly Kurus[], discount: Kurus): Kurus[] {
+  assertSafeInteger(discount, 'Discount');
+  lineTotals.forEach((value) => assertSafeInteger(value, 'Line total'));
   const sum = sumOf(lineTotals);
   if (lineTotals.some((value) => value < 0) || discount < 0 || discount > sum) {
     throw new RangeError(`Cannot spread a discount of ${discount} over lines totalling ${sum}`);
@@ -70,6 +78,7 @@ export function computeCart(lines: readonly CartLineInput[], cartDiscount: Kurus
   const discounted = lines.map((line) => {
     const gross = lineTotal(line.qtyMilli, line.unitPrice);
     const lineDiscount = line.lineDiscount ?? 0;
+    assertSafeInteger(lineDiscount, 'Line discount');
     if (lineDiscount < 0) {
       throw new RangeError(`A line discount cannot be negative, got ${lineDiscount}`);
     }

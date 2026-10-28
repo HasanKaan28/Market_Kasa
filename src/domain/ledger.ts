@@ -1,5 +1,5 @@
 import { businessDate } from './businessDate';
-import type { Kurus } from './money';
+import { assertSafeInteger, type Kurus } from './money';
 
 export type LedgerKind = 'debt' | 'payment' | 'adjustment';
 
@@ -63,10 +63,14 @@ export function debtAgeDays(entries: readonly LedgerEntry[], today: string): num
 
 /** Current stock in thousandths of a unit. */
 export function stockLevel(movements: readonly { delta: number }[]): number {
-  return movements.reduce((sum, movement) => sum + movement.delta, 0);
+  return movements.reduce((sum, movement) => {
+    assertSafeInteger(movement.delta, 'Stock delta (thousandths)');
+    return sum + movement.delta;
+  }, 0);
 }
 
 function assertSign(entry: LedgerEntry): void {
+  assertSafeInteger(entry.amount, 'Ledger amount');
   if (entry.kind === 'debt' && entry.amount <= 0) {
     throw new RangeError(`A debt must be positive, got ${entry.amount}`);
   }

@@ -38,6 +38,11 @@ describe('ledger', () => {
     expect(oldestUnpaidDebt(e)).toBe('2026-10-05T09:00:00Z');
   });
 
+  it('rejects fractional kuruş', () =>
+    expect(() =>
+      balance([{ kind: 'debt', amount: 0.5, occurredAt: '2026-10-01T09:00:00Z' }]),
+    ).toThrow(RangeError));
+
   it('rejects sign mistakes', () =>
     expect(() =>
       balance([{ kind: 'payment', amount: 500, occurredAt: '2026-10-01T09:00:00Z' }]),
@@ -47,4 +52,7 @@ describe('ledger', () => {
 describe('stockLevel', () => {
   it('sums movements', () =>
     expect(stockLevel([{ delta: 50000 }, { delta: -2000 }, { delta: -1000 }])).toBe(47000));
+
+  it('rejects fractional thousandths', () =>
+    expect(() => stockLevel([{ delta: 0.5 }])).toThrow(RangeError));
 });

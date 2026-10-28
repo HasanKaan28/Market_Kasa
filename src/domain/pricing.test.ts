@@ -5,6 +5,7 @@ import {
   lineTotal,
   vatIncluded,
   type CartLineInput,
+  type VatRate,
 } from './pricing';
 
 const mockupCart: CartLineInput[] = [
@@ -64,6 +65,23 @@ describe('line and VAT rules', () => {
     expect(() => distributeDiscount([3000], -1)).toThrow(RangeError);
     expect(distributeDiscount([], 0)).toEqual([]);
     expect(() => computeCart([], 100)).toThrow(RangeError);
+  });
+
+  it('rejects fractional kuruş, fractional quantities and NaN', () => {
+    expect(() => lineTotal(1000, 10.5)).toThrow(RangeError);
+    expect(() => lineTotal(1500.5, 2)).toThrow(RangeError);
+    expect(() =>
+      computeCart([{ qtyMilli: 1000, unitPrice: 3000, vatRate: 1, lineDiscount: 0.5 }]),
+    ).toThrow(RangeError);
+    expect(() => computeCart(mockupCart, 1000.5)).toThrow(RangeError);
+    expect(() => distributeDiscount([3000], Number.NaN)).toThrow(RangeError);
+  });
+
+  it('rejects VAT rates outside 0, 1, 10 and 20', () => {
+    expect(() => vatIncluded(1000, 18 as VatRate)).toThrow(RangeError);
+    expect(() =>
+      computeCart([{ qtyMilli: 1000, unitPrice: 1000, vatRate: 18 as VatRate }]),
+    ).toThrow(RangeError);
   });
 
   it('rejects a negative line discount', () => {

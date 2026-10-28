@@ -9,10 +9,15 @@ export class MoneyParseError extends Error {
 
 const TRY_FORMAT = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' });
 
-export function formatTRY(k: Kurus): string {
-  if (!Number.isSafeInteger(k)) {
-    throw new RangeError(`Kuruş must be a safe integer, got ${k}`);
+/** Guards the "no fractional kuruş or quantities" rule at every domain entry point. */
+export function assertSafeInteger(value: number, what: string): void {
+  if (!Number.isSafeInteger(value)) {
+    throw new RangeError(`${what} must be a safe integer, got ${value}`);
   }
+}
+
+export function formatTRY(k: Kurus): string {
+  assertSafeInteger(k, 'Kuruş');
   // k === 0 also catches -0, which Intl would print as "-₺0,00".
   return TRY_FORMAT.format(k === 0 ? 0 : k / 100);
 }
