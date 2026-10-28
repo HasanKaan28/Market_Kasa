@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   CustomerRecord,
   LedgerRecord,
+  MetaRecord,
   OutboxItem,
   ProductRecord,
   SaleRecord,
@@ -19,6 +20,7 @@ export class MarketDb extends Dexie {
   declare stockLevels: Table<StockLevelRecord, string>;
   declare ledger: Table<LedgerRecord, string>;
   declare outbox: Table<OutboxItem, number>;
+  declare meta: Table<MetaRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -30,6 +32,12 @@ export class MarketDb extends Dexie {
       stockLevels: 'productId',
       ledger: 'id, customerId',
       outbox: '++seq',
+    });
+    // v2: the sync cursor lives in `meta`; `isQuick` loses its index because IndexedDB
+    // cannot use booleans as keys.
+    this.version(2).stores({
+      meta: 'key',
+      products: 'id, &barcode, name, updatedAt',
     });
   }
 }

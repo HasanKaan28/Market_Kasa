@@ -14,18 +14,24 @@ describe('openMarketDb', () => {
     expect(db.name).not.toBe('MarketPosDB');
   });
 
-  it('declares the M1a tables', async () => {
+  it('declares the data and sync tables', async () => {
     db = openMarketDb('tables-check');
     await db.open();
     expect(db.tables.map((t) => t.name).sort()).toEqual([
       'customers',
       'ledger',
+      'meta',
       'outbox',
       'products',
       'sales',
       'stockLevels',
       'stockMovements',
     ]);
+  });
+
+  it('does not index booleans', () => {
+    db = openMarketDb('index-check');
+    expect(db.products.schema.indexes.map((index) => index.name)).not.toContain('isQuick');
   });
 
   it('rejects market ids that are not slug-safe', () =>

@@ -101,3 +101,5 @@ export type OutboxOp =
   | { kind: 'patch'; table: 'products' | 'customers'; recordId: string; patch: object };
 
 export type OutboxItem = OutboxOp & { seq?: number; createdAt: string };
+
+export type MetaRecord = { key: string; value: unknown };
