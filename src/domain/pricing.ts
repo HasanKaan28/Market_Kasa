@@ -28,6 +28,12 @@ export type CartTotals = {
   vatByRate: Partial<Record<VatRate, Kurus>>;
 };
 
+export function assertVatRate(rate: number): asserts rate is VatRate {
+  if (!(VAT_RATES as readonly number[]).includes(rate)) {
+    throw new RangeError(`VAT rate must be one of ${VAT_RATES.join(', ')}, got ${rate}`);
+  }
+}
+
 /** Price of `qtyMilli` thousandths of a unit, rounded to the kuruş. */
 export function lineTotal(qtyMilli: number, unitPrice: Kurus): Kurus {
   assertSafeInteger(qtyMilli, 'Quantity (thousandths)');
@@ -38,9 +44,7 @@ export function lineTotal(qtyMilli: number, unitPrice: Kurus): Kurus {
 /** The VAT contained in a VAT-inclusive amount. */
 export function vatIncluded(total: Kurus, rate: VatRate): Kurus {
   assertSafeInteger(total, 'Amount');
-  if (!VAT_RATES.includes(rate)) {
-    throw new RangeError(`VAT rate must be one of ${VAT_RATES.join(', ')}, got ${rate}`);
-  }
+  assertVatRate(rate);
   return total - divRoundHalfUp(total * 100, 100 + rate);
 }
 
