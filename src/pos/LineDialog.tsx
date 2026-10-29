@@ -12,12 +12,20 @@ export type LineDialogProps = {
   line: CartLine;
   onClose(): void;
   dispatch(action: CartAction): void;
+  /** False for a person who may not give discounts: the line keeps the discount it has. */
+  allowDiscount?: boolean;
 };
 
 type Errors = { quantity?: string; discount?: string };
 
 /** Changes one cart line: its quantity (kilograms for weighed goods), its discount, or removes it. */
-export function LineDialog({ open, line, onClose, dispatch }: LineDialogProps): JSX.Element {
+export function LineDialog({
+  open,
+  line,
+  onClose,
+  dispatch,
+  allowDiscount = true,
+}: LineDialogProps): JSX.Element {
   const [quantity, setQuantity] = useState(formatQtyInput(line.qtyMilli));
   const [mode, setMode] = useState<DiscountMode>('amount');
   const [discount, setDiscount] = useState(
@@ -69,13 +77,15 @@ export function LineDialog({ open, line, onClose, dispatch }: LineDialogProps): 
           error={errors.quantity}
           onChange={(event) => setQuantity(event.target.value)}
         />
-        <DiscountField
-          mode={mode}
-          value={discount}
-          error={errors.discount}
-          onModeChange={setMode}
-          onChange={setDiscount}
-        />
+        {allowDiscount ? (
+          <DiscountField
+            mode={mode}
+            value={discount}
+            error={errors.discount}
+            onModeChange={setMode}
+            onChange={setDiscount}
+          />
+        ) : null}
         <div className="flex items-baseline justify-between">
           <span className="font-medium">Satır tutarı</span>
           <span data-testid="line-total" className="font-mono text-[22px] font-semibold">

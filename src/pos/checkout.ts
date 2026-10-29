@@ -14,6 +14,8 @@ export type CheckoutInput = {
   cashGiven?: Kurus;
   /** Who sells it. */
   staffId?: string;
+  /** A permitted person approved going over the customer's credit limit. */
+  allowOverLimit?: boolean;
   at: Date;
 };
 
@@ -42,13 +44,14 @@ export function singlePayment(cart: Cart, method: PaymentMethod): Payment[] {
  */
 export async function checkout(
   db: MarketDb,
-  { cart, deviceCode, payments, customerId, cashGiven, staffId, at }: CheckoutInput,
+  { cart, deviceCode, payments, customerId, cashGiven, staffId, allowOverLimit, at }: CheckoutInput,
 ): Promise<SaleRecord> {
   const paidBy = (method: PaymentMethod) => payments.some((payment) => payment.method === method);
   const sale = await recordSale(db, {
     id: cart.id,
     deviceCode,
     staffId,
+    ...(allowOverLimit ? { allowOverLimit } : {}),
     at,
     lines: cart.lines.map(({ productId, qtyMilli, lineDiscount }) => ({
       productId,

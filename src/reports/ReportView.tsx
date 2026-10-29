@@ -20,7 +20,7 @@ export function ReportView({ model }: { model: ReportModel }): JSX.Element {
         <p>{`Yazdırıldı: ${printedFormat.format(model.printedAt)}`}</p>
       </header>
       <dl className="grid grid-cols-2 gap-x-8">
-        {reportFigures(model.summary).map((figure) => (
+        {reportFigures(model.summary, { cost: model.showCost }).map((figure) => (
           <div
             key={figure.label}
             className="flex justify-between gap-4 border-b border-gray-300 py-1"

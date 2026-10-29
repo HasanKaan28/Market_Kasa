@@ -22,11 +22,14 @@ export function formatPeriod(from: string, to: string): string {
 
 /**
  * The headline figures of a report, net sales first, then in rows of three: the sales, how they
- * were paid, and what came off them.
+ * were paid, and what came off them. Without `cost`, gross profit is left out (DESIGN §8.5).
  */
-export function reportFigures(summary: Summary): Figure[] {
+export function reportFigures(
+  summary: Summary,
+  { cost = true }: { cost?: boolean } = {},
+): Figure[] {
   const margin = summary.net > 0 ? percentFormat.format(summary.grossProfit / summary.net) : null;
-  return [
+  const figures: Figure[] = [
     {
       label: 'Net satış',
       value: formatAmount(summary.net),
@@ -50,4 +53,5 @@ export function reportFigures(summary: Summary): Figure[] {
     },
     { label: 'İptal', value: formatAmount(summary.voidTotal), note: `${summary.voidCount} fiş` },
   ];
+  return cost ? figures : figures.filter((figure) => figure.label !== 'Brüt kâr');
 }

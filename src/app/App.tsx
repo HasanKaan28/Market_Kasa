@@ -1,15 +1,10 @@
 import { useEffect, useState, type JSX } from 'react';
 import { clearStoredCarts } from '@/pos/held';
-import { PosScreen } from '@/pos/PosScreen';
-import { CustomersScreen } from '@/customers/CustomersScreen';
-import { ProductsScreen } from '@/products/ProductsScreen';
-import { ReportsScreen } from '@/reports/ReportsScreen';
-import { StockScreen } from '@/stock/StockScreen';
-import { SuppliersScreen } from '@/suppliers/SuppliersScreen';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
 import { loadDeviceSettings } from './device';
+import { Screens } from './Screens';
 import { SessionProvider } from './SessionProvider';
 import { useRoute } from './route';
 
@@ -27,19 +22,7 @@ export function App(): JSX.Element {
     <ErrorBoundary {...(route === 'pos' ? { onReset: resetRegister } : LEAVE_SCREEN)}>
       <DataProvider value={data}>
         <SessionProvider>
-          {route === 'products' ? (
-            <ProductsScreen />
-          ) : route === 'stock' ? (
-            <StockScreen />
-          ) : route === 'customers' ? (
-            <CustomersScreen />
-          ) : route === 'suppliers' ? (
-            <SuppliersScreen />
-          ) : route === 'reports' ? (
-            <ReportsScreen />
-          ) : (
-            <PosScreen />
-          )}
+          <Screens route={route} />
         </SessionProvider>
       </DataProvider>
     </ErrorBoundary>

@@ -1,13 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
+import { ApprovalDialog } from '@/app/ApprovalDialog';
 import { useData, useSyncStatus } from '@/app/appData';
 import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
+import { CreditLimitError } from '@/data/errors';
 import { findProductByBarcode } from '@/data/products';
 import { saleStatus } from '@/data/returns';
 import type { Payment, ProductRecord, SaleRecord } from '@/data/types';
 import { Button, ToastRegion, useToast } from '@/design';
 import { formatTRY, type Kurus } from '@/domain/money';
+import type { Permission } from '@/domain/permissions';
 import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from './cart';
 import { CartPanel } from './CartPanel';
 import { checkout, checkoutErrorMessage, singlePayment, StaleCartError } from './checkout';
@@ -48,12 +51,14 @@ type OpenDialog =
   | { kind: 'receipts' }
   | { kind: 'drawer' }
   | { kind: 'void' | 'return'; sale: SaleRecord }
+  | { kind: 'approve'; permission: Permission; next: () => void }
   | null;
 
 /** The register: search and scan on the left, the cart and payment on the right. */
 export function PosScreen(): JSX.Element {
   const { db, settings, runner } = useData();
-  const { staff } = useSession();
+  const session = useSession();
+  const { staff } = session;
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
   const [dialog, setDialog] = useState<OpenDialog>(null);
@@ -109,6 +114,15 @@ export function PosScreen(): JSX.Element {
     dispatch({ type: 'add', product });
   }
 
+  // What the person may do opens at once; anything else waits for a permitted person's PIN.
+  function guarded(permission: Permission, next: () => void) {
+    if (session.can(permission)) {
+      next();
+    } else {
+      setDialog({ kind: 'approve', permission, next });
+    }
+  }
+
   async function handleScan(code: string) {
     if (openDialog !== null) {
       toast.show('Önce açık pencereyi kapatın.');
@@ -118,11 +132,14 @@ export function PosScreen(): JSX.Element {
     if (product) {
       add(product);
     } else {
-      setDialog({ kind: 'newProduct', barcode: code });
+      guarded('addProduct', () => setDialog({ kind: 'newProduct', barcode: code }));
     }
   }
 
-  async function pay(payments: Payment[], extra: { cashGiven?: Kurus; customerId?: string }) {
+  async function pay(
+    payments: Payment[],
+    extra: { cashGiven?: Kurus; customerId?: string; allowOverLimit?: boolean },
+  ) {
     setBusy(true);
     try {
       const sale = await checkout(db, {
@@ -141,6 +158,16 @@ export function PosScreen(): JSX.Element {
       }
       void runner.run();
     } catch (error) {
+      // Over the limit, a permitted person may let the sale through; with no staff set up there
+      // is nobody to ask, and the sale is refused as before.
+      if (error instanceof CreditLimitError && !extra.allowOverLimit && !session.open) {
+        setDialog({
+          kind: 'approve',
+          permission: 'overLimit',
+          next: () => void pay(payments, { ...extra, allowOverLimit: true }),
+        });
+        return;
+      }
       if (error instanceof StaleCartError) {
         dispatch({ type: 'renew' });
       }
@@ -210,17 +237,17 @@ export function PosScreen(): JSX.Element {
     {
       F1: () => searchRef.current?.focus(),
       F2: () => {
-        if (hasItems) setDialog({ kind: 'cash' });
+        if (hasItems) guarded('sell', () => setDialog({ kind: 'cash' }));
       },
       F4: () => {
-        if (hasItems) setDialog({ kind: 'card' });
+        if (hasItems) guarded('sell', () => setDialog({ kind: 'card' }));
       },
       F8: () => {
         if (hasItems) hold();
         else if (held.length > 0) setDialog({ kind: 'held' });
       },
       F9: () => setDialog({ kind: 'receipts' }),
-      F10: () => setDialog({ kind: 'drawer' }),
+      F10: () => guarded('closeDay', () => setDialog({ kind: 'drawer' })),
     },
     openDialog === null,
   );
@@ -240,15 +267,21 @@ export function PosScreen(): JSX.Element {
           <CartPanel
             cart={cart}
             dispatch={dispatch}
-            onPay={(method) => setDialog({ kind: method })}
+            onPay={(method) =>
+              guarded(method === 'credit' ? 'creditSale' : 'sell', () =>
+                setDialog({ kind: method }),
+              )
+            }
             onEditLine={(productId) => setDialog({ kind: 'line', productId })}
-            onDiscount={() => setDialog({ kind: 'discount' })}
+            onDiscount={() => guarded('discount', () => setDialog({ kind: 'discount' }))}
           />
         }
       >
         <ProductPanel
           onAdd={add}
-          onNewProduct={(barcode) => setDialog({ kind: 'newProduct', barcode })}
+          onNewProduct={(barcode) =>
+            guarded('addProduct', () => setDialog({ kind: 'newProduct', barcode }))
+          }
           onScan={(code) => void handleScan(code)}
           searchRef={searchRef}
         />
@@ -262,7 +295,10 @@ export function PosScreen(): JSX.Element {
           <Button kbd="F9" onClick={() => setDialog({ kind: 'receipts' })}>
             Son fişler
           </Button>
-          <Button kbd="F10" onClick={() => setDialog({ kind: 'drawer' })}>
+          <Button
+            kbd="F10"
+            onClick={() => guarded('closeDay', () => setDialog({ kind: 'drawer' }))}
+          >
             Kasa
           </Button>
         </div>
@@ -293,7 +329,13 @@ export function PosScreen(): JSX.Element {
         <DiscountDialog open cart={cart} dispatch={dispatch} onClose={close} />
       ) : null}
       {editedLine ? (
-        <LineDialog open line={editedLine} dispatch={dispatch} onClose={close} />
+        <LineDialog
+          open
+          line={editedLine}
+          dispatch={dispatch}
+          onClose={close}
+          allowDiscount={session.can('discount')}
+        />
       ) : null}
       {dialog?.kind === 'credit' ? (
         <CustomerPicker
@@ -329,10 +371,12 @@ export function PosScreen(): JSX.Element {
           open
           settings={receiptSettings}
           onPrint={(sale) => void printSale(sale)}
-          onSettings={() => setDialog({ kind: 'receiptSettings' })}
+          onSettings={() => guarded('admin', () => setDialog({ kind: 'receiptSettings' }))}
           onClose={close}
-          onReturn={(sale) => setDialog({ kind: 'return', sale })}
-          onVoid={(sale) => setDialog({ kind: 'void', sale })}
+          onReturn={(sale) =>
+            guarded('returnWithReceipt', () => setDialog({ kind: 'return', sale }))
+          }
+          onVoid={(sale) => guarded('voidSale', () => setDialog({ kind: 'void', sale }))}
         />
       ) : null}
       {dialog?.kind === 'void' ? (
@@ -359,6 +403,17 @@ export function PosScreen(): JSX.Element {
       ) : null}
       {dialog?.kind === 'drawer' ? (
         <CashDialog open paperWidth={receiptSettings.paperWidth} onClose={close} onDone={finish} />
+      ) : null}
+      {dialog?.kind === 'approve' ? (
+        <ApprovalDialog
+          open
+          permission={dialog.permission}
+          onClose={close}
+          onApproved={() => {
+            setDialog(null);
+            dialog.next();
+          }}
+        />
       ) : null}
       {dialog?.kind === 'receiptSettings' ? (
         <ReceiptSettingsDialog

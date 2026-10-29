@@ -2,7 +2,7 @@ import { Lock } from 'lucide-react';
 import type { JSX, ReactNode } from 'react';
 import { Button } from '@/design';
 import type { SyncState } from '@/sync/runner';
-import type { Route } from './route';
+import { ROUTE_PERMISSIONS, type Route } from './route';
 import { useSession } from './session';
 import { APP_VERSION } from './version';
 
@@ -58,7 +58,10 @@ export function AppShell({
           </div>
         </div>
         <nav aria-label="Ana menü" className="flex flex-wrap gap-1">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.filter((item) => {
+            const needed = ROUTE_PERMISSIONS[item.key];
+            return needed === undefined || session.can(needed);
+          }).map((item) => (
             <NavLink key={item.key} navKey={item.key} active={item.key === activeNav}>
               {item.label}
             </NavLink>

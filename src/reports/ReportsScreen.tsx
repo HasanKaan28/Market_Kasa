@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Download, Printer } from 'lucide-react';
 import { useId, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
 import { Button, ChoiceGroup, SelectField, TextField } from '@/design';
 import { businessDate } from '@/domain/businessDate';
@@ -29,6 +30,8 @@ const ALL = '';
 /** Sales reports: the figures of a range of business days, for one register or all of them. */
 export function ReportsScreen(): JSX.Element {
   const { db, settings, runner } = useData();
+  const session = useSession();
+  const seeCost = session.can('seeCost');
   const status = useSyncStatus(runner);
   const [choice, setChoice] = useState<Choice>('today');
   const [custom, setCustom] = useState({ from: '', to: '' });
@@ -69,11 +72,12 @@ export function ReportsScreen(): JSX.Element {
       to,
       register: registerLabel,
       summary: shown,
+      showCost: seeCost,
       printedAt: new Date(),
     });
   }
 
-  const [hero, ...figures] = summary ? reportFigures(summary) : [];
+  const [hero, ...figures] = summary ? reportFigures(summary, { cost: seeCost }) : [];
 
   return (
     <AppShell
@@ -88,13 +92,15 @@ export function ReportsScreen(): JSX.Element {
           <h1 className="text-xl font-semibold">Raporlar</h1>
           <p className="text-sm text-text-2">{`${formatPeriod(from, to)} · ${registerLabel}`}</p>
         </div>
-        <Button
-          icon={<Download aria-hidden="true" size={18} />}
-          disabled={!summary}
-          onClick={() => summary && exportCsv(summary)}
-        >
-          CSV indir
-        </Button>
+        {session.can('admin') ? (
+          <Button
+            icon={<Download aria-hidden="true" size={18} />}
+            disabled={!summary}
+            onClick={() => summary && exportCsv(summary)}
+          >
+            CSV indir
+          </Button>
+        ) : null}
         <Button
           icon={<Printer aria-hidden="true" size={18} />}
           disabled={!summary}

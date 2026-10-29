@@ -9,6 +9,8 @@ export type ReportModel = {
   to: string;
   /** "Tümü", or the register it is about. */
   register: string;
+  /** Whether the reader may see gross profit. */
+  showCost: boolean;
   summary: Summary;
   printedAt: Date;
 };

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus } from 'lucide-react';
 import { useMemo, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
 import { listCategories } from '@/data/categories';
 import { findProductByBarcode } from '@/data/products';
@@ -38,6 +39,7 @@ type OpenDialog =
 /** The catalogue: every product with its stock and category, and the way to add or change one. */
 export function ProductsScreen(): JSX.Element {
   const { db, settings, runner } = useData();
+  const session = useSession();
   const status = useSyncStatus(runner);
   const toast = useToast();
   const [text, setText] = useState('');
@@ -145,14 +147,16 @@ export function ProductsScreen(): JSX.Element {
             Toplu fiyat
           </Button>
           <Button onClick={() => setDialog({ kind: 'import' })}>İçe aktar</Button>
-          <Button
-            disabled={rows.length === 0}
-            onClick={() =>
-              downloadText(`urunler-${businessDate(new Date())}.csv`, productsToCsv(rows))
-            }
-          >
-            Dışa aktar
-          </Button>
+          {session.can('admin') ? (
+            <Button
+              disabled={rows.length === 0}
+              onClick={() =>
+                downloadText(`urunler-${businessDate(new Date())}.csv`, productsToCsv(rows))
+              }
+            >
+              Dışa aktar
+            </Button>
+          ) : null}
           <Button onClick={() => setDialog({ kind: 'categories' })}>Kategoriler</Button>
           <CameraButton onScan={(code) => void openByBarcode(code)} />
           <Button
