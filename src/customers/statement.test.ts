@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { archiveCustomer, createCustomer } from '@/data/customers';
 import type { MarketDb } from '@/data/db';
-import { recordAdjustment, recordPayment } from '@/data/ledger';
+import { addLedgerEntry, recordAdjustment, recordPayment } from '@/data/ledger';
 import { createProduct } from '@/data/products';
 import { recordReturn } from '@/data/returns';
 import { recordSale } from '@/data/sales';
@@ -46,6 +46,18 @@ describe('customer balances', () => {
       ['Zeynep', 1000, 19],
     ]);
     expect(summaries.map((row) => row.customer.id)).toEqual([cem.id, zeynep.id]);
+
+    // A return or another register's sale reaches an archived customer: it stays in sight.
+    await addLedgerEntry(
+      db,
+      { customerId: gone.id, kind: 'adjustment', amount: -9000, note: 'İade' },
+      day(3),
+    );
+    expect((await customerSummaries(db, '2026-10-29')).map((row) => row.customer.name)).toEqual([
+      'Ali',
+      'Çetin',
+      'Zeynep',
+    ]);
   });
 });
 

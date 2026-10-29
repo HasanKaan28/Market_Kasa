@@ -65,6 +65,25 @@ describe('stockLevel', () => {
     expect(oldestUnpaidDebt(voided)).toBe('2026-10-01T09:00:00Z');
   });
 
+  it('lets a payment close the oldest debt, not a hand-written later one', () => {
+    const entries: LedgerEntry[] = [
+      { kind: 'debt', amount: 5000, saleId: 'a', occurredAt: '2026-10-01T09:00:00Z' },
+      { kind: 'adjustment', amount: 3000, occurredAt: '2026-10-05T09:00:00Z' },
+      { kind: 'payment', amount: -5000, occurredAt: '2026-10-06T09:00:00Z' },
+    ];
+    expect(oldestUnpaidDebt(entries)).toBe('2026-10-05T09:00:00Z');
+  });
+
+  it("carries what a void takes back beyond its sale's debt to the next debt", () => {
+    const entries: LedgerEntry[] = [
+      { kind: 'debt', amount: 10000, saleId: 'a', occurredAt: '2026-10-01T09:00:00Z' },
+      { kind: 'debt', amount: 5000, saleId: 'b', occurredAt: '2026-10-02T09:00:00Z' },
+      { kind: 'payment', amount: -5000, occurredAt: '2026-10-03T09:00:00Z' },
+      { kind: 'adjustment', amount: -10000, saleId: 'a', occurredAt: '2026-10-04T09:00:00Z' },
+    ];
+    expect(oldestUnpaidDebt(entries)).toBeNull();
+  });
+
   it('counts debt age by the business day cutoff', () => {
     // 02:30 in Istanbul on the 29th: with the day turning at 04:00 it is still the 28th.
     const late: LedgerEntry[] = [

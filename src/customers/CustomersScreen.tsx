@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus } from 'lucide-react';
+import { MessageCircle, Plus } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
@@ -102,17 +102,17 @@ export function CustomersScreen(): JSX.Element {
                 <th scope="col" className="hidden w-36 py-2 pr-3 font-medium sm:table-cell">
                   Telefon
                 </th>
-                <th scope="col" className="w-32 py-2 pr-3 text-right font-medium">
+                <th scope="col" className="w-24 py-2 pr-3 text-right font-medium sm:w-32">
                   Bakiye
                 </th>
-                <th scope="col" className="w-24 py-2 pr-3 text-right font-medium">
+                <th scope="col" className="w-16 py-2 pr-3 text-right font-medium sm:w-24">
                   Borç yaşı
                 </th>
                 <th scope="col" className="hidden w-28 py-2 text-right font-medium md:table-cell">
                   Limit
                 </th>
                 {view === 'reminders' ? (
-                  <th scope="col" className="w-44 py-2 pl-3 font-medium">
+                  <th scope="col" className="w-14 py-2 pl-3 font-medium sm:w-36">
                     <span className="sr-only">Hatırlat</span>
                   </th>
                 ) : null}
@@ -131,6 +131,9 @@ export function CustomersScreen(): JSX.Element {
                       >
                         {customer.name}
                       </button>
+                      {customer.archivedAt ? (
+                        <span className="ml-2 text-sm text-text-2">Arşivli</span>
+                      ) : null}
                     </td>
                     <td className="hidden py-3 pr-3 text-text-2 sm:table-cell">
                       {customer.phone ?? '—'}
@@ -150,7 +153,7 @@ export function CustomersScreen(): JSX.Element {
                       <td className="py-1.5 pl-3">
                         <a
                           aria-label={`WhatsApp ile hatırlat: ${customer.name}`}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line bg-surface px-3.5 text-[15px] font-semibold text-text hover:border-line-strong"
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line bg-surface px-3 text-[15px] font-semibold text-text hover:border-line-strong"
                           href={whatsappLink(
                             reminderText({
                               marketName: settings.marketName,
@@ -163,7 +166,8 @@ export function CustomersScreen(): JSX.Element {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          WhatsApp
+                          <MessageCircle aria-hidden="true" size={18} />
+                          <span className="hidden sm:inline">WhatsApp</span>
                         </a>
                       </td>
                     ) : null}

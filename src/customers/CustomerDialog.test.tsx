@@ -95,6 +95,10 @@ describe('CustomerDialog', () => {
       expect(within(again).getByRole('button', { name: 'Arşivle' })).toBeEnabled(),
     );
     await userEvent.click(within(again).getByRole('button', { name: 'Arşivle' }));
+    // One tap only asks; nothing is archived until it is confirmed.
+    expect(within(again).getByText('Bu müşteri arşivlensin mi?')).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    await userEvent.click(within(again).getByRole('button', { name: 'Evet, arşivle' }));
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('Müşteri arşivlendi.'));
     expect(onClose).toHaveBeenCalled();
     expect((await settled.data.db.customers.get(settled.customer.id))?.archivedAt).toBeDefined();
@@ -156,5 +160,30 @@ describe('CustomerFormDialog', () => {
     expect(document.getElementById('print-root')).toHaveTextContent('Müşteri ekstresi');
     window.dispatchEvent(new Event('afterprint'));
     print.mockRestore();
+  });
+
+  it('keeps a customer in credit from being archived', async () => {
+    const { data, customer } = await owing(-100);
+    await renderWithData(
+      <CustomerDialog open customerId={customer.id} onClose={vi.fn()} onDone={vi.fn()} />,
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Ahmet' });
+    expect(await within(dialog).findByText('Bakiye: Alacak ₺1,00')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Arşivle' })).toBeDisabled();
+  });
+
+  it('takes a payment from the keyboard', async () => {
+    const { data, customer } = await owing(42500);
+    const onDone = vi.fn();
+    await renderWithData(
+      <CustomerDialog open customerId={customer.id} onClose={vi.fn()} onDone={onDone} />,
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Ahmet' });
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Tahsilat al' }));
+    expect(within(dialog).getByLabelText('Tutar')).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Tahsilat alındı: ₺425,00.'));
   });
 });

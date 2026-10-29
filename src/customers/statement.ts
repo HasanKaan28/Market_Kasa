@@ -4,6 +4,7 @@ import { balance, debtAgeDays } from '@/domain/ledger';
 import { formatTRY, type Kurus } from '@/domain/money';
 
 export type CustomerSummary = {
+  /** Archived customers are here only while they still owe or are owed. */
   customer: CustomerRecord;
   /** What the customer owes; below zero is credit the market owes back. */
   balance: Kurus;
@@ -21,14 +22,18 @@ const METHOD_LABELS: Record<LedgerMethod, string> = { cash: 'nakit', card: 'kart
 
 const byName = new Intl.Collator('tr');
 
-/** Every active customer with what they owe and since how many days, by name. */
+/**
+ * Every active customer with what they owe and since how many days, by name. An archived
+ * customer whose balance moved after archiving (a return, another register's sale) is listed
+ * too, so the balance is never out of sight.
+ */
 export async function customerSummaries(
   db: MarketDb,
   today: string,
   opts: { cutoffMinutes?: number } = {},
 ): Promise<CustomerSummary[]> {
   const [customers, ledger] = await Promise.all([
-    db.customers.filter((customer) => !customer.archivedAt).toArray(),
+    db.customers.toArray(),
     db.ledger.toArray(),
   ]);
   const byCustomer = new Map<string, LedgerRecord[]>();
@@ -44,6 +49,7 @@ export async function customerSummaries(
         debtAgeDays: debtAgeDays(entries, today, opts),
       };
     })
+    .filter((row) => !row.customer.archivedAt || row.balance !== 0)
     .sort((a, b) => byName.compare(a.customer.name, b.customer.name));
 }
 

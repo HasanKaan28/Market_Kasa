@@ -64,7 +64,10 @@ export async function addLedgerEntry(
   return record;
 }
 
-/** Takes a payment from an active customer, in cash or by card, in one transaction. */
+/**
+ * Takes a payment from a customer, in cash or by card, in one transaction. An archived customer
+ * who still owes (a return or another register's sale after archiving) can pay too.
+ */
 export async function recordPayment(
   db: MarketDb,
   input: PaymentInput,
@@ -78,7 +81,7 @@ export async function recordPayment(
     throw new RangeError(`A payment is made in cash or by card, got ${String(input.method)}`);
   }
   return db.transaction('rw', db.customers, db.ledger, db.outbox, async () => {
-    await requireActiveCustomer(db, input.customerId);
+    await requireCustomer(db, input.customerId);
     return addLedgerEntry(
       db,
       {
@@ -94,7 +97,7 @@ export async function recordPayment(
   });
 }
 
-/** Adds to or takes off an active customer's debt by hand, with the reason, in one transaction. */
+/** Adds to or takes off a customer's debt by hand, with the reason, in one transaction. */
 export async function recordAdjustment(
   db: MarketDb,
   input: AdjustmentInput,
@@ -109,7 +112,7 @@ export async function recordAdjustment(
     throw new RangeError('An adjustment needs a note');
   }
   return db.transaction('rw', db.customers, db.ledger, db.outbox, async () => {
-    await requireActiveCustomer(db, input.customerId);
+    await requireCustomer(db, input.customerId);
     return addLedgerEntry(
       db,
       {
@@ -124,9 +127,9 @@ export async function recordAdjustment(
   });
 }
 
-async function requireActiveCustomer(db: MarketDb, customerId: string): Promise<void> {
+async function requireCustomer(db: MarketDb, customerId: string): Promise<void> {
   const customer = await db.customers.get(customerId);
-  if (!customer || customer.archivedAt) {
+  if (!customer) {
     throw new RecordNotFoundError('Customer', customerId);
   }
 }

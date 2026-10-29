@@ -57,12 +57,18 @@ export function PaymentForm({
   }
 
   return (
-    <section
+    <form
       aria-label="Tahsilat"
+      noValidate
       className="flex flex-col gap-3 rounded-control border border-line p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
     >
       <TextField
         label="Tutar"
+        autoFocus
         inputMode="decimal"
         autoComplete="off"
         value={amount}
@@ -88,12 +94,12 @@ export function PaymentForm({
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" disabled={busy} onClick={() => void save()}>
+        <Button type="submit" variant="primary" disabled={busy}>
           Tahsilatı kaydet
         </Button>
         <Button onClick={onCancel}>Vazgeç</Button>
       </div>
-    </section>
+    </form>
   );
 }
 
@@ -133,9 +139,14 @@ export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JS
   }
 
   return (
-    <section
+    <form
       aria-label="Düzeltme"
+      noValidate
       className="flex flex-col gap-3 rounded-control border border-line p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
     >
       <ChoiceGroup
         legend="Yön"
@@ -146,6 +157,7 @@ export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JS
       />
       <TextField
         label="Tutar"
+        autoFocus
         inputMode="decimal"
         autoComplete="off"
         value={amount}
@@ -165,12 +177,12 @@ export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JS
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" disabled={busy} onClick={() => void save()}>
+        <Button type="submit" variant="primary" disabled={busy}>
           Düzeltmeyi kaydet
         </Button>
         <Button onClick={onCancel}>Vazgeç</Button>
       </div>
-    </section>
+    </form>
   );
 }
 

@@ -65,13 +65,29 @@ describe('recordPayment', () => {
     await expect(pay(customer.id, 0.5)).rejects.toBeInstanceOf(RangeError);
     await expect(pay(customer.id, 100, 'credit')).rejects.toBeInstanceOf(RangeError);
     await expect(pay('nobody', 100)).rejects.toBeInstanceOf(RecordNotFoundError);
-    await expect(pay(gone.id, 100)).rejects.toBeInstanceOf(RecordNotFoundError);
     await expect(
       recordAdjustment(db, { customerId: customer.id, amount: 0, note: 'x' }, at),
     ).rejects.toBeInstanceOf(RangeError);
     await expect(
       recordAdjustment(db, { customerId: customer.id, amount: 100, note: '  ' }, at),
     ).rejects.toBeInstanceOf(RangeError);
+    await expect(
+      recordAdjustment(db, { customerId: 'nobody', amount: 100, note: 'x' }, at),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect(await db.ledger.count()).toBe(0);
+    // Money in hand is never refused, from an archived customer either.
+    await pay(gone.id, 100);
+    expect(await customerBalance(db, gone.id)).toBe(-100);
+  });
+
+  it('writes an adjustment all or nothing', async () => {
+    const customer = await createCustomer(db, { name: 'Ahmet' }, at);
+    db.outbox.hook('creating', () => {
+      throw new Error('disk full');
+    });
+    await expect(
+      recordAdjustment(db, { customerId: customer.id, amount: 100, note: 'x' }, at),
+    ).rejects.toThrow('disk full');
     expect(await db.ledger.count()).toBe(0);
   });
 

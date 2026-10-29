@@ -101,6 +101,12 @@ describe('checkout', () => {
     expect(checkoutErrorMessage(error)).toBe('Bu müşteri veresiye alamaz.');
   });
 
+  it('says a missing product is no customer problem', () => {
+    expect(checkoutErrorMessage(new RecordNotFoundError('Product', 'p1'))).toBe(
+      'Satış kaydedilemedi.',
+    );
+  });
+
   it('refuses credit to an unknown customer', async () => {
     const error = await checkout(db, {
       cart,

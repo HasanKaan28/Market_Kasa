@@ -38,6 +38,7 @@ export function CustomerDialog({
   const { db, settings } = useData();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [failure, setFailure] = useState<string>();
   const view = useLiveQuery(async () => {
     const [customer, lines] = await Promise.all([
@@ -91,8 +92,12 @@ export function CustomerDialog({
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setPanel('payment')}>Tahsilat al</Button>
-            <Button onClick={() => setPanel('adjustment')}>Düzeltme</Button>
+            <Button aria-expanded={panel === 'payment'} onClick={() => setPanel('payment')}>
+              Tahsilat al
+            </Button>
+            <Button aria-expanded={panel === 'adjustment'} onClick={() => setPanel('adjustment')}>
+              Düzeltme
+            </Button>
             <Button onClick={() => setPanel('edit')}>Düzenle</Button>
             <Button
               disabled={!customer}
@@ -126,11 +131,30 @@ export function CustomerDialog({
                 WhatsApp ile hatırlat
               </a>
             ) : null}
-            <Button disabled={busy || balance !== 0} onClick={() => void archive()}>
-              Arşivle
-            </Button>
+            {customer?.archivedAt ? null : (
+              <Button disabled={busy || balance !== 0} onClick={() => setConfirming(true)}>
+                Arşivle
+              </Button>
+            )}
           </div>
-          {balance !== 0 ? (
+          {customer?.archivedAt ? (
+            <p className="text-sm text-text-2">
+              Arşivli müşteri; bakiyesi kapanınca listeden çıkar.
+            </p>
+          ) : null}
+          {confirming ? (
+            <div className="flex flex-col gap-3 rounded-control border border-line p-3">
+              <p className="font-medium">Bu müşteri arşivlensin mi?</p>
+              <p className="text-sm text-text-2">Kasada veresiye listesinde görünmez.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="danger" disabled={busy} onClick={() => void archive()}>
+                  Evet, arşivle
+                </Button>
+                <Button onClick={() => setConfirming(false)}>Vazgeç</Button>
+              </div>
+            </div>
+          ) : null}
+          {balance !== 0 && !customer?.archivedAt ? (
             <p className="text-sm text-text-2">Bakiyesi sıfır olmayan müşteri arşivlenemez.</p>
           ) : null}
           {failure ? (
