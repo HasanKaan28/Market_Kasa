@@ -149,115 +149,120 @@ export function ProductFormDialog({
         </div>
       ) : null}
       <form noValidate className="flex flex-col gap-4" onSubmit={save}>
-        <TextField
-          label="Barkod"
-          hint="Okutun ya da yazın; boş bırakılabilir."
-          className="font-mono"
-          spellCheck={false}
-          autoComplete="off"
-          value={draft.barcode}
-          error={errors.barcode}
-          onChange={(event) => set('barcode', event.target.value)}
-        />
-        <TextField
-          label="Ürün adı"
-          autoFocus
-          autoComplete="off"
-          value={draft.name}
-          error={errors.name}
-          onChange={(event) => set('name', event.target.value)}
-        />
-        {LOOKUP_BARCODE.test(draft.barcode.trim()) ? (
-          <NameSuggestion
-            barcode={draft.barcode.trim()}
-            hasName={draft.name.trim() !== ''}
-            onUse={(name) => set('name', name)}
-          />
-        ) : null}
-        <SelectField
-          label="Kategori"
-          value={categoryId}
-          options={categoryOptions}
-          onChange={(event) => set('categoryId', event.target.value)}
-        />
-        <ChoiceGroup
-          legend="Birim"
-          name="unit"
-          options={UNIT_OPTIONS}
-          value={draft.unit}
-          onChange={(unit) => set('unit', unit)}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* A deleted product is only shown; bringing it back is the one thing to do with it. */}
+        <fieldset disabled={deleted} className="flex min-w-0 flex-col gap-4">
           <TextField
-            label="Satış fiyatı"
-            hint="Örnek: 12,50"
-            inputMode="decimal"
+            label="Barkod"
+            hint="Okutun ya da yazın; boş bırakılabilir."
+            className="font-mono"
+            spellCheck={false}
             autoComplete="off"
-            value={draft.sellPrice}
-            error={errors.sellPrice}
-            onChange={(event) => set('sellPrice', event.target.value)}
+            value={draft.barcode}
+            error={errors.barcode}
+            onChange={(event) => set('barcode', event.target.value)}
           />
           <TextField
-            label="Alış fiyatı"
-            hint={profitHint(draft) ?? 'Boş bırakılabilir.'}
-            inputMode="decimal"
+            label="Ürün adı"
+            autoFocus
             autoComplete="off"
-            value={draft.buyPrice}
-            error={errors.buyPrice}
-            onChange={(event) => set('buyPrice', event.target.value)}
+            value={draft.name}
+            error={errors.name}
+            onChange={(event) => set('name', event.target.value)}
           />
-        </div>
-        <ChoiceGroup
-          legend="KDV oranı"
-          name="vatRate"
-          options={VAT_OPTIONS}
-          value={draft.vatRate}
-          onChange={(rate) => set('vatRate', rate)}
-        />
-        <TextField
-          label="Kritik stok"
-          hint="Stok bu miktara inince uyarı verilir. Boş bırakılırsa uyarı yok."
-          inputMode="decimal"
-          autoComplete="off"
-          value={draft.criticalLevel}
-          error={errors.criticalLevel}
-          onChange={(event) => set('criticalLevel', event.target.value)}
-        />
-        {product ? (
-          <div className="flex flex-col gap-1">
-            {stockMilli === undefined ? null : (
-              <p className="font-medium">{`Stok: ${formatStock(stockMilli, product.unit)}`}</p>
-            )}
-            <p className="text-sm text-muted">Stok, mal kabul ve sayımla değişir.</p>
+          {LOOKUP_BARCODE.test(draft.barcode.trim()) ? (
+            <NameSuggestion
+              barcode={draft.barcode.trim()}
+              hasName={draft.name.trim() !== ''}
+              onUse={(name) => set('name', name)}
+            />
+          ) : null}
+          <SelectField
+            label="Kategori"
+            value={categoryId}
+            options={categoryOptions}
+            onChange={(event) => set('categoryId', event.target.value)}
+          />
+          <ChoiceGroup
+            legend="Birim"
+            name="unit"
+            options={UNIT_OPTIONS}
+            value={draft.unit}
+            onChange={(unit) => set('unit', unit)}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Satış fiyatı"
+              hint="Örnek: 12,50"
+              inputMode="decimal"
+              autoComplete="off"
+              value={draft.sellPrice}
+              error={errors.sellPrice}
+              onChange={(event) => set('sellPrice', event.target.value)}
+            />
+            <TextField
+              label="Alış fiyatı"
+              hint={profitHint(draft) ?? 'Boş bırakılabilir.'}
+              inputMode="decimal"
+              autoComplete="off"
+              value={draft.buyPrice}
+              error={errors.buyPrice}
+              onChange={(event) => set('buyPrice', event.target.value)}
+            />
           </div>
-        ) : (
+          <ChoiceGroup
+            legend="KDV oranı"
+            name="vatRate"
+            options={VAT_OPTIONS}
+            value={draft.vatRate}
+            onChange={(rate) => set('vatRate', rate)}
+          />
           <TextField
-            label="Başlangıç stoğu"
-            hint={`Rafta şu an kaç ${UNIT_LABELS[draft.unit]} var?`}
+            label="Kritik stok"
+            hint="Stok bu miktara inince uyarı verilir. Boş bırakılırsa uyarı yok."
             inputMode="decimal"
             autoComplete="off"
-            value={draft.openingStock}
-            error={errors.openingStock}
-            onChange={(event) => set('openingStock', event.target.value)}
+            value={draft.criticalLevel}
+            error={errors.criticalLevel}
+            onChange={(event) => set('criticalLevel', event.target.value)}
           />
-        )}
-        <label className="flex min-h-11 cursor-pointer items-center gap-3">
-          <input
-            type="checkbox"
-            checked={draft.isQuick}
-            onChange={(event) => set('isQuick', event.target.checked)}
-            className="size-5 accent-accent"
-          />
-          Hızlı ürünlere ekle
-        </label>
+          {product ? (
+            <div className="flex flex-col gap-1">
+              {stockMilli === undefined ? null : (
+                <p className="font-medium">{`Stok: ${formatStock(stockMilli, product.unit)}`}</p>
+              )}
+              <p className="text-sm text-muted">Stok, mal kabul ve sayımla değişir.</p>
+            </div>
+          ) : (
+            <TextField
+              label="Başlangıç stoğu"
+              hint={`Rafta şu an kaç ${UNIT_LABELS[draft.unit]} var?`}
+              inputMode="decimal"
+              autoComplete="off"
+              value={draft.openingStock}
+              error={errors.openingStock}
+              onChange={(event) => set('openingStock', event.target.value)}
+            />
+          )}
+          <label className="flex min-h-11 cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={draft.isQuick}
+              onChange={(event) => set('isQuick', event.target.checked)}
+              className="size-5 accent-accent"
+            />
+            Hızlı ürünlere ekle
+          </label>
+        </fieldset>
         {errors.form ? (
           <p role="alert" className="font-medium text-danger">
             {errors.form}
           </p>
         ) : null}
-        <Button type="submit" variant="primary" size="lg" disabled={busy}>
-          Kaydet
-        </Button>
+        {deleted ? null : (
+          <Button type="submit" variant="primary" size="lg" disabled={busy}>
+            Kaydet
+          </Button>
+        )}
       </form>
       {product && !deleted ? (
         confirmingDelete ? (

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createCategory, deleteCategory } from '@/data/categories';
 import { pendingOps } from '@/data/outbox';
-import { createProduct, updateProduct } from '@/data/products';
+import { createProduct, deleteProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
@@ -192,6 +192,21 @@ describe('ProductFormDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Geri getir' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Ürün geri getirildi.'));
     expect((await data.db.products.get(product.id))?.deletedAt).toBeUndefined();
+  });
+
+  it('offers only to restore a deleted product', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, milk, at);
+    await deleteProduct(data.db, product.id, at);
+    const deleted = await data.db.products.get(product.id);
+    await renderWithData(
+      <ProductFormDialog open product={deleted} onClose={vi.fn()} onSaved={vi.fn()} />,
+      data,
+    );
+    expect(screen.getByRole('button', { name: 'Geri getir' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Kaydet' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Ürün adı')).toBeDisabled();
+    expect(screen.getByLabelText('Satış fiyatı')).toBeDisabled();
   });
 
   it('fills the barcode from a scan', async () => {

@@ -27,15 +27,19 @@ export function CategoriesDialog({ open, onClose }: CategoriesDialogProps): JSX.
   const [editing, setEditing] = useState<Editing>(null);
   const [renameError, setRenameError] = useState<string>();
   const deletingId = editing?.kind === 'delete' ? editing.id : undefined;
-  const affected = useLiveQuery(
-    () =>
-      deletingId === undefined
-        ? 0
-        : db.products
-            .filter((product) => !product.deletedAt && product.categoryId === deletingId)
-            .count(),
-    [db, deletingId],
-  );
+  // The count carries the category it was read for: the confirmation waits for its own count
+  // instead of showing the previous one.
+  const counted = useLiveQuery(async () => {
+    if (deletingId === undefined) {
+      return undefined;
+    }
+    const products = await db.products
+      .filter((product) => !product.deletedAt && product.categoryId === deletingId)
+      .count();
+    return { categoryId: deletingId, products };
+  }, [db, deletingId]);
+  const affected =
+    counted !== undefined && counted.categoryId === deletingId ? counted.products : undefined;
 
   async function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,9 +150,9 @@ export function CategoriesDialog({ open, onClose }: CategoriesDialogProps): JSX.
                   />
                 </div>
               )}
-              {deletingId === category.id ? (
+              {deletingId === category.id && affected !== undefined ? (
                 <div className="flex flex-col gap-2 rounded-control bg-bg p-2">
-                  <p>{deleteQuestion(category.name, affected ?? 0)}</p>
+                  <p>{deleteQuestion(category.name, affected)}</p>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="danger" onClick={() => void remove(category.id)}>
                       Sil
