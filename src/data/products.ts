@@ -161,6 +161,17 @@ export async function restoreProduct(db: MarketDb, id: string, at: Date): Promis
   });
 }
 
+/** The products with these ids, deleted ones too, by id; an id with no product is left out. */
+export async function productsById(
+  db: MarketDb,
+  ids: readonly string[],
+): Promise<Map<string, ProductRecord>> {
+  const products = await db.products.bulkGet([...ids]);
+  return new Map(
+    products.flatMap((product) => (product ? [[product.id, product] as const] : [])),
+  );
+}
+
 /**
  * The live product with this barcode, in any letter case; none for text that is no barcode.
  * `includeDeleted` also finds a deleted product that still holds the code.

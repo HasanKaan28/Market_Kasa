@@ -2,8 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
-import type { MarketDb } from '@/data/db';
-import { findProductByBarcode, searchProducts } from '@/data/products';
+import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
 import { recordPurchase } from '@/data/purchases';
 import type { ProductRecord } from '@/data/types';
 import { Button, TextField } from '@/design';
@@ -23,6 +22,7 @@ import {
   type DraftLine,
   type ReceiptDraft,
 } from './receiptDraft';
+import { useDraftProducts } from './useDraftProducts';
 
 const SEARCH_LIMIT = 8;
 
@@ -51,17 +51,9 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     () => (term === '' ? [] : searchProducts(db, term, SEARCH_LIMIT)),
     [db, term],
   );
-  const idKey = draft.lines.map((line) => line.productId).join(',');
   // The draft's products as they are now: their prices fill the boxes nobody typed in, and a
   // product deleted elsewhere is marked on its line before anyone tries to save.
-  const live = useLiveQuery(async () => {
-    const ids = idKey.split(',');
-    const [products, levels] = await Promise.all([
-      productsById(db, ids),
-      db.stockLevels.where('productId').anyOf(ids).toArray(),
-    ]);
-    return { products, stock: new Map(levels.map((level) => [level.productId, level.qtyMilli])) };
-  }, [db, idKey]);
+  const live = useDraftProducts(draft.lines);
 
   useEffect(() => {
     saveDraft(draft);
@@ -325,14 +317,4 @@ function ReceiptLine({
 /** An emptied price box shows, greyed, the price the product keeps. */
 function keptPrice(product: ProductRecord | undefined, field: PriceField): string | undefined {
   return product && product[field] > 0 ? formatPriceInput(product[field]) : undefined;
-}
-
-async function productsById(
-  db: MarketDb,
-  ids: readonly string[],
-): Promise<Map<string, ProductRecord>> {
-  const products = await db.products.bulkGet([...ids]);
-  return new Map(
-    products.flatMap((product) => (product ? [[product.id, product] as const] : [])),
-  );
 }

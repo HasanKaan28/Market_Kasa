@@ -5,16 +5,18 @@ import { ChoiceGroup, ToastRegion, useToast } from '@/design';
 import type { ProductRecord } from '@/data/types';
 import { CriticalStock } from './CriticalStock';
 import { GoodsReceipt } from './GoodsReceipt';
+import { StockCount } from './StockCount';
 import { addProduct, loadDraft, saveDraft } from './receiptDraft';
 
-type StockView = 'receive' | 'critical';
+type StockView = 'receive' | 'count' | 'critical';
 
 const VIEWS: readonly { value: StockView; label: string }[] = [
   { value: 'receive', label: 'Mal kabul' },
+  { value: 'count', label: 'Sayım' },
   { value: 'critical', label: 'Kritik stok' },
 ];
 
-/** Stock work: receiving goods and the products that are running out. */
+/** Stock work: receiving goods, counting the shelf and the products that are running out. */
 export function StockScreen(): JSX.Element {
   const { settings, runner } = useData();
   const status = useSyncStatus(runner);
@@ -45,11 +47,9 @@ export function StockScreen(): JSX.Element {
           value={view}
           onChange={(next) => setView(next)}
         />
-        {view === 'receive' ? (
-          <GoodsReceipt onDone={toast.show} />
-        ) : (
-          <CriticalStock onReceive={receive} />
-        )}
+        {view === 'receive' ? <GoodsReceipt onDone={toast.show} /> : null}
+        {view === 'count' ? <StockCount onDone={toast.show} /> : null}
+        {view === 'critical' ? <CriticalStock onReceive={receive} /> : null}
       </AppShell>
       <ToastRegion message={toast.message} />
     </>
