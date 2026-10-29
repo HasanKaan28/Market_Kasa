@@ -21,6 +21,7 @@ export type AppShellProps = {
 const NAV_ITEMS: readonly { key: NavKey; label: string }[] = [
   { key: 'pos', label: 'Kasa' },
   { key: 'products', label: 'Ürünler' },
+  { key: 'stock', label: 'Stok' },
 ];
 
 export function AppShell({

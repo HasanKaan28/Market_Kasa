@@ -2,6 +2,7 @@ import { useEffect, useState, type JSX } from 'react';
 import { clearStoredCarts } from '@/pos/held';
 import { PosScreen } from '@/pos/PosScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
+import { StockScreen } from '@/stock/StockScreen';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -21,7 +22,13 @@ export function App(): JSX.Element {
   return (
     <ErrorBoundary {...(route === 'pos' ? { onReset: resetRegister } : LEAVE_SCREEN)}>
       <DataProvider value={data}>
-        {route === 'products' ? <ProductsScreen /> : <PosScreen />}
+        {route === 'products' ? (
+          <ProductsScreen />
+        ) : route === 'stock' ? (
+          <StockScreen />
+        ) : (
+          <PosScreen />
+        )}
       </DataProvider>
     </ErrorBoundary>
   );

@@ -18,7 +18,7 @@ describe('AppShell', () => {
       within(nav)
         .getAllByRole('link')
         .map((l) => l.textContent),
-    ).toEqual(['Kasa', 'Ürünler']);
+    ).toEqual(['Kasa', 'Ürünler', 'Stok']);
     expect(within(nav).getByRole('link', { name: 'Kasa' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Ürünler' })).toHaveAttribute(
       'href',
