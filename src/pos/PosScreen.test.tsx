@@ -188,4 +188,20 @@ describe('PosScreen', () => {
     expect(await screen.findByText('İade kaydedildi · ₺42,50')).toBeInTheDocument();
     expect(await stockOf(data.db, created.id)).toBe(0);
   });
+
+  it('drops a held cart that was already sold', async () => {
+    const data = createTestData();
+    const created = await createProduct(data.db, milk, new Date());
+    const cart = cartReducer(emptyCart(), { type: 'add', product: created });
+    await checkout(data.db, { cart, deviceCode: 'K1', method: 'cash', at: new Date() });
+    localStorage.setItem('mk2.held', JSON.stringify([{ cart, heldAt: new Date().toISOString() }]));
+    await renderWithData(<PosScreen />, data);
+    await userEvent.click(screen.getByRole('button', { name: 'Bekleyenler (1)' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Devam et/ }));
+    expect(
+      await screen.findByText('Bu sepet zaten satılmış; bekleyenlerden çıkarıldı.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sepet boş')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bekleyenler (0)' })).toBeDisabled();
+  });
 });

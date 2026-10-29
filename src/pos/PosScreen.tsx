@@ -130,7 +130,15 @@ export function PosScreen(): JSX.Element {
     toast.show('Sepet beklemeye alındı.');
   }
 
-  function resume(cartId: string) {
+  async function resume(cartId: string) {
+    // Another tab may have sold this cart while it sat here; checking out again would only
+    // return that old sale, so drop it instead.
+    if (await db.sales.get(cartId)) {
+      setHeld((current) => current.filter((entry) => entry.cart.id !== cartId));
+      setDialog(null);
+      toast.show('Bu sepet zaten satılmış; bekleyenlerden çıkarıldı.');
+      return;
+    }
     const { cart: resumed, rest } = takeHeld(held, cartId);
     setHeld(hasItems ? holdCart(rest, cart, new Date()) : rest);
     dispatch({ type: 'replace', cart: resumed });
@@ -225,7 +233,12 @@ export function PosScreen(): JSX.Element {
         />
       ) : null}
       {dialog?.kind === 'held' ? (
-        <HeldCartsDialog open held={held} onClose={close} onResume={resume} />
+        <HeldCartsDialog
+          open
+          held={held}
+          onClose={close}
+          onResume={(cartId) => void resume(cartId)}
+        />
       ) : null}
       {dialog?.kind === 'receipts' ? (
         <ReceiptsDialog
