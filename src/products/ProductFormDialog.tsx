@@ -37,6 +37,8 @@ export type ProductFormDialogProps = {
   onClose(): void;
   /** Called with the message to show once the change is saved. */
   onSaved(message: string): void;
+  /** Called with the product's id once it is added, saved or brought back. */
+  onProductSaved?(productId: string): void;
 };
 
 type Errors = DraftErrors & { form?: string };
@@ -59,6 +61,7 @@ export function ProductFormDialog({
   askOpeningStock = true,
   onClose,
   onSaved,
+  onProductSaved,
 }: ProductFormDialogProps): JSX.Element {
   const { db } = useData();
   const [opened] = useState(() => draftOf(product, barcode));
@@ -133,11 +136,13 @@ export function ProductFormDialog({
           return 'Değişiklik yok.';
         }
         await updateProduct(db, product.id, patch, new Date());
+        onProductSaved?.(product.id);
         return 'Ürün kaydedildi.';
       }
-      await createProduct(db, read.fields, new Date(), {
+      const created = await createProduct(db, read.fields, new Date(), {
         openingStockMilli: read.openingStockMilli,
       });
+      onProductSaved?.(created.id);
       return 'Ürün eklendi.';
     }, 'Ürün kaydedilemedi.');
   }
@@ -163,6 +168,7 @@ export function ProductFormDialog({
             onClick={() =>
               void run(async () => {
                 await restoreProduct(db, product.id, new Date());
+                onProductSaved?.(product.id);
                 return 'Ürün geri getirildi.';
               }, 'Ürün geri getirilemedi.')
             }

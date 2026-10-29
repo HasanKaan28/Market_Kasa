@@ -166,4 +166,95 @@ describe('GoodsReceipt', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
     expect(await lineOf('Süt')).toBeInTheDocument();
   });
+
+  it('adds a new product whose barcode changed in the form', async () => {
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />);
+    await scan('8690000000099');
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni ürün' });
+    const barcode = within(dialog).getByLabelText('Barkod');
+    await userEvent.clear(barcode);
+    await userEvent.type(barcode, '8690000000105');
+    await userEvent.type(within(dialog).getByLabelText('Ürün adı'), 'Kaşar');
+    await userEvent.type(within(dialog).getByLabelText('Satış fiyatı'), '120');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await lineOf('Kaşar')).toBeInTheDocument();
+  });
+
+  it('offers to restore a deleted product it scans', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, milk, at);
+    await deleteProduct(data.db, product.id, at);
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('8690000000017');
+    const dialog = await screen.findByRole('dialog', { name: 'Ürünü düzenle' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Geri getir' }));
+    expect(await lineOf('Süt')).toBeInTheDocument();
+  });
+
+  it('clears a line error once the line is edited', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('8690000000017');
+    const quantity = within(await lineOf('Süt')).getByLabelText('Miktar');
+    await retype(quantity, '1,5');
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    expect(await screen.findByText('Adet için tam sayı girin.')).toBeInTheDocument();
+    await retype(quantity, '2');
+    expect(screen.queryByText('Adet için tam sayı girin.')).not.toBeInTheDocument();
+  });
+
+  it('says which line a rescan counted up', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('8690000000017');
+    await lineOf('Süt');
+    await scan('8690000000017');
+    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('Süt: 2 adet');
+  });
+
+  it('reads a scanned code with letters', async () => {
+    const data = createTestData();
+    await createProduct(
+      data.db,
+      { barcode: 'BRK-0042', name: 'Bardak', sellPrice: 500, vatRate: 20 },
+      at,
+    );
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('BRK-0042');
+    expect(await lineOf('Bardak')).toBeInTheDocument();
+  });
+
+  it('refuses a price above the limit', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('8690000000017');
+    const buyPrice = within(await lineOf('Süt')).getByLabelText('Alış fiyatı');
+    // The box shows the product's price once the product is read; retyping starts from it.
+    await waitFor(() => expect(buyPrice).toHaveValue('30,00'));
+    await retype(buyPrice, '1000001');
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    expect(await screen.findByText('Fiyat en fazla ₺1.000.000,00 olabilir.')).toBeInTheDocument();
+    expect(await data.db.purchases.count()).toBe(0);
+  });
+
+  it('says that a weighed line is priced by the kilogram', async () => {
+    const data = createTestData();
+    await createProduct(
+      data.db,
+      { barcode: '2000000000015', name: 'Peynir', unit: 'kg', sellPrice: 32000, vatRate: 1 },
+      at,
+    );
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('2000000000015');
+    const line = await lineOf('Peynir');
+    expect(within(line).getByLabelText('Alış fiyatı')).toHaveAccessibleDescription(
+      'Kilogram fiyatı',
+    );
+    expect(within(line).getByLabelText('Satış fiyatı')).toHaveAccessibleDescription(
+      'Kilogram fiyatı',
+    );
+  });
 });

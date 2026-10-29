@@ -7,7 +7,7 @@ import { recordPurchase } from '@/data/purchases';
 import type { ProductRecord } from '@/data/types';
 import { Button, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
-import { formatPriceInput, formatStock } from '@/pos/format';
+import { formatPriceInput, formatStock, UNIT_LABELS } from '@/pos/format';
 import { CameraButton } from '@/pos/CameraButton';
 import { looksLikeBarcode, useBarcodeScanner } from '@/pos/keyboard';
 import { ProductFormDialog } from '@/products/ProductFormDialog';
@@ -44,7 +44,10 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   const [draft, setDraft] = useState<ReceiptDraft>(() => loadDraft());
   const [query, setQuery] = useState('');
   const [errors, setErrors] = useState<ReadonlyMap<string, string>>(new Map());
-  const [newBarcode, setNewBarcode] = useState<string>();
+  // The product form, for a new barcode or a deleted product to bring back.
+  const [form, setForm] = useState<{ barcode: string } | { product: ProductRecord }>();
+  // The line a rescan counted up, named under the search so an off-screen line is not missed.
+  const [bumped, setBumped] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const term = query.trim();
@@ -61,35 +64,39 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   }, [draft]);
 
   function add(product: ProductRecord) {
+    setBumped(
+      draft.lines.some((line) => line.productId === product.id) ? product.id : undefined,
+    );
     setDraft((current) => addProduct(current, product));
     setQuery('');
   }
 
-  // A scanned code is always a barcode; typed text only when it looks like one, as at the register.
-  async function addByBarcode(code: string, typed = false) {
-    const product = await findProductByBarcode(db, code);
-    if (product) {
+  async function addById(productId: string) {
+    const product = await db.products.get(productId);
+    if (product && !product.deletedAt) {
       add(product);
-    } else if (!typed || looksLikeBarcode(code)) {
-      setNewBarcode(code);
     }
   }
 
-  // While the new product form is open, scans belong to its barcode box.
+  // A scanned code is always a barcode; typed text only when it looks like one, as at the register.
+  // A deleted product's code opens it to be brought back, as the products screen does.
+  async function addByBarcode(code: string, typed = false) {
+    const product = await findProductByBarcode(db, code, { includeDeleted: true });
+    if (product && !product.deletedAt) {
+      add(product);
+    } else if (product) {
+      setForm({ product });
+    } else if (!typed || looksLikeBarcode(code)) {
+      setForm({ barcode: code });
+    }
+  }
+
+  // While the product form is open, scans belong to its barcode box.
   useBarcodeScanner((code) => {
-    if (newBarcode === undefined) {
+    if (form === undefined) {
       void addByBarcode(code);
     }
   });
-
-  async function created(barcode: string, message: string) {
-    setNewBarcode(undefined);
-    onDone(message);
-    const product = await findProductByBarcode(db, barcode);
-    if (product) {
-      add(product);
-    }
-  }
 
   // Only typed input reaches here: a scanner's Enter is taken by useBarcodeScanner first.
   function submitSearch(event: KeyboardEvent<HTMLInputElement>) {
@@ -100,6 +107,15 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   }
 
   function setLine(productId: string, field: LineField, value: string) {
+    // A line being fixed loses the error it was saved with.
+    setErrors((current) => {
+      if (!current.has(productId)) {
+        return current;
+      }
+      const next = new Map(current);
+      next.delete(productId);
+      return next;
+    });
     setDraft((current) => ({
       ...current,
       lines: current.lines.map((line) =>
@@ -159,6 +175,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     };
   });
   const total = rows.reduce<number>((sum, row) => sum + (row.cost ?? 0), 0);
+  const bumpedLine = draft.lines.find((line) => line.productId === bumped);
 
   return (
     <section aria-label="Mal kabul" className="flex flex-col gap-4">
@@ -175,6 +192,11 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         <div>
           <CameraButton onScan={(code) => void addByBarcode(code)} />
         </div>
+        {bumpedLine ? (
+          <p role="status" className="text-sm font-medium">
+            {`${live?.products.get(bumpedLine.productId)?.name ?? bumpedLine.name}: ${bumpedLine.qty} ${UNIT_LABELS[live?.products.get(bumpedLine.productId)?.unit ?? bumpedLine.unit]}`}
+          </p>
+        ) : null}
         {results && results.length > 0 ? (
           <ul aria-label="Arama sonuçları" className="flex flex-wrap gap-2">
             {results.map((product) => (
@@ -230,13 +252,17 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         </Button>
       </div>
 
-      {newBarcode !== undefined ? (
+      {form !== undefined ? (
         <ProductFormDialog
           open
-          barcode={newBarcode}
+          {...('product' in form ? { product: form.product } : { barcode: form.barcode })}
           askOpeningStock={false}
-          onClose={() => setNewBarcode(undefined)}
-          onSaved={(message) => void created(newBarcode, message)}
+          onClose={() => setForm(undefined)}
+          onSaved={(message) => {
+            setForm(undefined);
+            onDone(message);
+          }}
+          onProductSaved={(productId) => void addById(productId)}
         />
       ) : null}
     </section>
@@ -291,6 +317,7 @@ function ReceiptLine({
         />
         <TextField
           label="Alış fiyatı"
+          hint={unit === 'kg' ? 'Kilogram fiyatı' : undefined}
           inputMode="decimal"
           autoComplete="off"
           value={shownPrice(line, product, 'buyPrice')}
@@ -299,6 +326,7 @@ function ReceiptLine({
         />
         <TextField
           label="Satış fiyatı"
+          hint={unit === 'kg' ? 'Kilogram fiyatı' : undefined}
           inputMode="decimal"
           autoComplete="off"
           value={shownPrice(line, product, 'sellPrice')}
