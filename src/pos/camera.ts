@@ -1,15 +1,20 @@
 const INTERVAL_MS = 250;
-const REPEAT_MS = 1500;
+// How long a code must be out of view before it counts again.
+const GONE_MS = 1000;
 
 type DetectedBarcode = { rawValue: string };
 type BarcodeDetectorLike = { detect(source: HTMLVideoElement): Promise<DetectedBarcode[]> };
-type BarcodeDetectorConstructor = new () => BarcodeDetectorLike;
+type BarcodeDetectorConstructor = {
+  new (): BarcodeDetectorLike;
+  getSupportedFormats?(): Promise<string[]>;
+};
 
 /**
  * Opens the back camera into `video` and reports each barcode it sees. Frames are read on this
  * device only: by the browser's own BarcodeDetector where there is one, by ZXing (loaded only
- * then) elsewhere. The same code is not reported again within 1,5 seconds, so a code held in
- * front of the camera counts once. The returned function stops reading and releases the camera.
+ * then) elsewhere. A code is reported as it comes into view: one held in front of the camera
+ * counts once, and counts again only after it was out of view for a second. The returned
+ * function stops reading and releases the camera.
  */
 export async function startCameraScan(
   video: HTMLVideoElement,
@@ -20,19 +25,20 @@ export async function startCameraScan(
     audio: false,
   });
   const release = () => stream.getTracks().forEach((track) => track.stop());
-  const reportedAt = new Map<string, number>();
+  const lastSeen = new Map<string, number>();
   const report = (code: string) => {
     const now = Date.now();
-    if (now - (reportedAt.get(code) ?? Number.NEGATIVE_INFINITY) < REPEAT_MS) {
-      return;
+    const seen = lastSeen.get(code);
+    lastSeen.set(code, now);
+    if (seen === undefined || now - seen >= GONE_MS) {
+      onCode(code);
     }
-    reportedAt.set(code, now);
-    onCode(code);
   };
   try {
     const Detector = (globalThis as { BarcodeDetector?: BarcodeDetectorConstructor })
       .BarcodeDetector;
-    if (Detector) {
+    // Some Android builds have the detector but no formats it can read; ZXing reads there.
+    if (Detector && ((await Detector.getSupportedFormats?.()) ?? ['any']).length > 0) {
       return await readWithDetector(video, stream, new Detector(), report, release);
     }
     const { BrowserMultiFormatReader } = await import('@zxing/browser');
@@ -68,7 +74,9 @@ async function readWithDetector(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const tick = async () => {
     try {
-      for (const barcode of await detector.detect(video)) {
+      const found = await detector.detect(video);
+      // A read that finishes after the camera was stopped is not reported.
+      for (const barcode of stopped ? [] : found) {
         report(barcode.rawValue);
       }
     } catch {

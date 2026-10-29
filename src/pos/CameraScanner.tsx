@@ -5,8 +5,11 @@ import { startCameraScan } from './camera';
 export type CameraScannerProps = {
   open: boolean;
   onClose(): void;
-  /** Called with each code read, as a scanner's code would be. */
-  onScan(code: string): void;
+  /**
+   * Called with each code read, as a scanner's code would be. In continuous mode what it returns
+   * ("Çay: 3 adet", "Bu barkod kayıtlı değil.") is shown, so the screen behind can stay hidden.
+   */
+  onScan(code: string): void | string | undefined | Promise<string | undefined>;
   /** Keeps reading after a code, as a count does; otherwise the first code closes it. */
   continuous?: boolean;
 };
@@ -25,7 +28,7 @@ export function CameraScanner({
 }: CameraScannerProps): JSX.Element {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [state, setState] = useState<CameraState>({ kind: 'starting' });
-  const [lastCode, setLastCode] = useState<string>();
+  const [lastRead, setLastRead] = useState<string>();
   // The callbacks of the latest render, so a code read later never calls a stale one.
   const latest = useRef({ onClose, onScan, continuous });
   useLayoutEffect(() => {
@@ -38,14 +41,24 @@ export function CameraScanner({
     }
     let stop: (() => void) | undefined;
     let closed = false;
+    let taken = false;
     startCameraScan(video, (code) => {
       const current = latest.current;
-      current.onScan(code);
-      if (current.continuous) {
-        setLastCode(code);
-      } else {
-        current.onClose();
+      // Closing on the first code takes only that one, even when a frame shows two.
+      if (taken) {
+        return;
       }
+      if (!current.continuous) {
+        taken = true;
+        void current.onScan(code);
+        current.onClose();
+        return;
+      }
+      void Promise.resolve(current.onScan(code)).then((result) => {
+        if (!closed) {
+          setLastRead(result ?? `Okundu: ${code}`);
+        }
+      });
     }).then(
       (stopCamera) => {
         if (closed) {
@@ -86,9 +99,9 @@ export function CameraScanner({
             {state.kind === 'reading' ? 'Barkodu kameraya gösterin.' : 'Kamera açılıyor…'}
           </p>
         )}
-        {lastCode ? (
+        {lastRead ? (
           <p role="status" className="font-medium">
-            {`Okundu: ${lastCode}`}
+            {lastRead}
           </p>
         ) : null}
       </div>

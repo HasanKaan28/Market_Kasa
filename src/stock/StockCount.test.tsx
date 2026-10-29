@@ -137,7 +137,7 @@ describe('StockCount', () => {
     );
     await renderWithData(<StockCount onDone={vi.fn()} />, data);
     await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
-    expect(await screen.findByText('Okundu: BRK-0042', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByText('Bardak: 1 adet', {}, { timeout: 3000 })).toBeInTheDocument();
     // The camera stays open over the count, which is hidden from the accessibility tree meanwhile.
     for (const name of ['Çay', 'Bardak']) {
       const line = await screen.findByRole('group', { name, hidden: true });

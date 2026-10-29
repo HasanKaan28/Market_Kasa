@@ -4,8 +4,8 @@ import { Button } from '@/design';
 import { CameraScanner } from './CameraScanner';
 
 export type CameraButtonProps = {
-  /** Called with each code read, as the screen's scanner handler would be. */
-  onScan(code: string): void;
+  /** Called with each code read, as the screen's scanner handler would be; see CameraScanner. */
+  onScan(code: string): void | string | undefined | Promise<string | undefined>;
   /** Keeps the camera open after a code, as a count does. */
   continuous?: boolean;
 };
@@ -16,7 +16,10 @@ function hasCamera(): boolean {
 }
 
 /** "Kamerayla okut": opens the camera on request, and shows nothing where there is none. */
-export function CameraButton({ onScan, continuous = false }: CameraButtonProps): JSX.Element | null {
+export function CameraButton({
+  onScan,
+  continuous = false,
+}: CameraButtonProps): JSX.Element | null {
   const [open, setOpen] = useState(false);
   if (!hasCamera()) {
     return null;

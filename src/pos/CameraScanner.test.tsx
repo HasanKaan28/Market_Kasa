@@ -5,6 +5,20 @@ import { fakeCamera, removeCamera } from '@/test/camera';
 import { CameraButton } from './CameraButton';
 import { CameraScanner } from './CameraScanner';
 
+// ZXing, which reads where the browser's detector cannot: a reader that sees one code.
+vi.mock('@zxing/browser', () => ({
+  BrowserMultiFormatReader: class {
+    async decodeFromStream(
+      _stream: unknown,
+      _video: unknown,
+      onResult: (result: { getText(): string }) => void,
+    ) {
+      setTimeout(() => onResult({ getText: () => '8690000000024' }), 50);
+      return { stop: vi.fn() };
+    }
+  },
+}));
+
 afterEach(removeCamera);
 
 describe('CameraScanner', () => {
@@ -54,6 +68,32 @@ describe('CameraScanner', () => {
     fakeCamera([], 'NotFoundError');
     render(<CameraScanner open onClose={vi.fn()} onScan={vi.fn()} />);
     expect(await screen.findByText('Kamera bulunamadı.')).toBeInTheDocument();
+  });
+
+  it('counts a code held in view once and shows what it counted', async () => {
+    fakeCamera([['8690000000017']]);
+    const onScan = vi.fn(async () => 'Çay: 1 adet');
+    render(<CameraScanner open continuous onClose={vi.fn()} onScan={onScan} />);
+    expect(await screen.findByText('Çay: 1 adet')).toBeInTheDocument();
+    // Held in front of the camera for over a second more: still one.
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    expect(onScan).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes one code when it closes on the first', async () => {
+    fakeCamera([['8690000000017', '8690000000024']]);
+    const onScan = vi.fn();
+    const onClose = vi.fn();
+    render(<CameraScanner open onClose={onClose} onScan={onScan} />);
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onScan).toHaveBeenCalledExactlyOnceWith('8690000000017');
+  });
+
+  it('reads with ZXing where the detector reads no formats', async () => {
+    fakeCamera([['8690000000017']], undefined, { formats: [] });
+    const onScan = vi.fn();
+    render(<CameraScanner open onClose={vi.fn()} onScan={onScan} />);
+    await waitFor(() => expect(onScan).toHaveBeenCalledWith('8690000000024'));
   });
 });
 

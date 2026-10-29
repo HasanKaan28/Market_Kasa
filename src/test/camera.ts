@@ -5,9 +5,14 @@ let undo: (() => void) | undefined;
 /**
  * A back camera whose frames show the codes in `reads`, one frame per read and the last one
  * repeating, read by a BarcodeDetector the way the browser's would be. With `failure`, opening
- * the camera fails with a DOMException of that name. `removeCamera` undoes it.
+ * the camera fails with a DOMException of that name. `formats` is what the detector says it
+ * can read (some Android builds say nothing). `removeCamera` undoes it.
  */
-export function fakeCamera(reads: string[][], failure?: string) {
+export function fakeCamera(
+  reads: string[][],
+  failure?: string,
+  { formats }: { formats?: string[] } = {},
+) {
   removeCamera();
   const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   const track = { stop: vi.fn() };
@@ -23,6 +28,8 @@ export function fakeCamera(reads: string[][], failure?: string) {
   });
   let frame = 0;
   class FakeDetector {
+    static getSupportedFormats = formats ? async () => formats : undefined;
+
     async detect() {
       const codes = reads[Math.min(frame, reads.length - 1)] ?? [];
       frame += 1;

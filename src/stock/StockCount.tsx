@@ -6,7 +6,7 @@ import { countsNeedingCheck, recordCount } from '@/data/counts';
 import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
 import type { ProductRecord, ProductUnit } from '@/data/types';
 import { Button, TextField } from '@/design';
-import { formatStock } from '@/pos/format';
+import { formatQtyInput, formatStock } from '@/pos/format';
 import { CameraButton } from '@/pos/CameraButton';
 import { looksLikeBarcode, useBarcodeScanner } from '@/pos/keyboard';
 import {
@@ -65,16 +65,26 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
     setQuery('');
   }
 
-  // A scanned code is always a barcode; typed text only when it looks like one.
-  async function scanned(code: string, typed = false) {
+  // A scanned code is always a barcode; typed text only when it looks like one. Says what it
+  // counted, for the camera, whose window hides this screen.
+  async function scanned(code: string, typed = false): Promise<string | undefined> {
     const product = await findProductByBarcode(db, code);
     if (product) {
+      const line = draft.lines.find((current) => current.productId === product.id);
       setDraft((current) => countProduct(current, product));
       setNotice(undefined);
       setQuery('');
-    } else if (!typed || looksLikeBarcode(code)) {
-      setNotice('Bu barkod kayıtlı değil.');
+      if (product.unit !== 'piece') {
+        return `${product.name}: miktarı yazın`;
+      }
+      const before = line ? (readCounted(line.counted, 'piece') ?? 0) : 0;
+      return `${product.name}: ${formatQtyInput(before + 1000)} adet`;
     }
+    if (!typed || looksLikeBarcode(code)) {
+      setNotice('Bu barkod kayıtlı değil.');
+      return 'Bu barkod kayıtlı değil.';
+    }
+    return undefined;
   }
 
   useBarcodeScanner((code) => void scanned(code));
@@ -90,7 +100,9 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
   function setCounted(productId: string, counted: string) {
     setDraft((current) => ({
       ...current,
-      lines: current.lines.map((line) => (line.productId === productId ? { ...line, counted } : line)),
+      lines: current.lines.map((line) =>
+        line.productId === productId ? { ...line, counted } : line,
+      ),
     }));
   }
 
@@ -178,7 +190,7 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
           onKeyDown={submitSearch}
         />
         <div>
-          <CameraButton continuous onScan={(code) => void scanned(code)} />
+          <CameraButton continuous onScan={(code) => scanned(code)} />
         </div>
         {notice ? (
           <p role="status" className="text-sm font-medium text-danger">
