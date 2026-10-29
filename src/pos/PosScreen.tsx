@@ -150,6 +150,7 @@ export function PosScreen(): JSX.Element {
       {dialog?.kind === 'credit' ? (
         <CustomerPicker
           open
+          busy={busy}
           onClose={close}
           onPick={(customer) => void pay('credit', { customerId: customer.id })}
         />
