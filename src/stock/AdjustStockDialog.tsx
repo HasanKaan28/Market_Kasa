@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
+import { useSession } from '@/app/session';
 import { ADJUST_REASONS, adjustStock, stockOf, type AdjustReason } from '@/data/stock';
 import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, SelectField, TextField } from '@/design';
@@ -33,6 +34,7 @@ export function AdjustStockDialog({
 }: AdjustStockDialogProps): JSX.Element {
   const { db } = useData();
   const { cutoffMinutes } = useMarketSettings();
+  const { staff } = useSession();
   const [direction, setDirection] = useState<1 | -1>(1);
   const [amount, setAmount] = useState('');
   // Until one is picked, the reason follows the direction: what comes in was found, what goes
@@ -67,7 +69,14 @@ export function AdjustStockDialog({
     try {
       await adjustStock(
         db,
-        { productId: product.id, deltaMilli: direction * qtyMilli, reason, note, cutoffMinutes },
+        {
+          productId: product.id,
+          deltaMilli: direction * qtyMilli,
+          reason,
+          note,
+          cutoffMinutes,
+          staffId: staff?.id,
+        },
         new Date(),
       );
       onDone('Stok düzeltildi.');

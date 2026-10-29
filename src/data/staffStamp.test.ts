@@ -6,6 +6,7 @@ import { createCustomer } from './customers';
 import type { MarketDb } from './db';
 import { recordAdjustment, recordPayment } from './ledger';
 import { createProduct } from './products';
+import { adjustStock } from './stock';
 import { recordPurchase } from './purchases';
 import { recordReturn } from './returns';
 import { recordSale } from './sales';
@@ -116,6 +117,16 @@ describe('who did it', () => {
       later(12),
     );
     await closeCashSession(db, { deviceCode: 'K1', staffId: AYSE, countedCash: 0 }, later(13));
+    // Stock moved with no record above it: opening stock and a write-off.
+    await createProduct(db, { name: 'Pirinç', sellPrice: 5000, vatRate: 1 }, later(14), {
+      openingStockMilli: 5000,
+      staffId: AYSE,
+    });
+    await adjustStock(
+      db,
+      { productId: tea.id, deltaMilli: -1000, reason: 'lost', staffId: AYSE },
+      later(15),
+    );
 
     const tables = [
       db.sales,
@@ -128,6 +139,8 @@ describe('who did it', () => {
       db.cashMovements,
       db.cashSessions,
     ];
+    const parentless = (await db.stockMovements.toArray()).filter((movement) => !movement.refId);
+    expect(parentless.map((movement) => movement.staffId)).toEqual([AYSE, AYSE]);
     for (const table of tables) {
       const stamps = (await table.toArray()).map((record) => record.staffId);
       expect(stamps.length).toBeGreaterThan(0);

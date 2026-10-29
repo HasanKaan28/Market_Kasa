@@ -38,4 +38,9 @@ describe('can', () => {
     expect(can({ role: 'manager', permissions: { discount: true } }, 'reports')).toBe(true);
     expect(can({ role: 'owner', permissions: { admin: false } }, 'admin')).toBe(true);
   });
+
+  it('keeps the owner’s own rights to owners, and nothing to an unknown role', () => {
+    expect(can({ role: 'manager', permissions: { admin: true } }, 'admin')).toBe(false);
+    expect(can({ role: 'clerk' as Role }, 'sell')).toBe(false);
+  });
 });

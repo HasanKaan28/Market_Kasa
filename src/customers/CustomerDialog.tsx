@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
+import { useApproval } from '@/app/useApproval';
 import { useSession } from '@/app/session';
 import { archiveCustomer } from '@/data/customers';
 import { recordAdjustment } from '@/data/ledger';
@@ -41,6 +42,7 @@ export function CustomerDialog({
   const { db, settings } = useData();
   const { staff } = useSession();
   const { cutoffMinutes } = useMarketSettings();
+  const approval = useApproval();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -101,7 +103,11 @@ export function CustomerDialog({
             <Button aria-expanded={panel === 'payment'} onClick={() => setPanel('payment')}>
               Tahsilat al
             </Button>
-            <Button aria-expanded={panel === 'adjustment'} onClick={() => setPanel('adjustment')}>
+            {/* A write-down or a hand-made debt is a manager's call, like going over a limit. */}
+            <Button
+              aria-expanded={panel === 'adjustment'}
+              onClick={() => approval.ask('overLimit', () => setPanel('adjustment'))}
+            >
               Düzeltme
             </Button>
             <Button onClick={() => setPanel('edit')}>Düzenle</Button>
@@ -242,6 +248,7 @@ export function CustomerDialog({
           onSaved={(message) => saved(message)}
         />
       ) : null}
+      {approval.dialog}
     </Dialog>
   );
 }

@@ -154,8 +154,26 @@ export function PosScreen(): JSX.Element {
 
   async function pay(
     payments: Payment[],
-    extra: { cashGiven?: Kurus; customerId?: string; allowOverLimit?: boolean },
+    extra: {
+      cashGiven?: Kurus;
+      customerId?: string;
+      allowOverLimit?: boolean;
+      creditApproved?: boolean;
+    },
   ) {
+    // Whichever dialog a credit part comes from, it needs the person's permission or approval.
+    if (
+      payments.some((payment) => payment.method === 'credit') &&
+      !extra.creditApproved &&
+      !session.can('creditSale')
+    ) {
+      setDialog({
+        kind: 'approve',
+        permission: 'creditSale',
+        next: () => void pay(payments, { ...extra, creditApproved: true }),
+      });
+      return;
+    }
     setBusy(true);
     try {
       const sale = await checkout(db, {
@@ -360,7 +378,11 @@ export function PosScreen(): JSX.Element {
           busy={busy}
           onClose={close}
           onPick={(customer) =>
-            void pay(singlePayment(cart, 'credit'), { customerId: customer.id })
+            // The credit button was already allowed or approved before the picker opened.
+            void pay(singlePayment(cart, 'credit'), {
+              customerId: customer.id,
+              creditApproved: true,
+            })
           }
         />
       ) : null}

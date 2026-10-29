@@ -35,7 +35,7 @@ export async function createProduct(
   db: MarketDb,
   input: NewProduct,
   at: Date,
-  { openingStockMilli = 0 }: { openingStockMilli?: number } = {},
+  { openingStockMilli = 0, staffId }: { openingStockMilli?: number; staffId?: string } = {},
 ): Promise<ProductRecord> {
   const stamp = at.toISOString();
   assertNonNegativeInteger(openingStockMilli, 'openingStockMilli');
@@ -71,6 +71,7 @@ export async function createProduct(
         productId: record.id,
         delta: openingStockMilli,
         kind: 'count',
+        staffId,
         at,
       });
     }

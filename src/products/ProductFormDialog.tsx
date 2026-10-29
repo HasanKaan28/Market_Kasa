@@ -143,6 +143,7 @@ export function ProductFormDialog({
       }
       const created = await createProduct(db, read.fields, new Date(), {
         openingStockMilli: read.openingStockMilli,
+        staffId: actor.staffId,
       });
       onProductSaved?.(created.id);
       return 'Ürün eklendi.';

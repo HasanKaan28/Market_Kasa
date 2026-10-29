@@ -147,6 +147,37 @@ export function StaffDialog({
       title={person ? person.name : 'Yeni personel'}
       size="lg"
     >
+      {person && changingPin ? (
+        // A form of its own, so Enter in a PIN field saves the PIN and nothing else.
+        <form
+          noValidate
+          aria-label="PIN değiştir"
+          className="flex flex-col gap-3 rounded-control border border-line p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            savePin();
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PinFields
+              label="Yeni PIN"
+              pin={pin}
+              pinAgain={pinAgain}
+              errors={errors}
+              onPin={setPin}
+              onPinAgain={setPinAgain}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>
+              PIN’i kaydet
+            </Button>
+            <Button variant="ghost" onClick={() => setChangingPin(false)}>
+              Vazgeç
+            </Button>
+          </div>
+        </form>
+      ) : null}
       <form noValidate className="flex flex-col gap-4" onSubmit={submit}>
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField
@@ -166,27 +197,15 @@ export function StaffDialog({
             onChange={(event) => setRole(event.target.value as Role)}
           />
         </div>
-        {!person || changingPin ? (
+        {!person ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <TextField
-              label={person ? 'Yeni PIN' : 'PIN'}
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={pin}
-              error={errors.pin}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
-            />
-            <TextField
-              label="PIN tekrar"
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={pinAgain}
-              error={errors.pinAgain}
-              onChange={(event) => setPinAgain(event.target.value.replace(/\D/g, ''))}
+            <PinFields
+              label="PIN"
+              pin={pin}
+              pinAgain={pinAgain}
+              errors={errors}
+              onPin={setPin}
+              onPinAgain={setPinAgain}
             />
           </div>
         ) : null}
@@ -196,36 +215,39 @@ export function StaffDialog({
             <p className="text-sm text-text-2">Sahip her şeyi yapabilir.</p>
           ) : null}
           <div className="grid gap-x-4 sm:grid-cols-2">
-            {PERMISSIONS.map((permission) => {
-              const changed =
-                overrides[permission] !== undefined &&
-                overrides[permission] !== ROLE_PERMISSIONS[role].includes(permission);
-              return (
-                <label
-                  key={permission}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 has-disabled:cursor-default has-disabled:text-muted"
-                >
-                  <input
-                    type="checkbox"
-                    className="size-5 accent-accent"
-                    disabled={role === 'owner'}
-                    checked={can(draft, permission)}
-                    onChange={(event) =>
-                      setOverrides((current) => ({
-                        ...current,
-                        [permission]: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>
-                    {PERMISSION_LABELS[permission]}
-                    {changed && role !== 'owner' ? (
-                      <span className="ml-2 text-sm text-accent">kişiye özel</span>
-                    ) : null}
-                  </span>
-                </label>
-              );
-            })}
+            {/* Staff, devices, settings and exports are the owners' alone, never a person's own. */}
+            {PERMISSIONS.filter((permission) => permission !== 'admin' || role === 'owner').map(
+              (permission) => {
+                const changed =
+                  overrides[permission] !== undefined &&
+                  overrides[permission] !== ROLE_PERMISSIONS[role].includes(permission);
+                return (
+                  <label
+                    key={permission}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 has-disabled:cursor-default has-disabled:text-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-5 accent-accent"
+                      disabled={role === 'owner'}
+                      checked={can(draft, permission)}
+                      onChange={(event) =>
+                        setOverrides((current) => ({
+                          ...current,
+                          [permission]: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span>
+                      {PERMISSION_LABELS[permission]}
+                      {changed && role !== 'owner' ? (
+                        <span className="ml-2 text-sm text-accent">kişiye özel</span>
+                      ) : null}
+                    </span>
+                  </label>
+                );
+              },
+            )}
           </div>
         </fieldset>
         {failure ? (
@@ -236,11 +258,6 @@ export function StaffDialog({
         <div className="flex flex-wrap gap-2">
           {person && !changingPin ? (
             <Button onClick={() => setChangingPin(true)}>PIN’i değiştir</Button>
-          ) : null}
-          {person && changingPin ? (
-            <Button onClick={savePin} disabled={saving}>
-              PIN’i kaydet
-            </Button>
           ) : null}
           {person ? (
             <Button variant={person.archivedAt ? 'secondary' : 'danger'} onClick={toggleArchive}>
@@ -253,6 +270,48 @@ export function StaffDialog({
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** A PIN typed twice, digits only. */
+function PinFields({
+  label,
+  pin,
+  pinAgain,
+  errors,
+  onPin,
+  onPinAgain,
+}: {
+  label: string;
+  pin: string;
+  pinAgain: string;
+  errors: { pin?: string; pinAgain?: string };
+  onPin(pin: string): void;
+  onPinAgain(pin: string): void;
+}): JSX.Element {
+  return (
+    <>
+      <TextField
+        label={label}
+        type="password"
+        inputMode="numeric"
+        autoComplete="new-password"
+        maxLength={6}
+        value={pin}
+        error={errors.pin}
+        onChange={(event) => onPin(event.target.value.replace(/\D/g, ''))}
+      />
+      <TextField
+        label="PIN tekrar"
+        type="password"
+        inputMode="numeric"
+        autoComplete="new-password"
+        maxLength={6}
+        value={pinAgain}
+        error={errors.pinAgain}
+        onChange={(event) => onPinAgain(event.target.value.replace(/\D/g, ''))}
+      />
+    </>
   );
 }
 

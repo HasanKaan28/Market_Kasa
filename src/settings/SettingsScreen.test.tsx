@@ -65,6 +65,10 @@ describe('SettingsScreen', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Ayşe/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Ayşe' });
     await userEvent.selectOptions(within(dialog).getByLabelText('Rol'), 'Yönetici');
+    // Staff, devices, settings and exports belong to owners alone.
+    expect(
+      within(dialog).queryByRole('checkbox', { name: 'Personel, cihaz, ayar, dışa aktarma' }),
+    ).not.toBeInTheDocument();
     const reports = within(dialog).getByRole('checkbox', { name: 'Raporlar' });
     expect(reports).toBeChecked();
     await userEvent.click(reports);
@@ -84,8 +88,8 @@ describe('SettingsScreen', () => {
     let dialog = await screen.findByRole('dialog', { name: 'Ayşe' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'PIN’i değiştir' }));
     await userEvent.type(within(dialog).getByLabelText('Yeni PIN'), '9999');
-    await userEvent.type(within(dialog).getByLabelText('PIN tekrar'), '9999');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'PIN’i kaydet' }));
+    // Enter in the PIN fields saves the PIN, not the rest of the form.
+    await userEvent.type(within(dialog).getByLabelText('PIN tekrar'), '9999{Enter}');
     expect(await screen.findByText('PIN değiştirildi · Ayşe')).toBeInTheDocument();
     expect(await checkPin(data.db, ayse.id, '9999', new Date())).toMatchObject({ ok: true });
 

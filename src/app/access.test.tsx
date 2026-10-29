@@ -7,6 +7,7 @@ import { createProduct } from '@/data/products';
 import { recentSales, recordSale } from '@/data/sales';
 import { createStaff } from '@/data/staff';
 import { PosScreen } from '@/pos/PosScreen';
+import { CustomersScreen } from '@/customers/CustomersScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
 import { ReportsScreen } from '@/reports/ReportsScreen';
 import { createTestData, renderWithData } from '@/test/renderWithData';
@@ -170,5 +171,54 @@ describe('access', () => {
       data,
     );
     expect(await screen.findByRole('button', { name: 'Dışa aktar' })).toBeInTheDocument();
+  });
+  it('asks approval before a cashier lifts a credit limit or writes down a debt', async () => {
+    const { data, ayse } = await team();
+    signedIn(ayse.id);
+    const ahmet = await createCustomer(
+      data.db,
+      { name: 'Ahmet Yılmaz', creditLimit: 1000 },
+      before(),
+    );
+    await renderWithData(
+      <SessionProvider>
+        <CustomersScreen />
+      </SessionProvider>,
+      data,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Ahmet Yılmaz' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Düzeltme' }));
+    expect(await screen.findByRole('dialog', { name: 'Yetkili onayı' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    const form = await screen.findByRole('dialog', { name: 'Müşteriyi düzenle' });
+    await userEvent.clear(within(form).getByLabelText('Limit'));
+    await userEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
+    await approve('Kaan · Sahip', '4821');
+    await vi.waitFor(async () =>
+      expect((await data.db.customers.get(ahmet.id))?.creditLimit).toBe(0),
+    );
+  });
+
+  it('asks approval for the credit part of a split payment', async () => {
+    const data = createTestData();
+    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, before());
+    const ayse = await createStaff(
+      data.db,
+      { name: 'Ayşe', role: 'cashier', pin: '1234', permissions: { creditSale: false } },
+      before(),
+    );
+    signedIn(ayse.id);
+    await createCustomer(data.db, { name: 'Ahmet Yılmaz' }, before());
+    await register(data);
+    await userEvent.click(screen.getByRole('button', { name: 'Bölünmüş' }));
+    const split = await screen.findByRole('dialog', { name: 'Bölünmüş ödeme' });
+    await userEvent.click(within(split).getByRole('button', { name: /Kalanı ekle · Veresiye/ }));
+    await userEvent.click(within(split).getByRole('button', { name: 'Müşteri seç' }));
+    await userEvent.type(await screen.findByLabelText('Müşteri ara'), 'ahmet');
+    await userEvent.click(await screen.findByRole('button', { name: /Ahmet Yılmaz/ }));
+    await userEvent.click(within(split).getByRole('button', { name: 'Satışı tamamla' }));
+    await approve('Kaan · Sahip', '4821');
+    expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
   });
 });

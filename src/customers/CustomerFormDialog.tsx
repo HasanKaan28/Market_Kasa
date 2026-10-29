@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useApproval } from '@/app/useApproval';
 import { createCustomer, updateCustomer } from '@/data/customers';
 import type { CustomerRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
@@ -26,6 +27,7 @@ export function CustomerFormDialog({
   onSaved,
 }: CustomerFormDialogProps): JSX.Element {
   const { db } = useData();
+  const approval = useApproval();
   const [name, setName] = useState(customer?.name ?? '');
   const [phone, setPhone] = useState(customer?.phone ?? '');
   const [limit, setLimit] = useState(
@@ -49,9 +51,18 @@ export function CustomerFormDialog({
       return;
     }
     setErrors({});
+    const input = { name, phone, creditLimit };
+    // Changing a customer's limit is a manager's call (DESIGN §8.5, limit aşımı onayı).
+    if (customer && creditLimit !== customer.creditLimit) {
+      approval.ask('overLimit', () => void store(input));
+    } else {
+      await store(input);
+    }
+  }
+
+  async function store(input: { name: string; phone: string; creditLimit: number }) {
     setBusy(true);
     try {
-      const input = { name, phone, creditLimit };
       if (customer) {
         await updateCustomer(db, customer.id, input, new Date());
         onSaved('Müşteri kaydedildi.', customer.id);
@@ -67,47 +78,50 @@ export function CustomerFormDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => !next && onClose()}
-      title={customer ? 'Müşteriyi düzenle' : 'Yeni müşteri'}
-    >
-      <form noValidate className="flex flex-col gap-4" onSubmit={(event) => void save(event)}>
-        <TextField
-          label="Ad"
-          autoFocus
-          autoComplete="off"
-          value={name}
-          error={errors.name}
-          onChange={(event) => setName(event.target.value)}
-        />
-        <TextField
-          label="Telefon"
-          hint="WhatsApp hatırlatması bu numaraya gider."
-          inputMode="tel"
-          autoComplete="off"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-        />
-        <TextField
-          label="Limit"
-          hint="Veresiye üst sınırı. Boş bırakılırsa sınır yok."
-          inputMode="decimal"
-          autoComplete="off"
-          value={limit}
-          error={errors.limit}
-          onChange={(event) => setLimit(event.target.value)}
-        />
-        {errors.form ? (
-          <p role="alert" className="font-medium text-danger">
-            {errors.form}
-          </p>
-        ) : null}
-        <Button type="submit" variant="primary" size="lg" disabled={busy}>
-          Kaydet
-        </Button>
-      </form>
-    </Dialog>
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => !next && onClose()}
+        title={customer ? 'Müşteriyi düzenle' : 'Yeni müşteri'}
+      >
+        <form noValidate className="flex flex-col gap-4" onSubmit={(event) => void save(event)}>
+          <TextField
+            label="Ad"
+            autoFocus
+            autoComplete="off"
+            value={name}
+            error={errors.name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <TextField
+            label="Telefon"
+            hint="WhatsApp hatırlatması bu numaraya gider."
+            inputMode="tel"
+            autoComplete="off"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+          />
+          <TextField
+            label="Limit"
+            hint="Veresiye üst sınırı. Boş bırakılırsa sınır yok."
+            inputMode="decimal"
+            autoComplete="off"
+            value={limit}
+            error={errors.limit}
+            onChange={(event) => setLimit(event.target.value)}
+          />
+          {errors.form ? (
+            <p role="alert" className="font-medium text-danger">
+              {errors.form}
+            </p>
+          ) : null}
+          <Button type="submit" variant="primary" size="lg" disabled={busy}>
+            Kaydet
+          </Button>
+        </form>
+      </Dialog>
+      {approval.dialog}
+    </>
   );
 }
 

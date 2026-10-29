@@ -80,11 +80,17 @@ export type Grantee = { role: Role; permissions?: Partial<Record<Permission, boo
 
 /**
  * Whether a person may do something: their own setting when they have one, else their role's.
- * The owner may do everything, so a market can never lock itself out of its own settings.
+ * The owner may do everything, so a market can never lock itself out of its own settings, and
+ * only an owner may do what `admin` covers (DESIGN §8.3 asks for the owner). A role this build
+ * does not know, as from a newer device, may do nothing.
  */
 export function can(person: Grantee, permission: Permission): boolean {
   if (person.role === 'owner') {
     return true;
   }
-  return person.permissions?.[permission] ?? ROLE_PERMISSIONS[person.role].includes(permission);
+  const defaults = ROLE_PERMISSIONS[person.role] as readonly Permission[] | undefined;
+  if (permission === 'admin' || defaults === undefined) {
+    return false;
+  }
+  return person.permissions?.[permission] ?? defaults.includes(permission);
 }

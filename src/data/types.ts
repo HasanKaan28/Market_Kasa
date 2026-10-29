@@ -93,6 +93,8 @@ export type StockMovementRecord = {
   refId?: string;
   /** Why a manual adjustment was made: its reason, and the note typed with it. */
   note?: string;
+  /** Who moved it, on movements with no record above them (opening stock, a manual change). */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };

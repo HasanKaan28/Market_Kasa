@@ -19,6 +19,7 @@ export type NewStockMovement = {
   kind: StockMovementKind;
   refId?: string;
   note?: string;
+  staffId?: string;
   at: Date;
   cutoffMinutes?: number;
 };
@@ -52,6 +53,7 @@ export async function recordStockMovement(
     kind: input.kind,
     refId: input.refId,
     note: input.note,
+    staffId: input.staffId,
     occurredAt: input.at.toISOString(),
     businessDate: businessDate(input.at, { cutoffMinutes: input.cutoffMinutes }),
   });
@@ -96,6 +98,7 @@ export async function adjustStock(
     deltaMilli: number;
     reason: AdjustReason;
     note?: string;
+    staffId?: string;
     cutoffMinutes?: number;
   },
   at: Date,
@@ -126,6 +129,7 @@ export async function adjustStock(
         delta: input.deltaMilli,
         kind: 'manual',
         note: note ? `${ADJUST_REASONS[input.reason]}: ${note}` : ADJUST_REASONS[input.reason],
+        staffId: input.staffId,
         at,
         cutoffMinutes: input.cutoffMinutes,
       });
