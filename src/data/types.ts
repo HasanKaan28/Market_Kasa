@@ -121,8 +121,13 @@ export type CountLine = {
   productId: string;
   name: string;
   unit: ProductUnit;
-  /** The stock this device held when the count was saved. */
+  /** The stock this device held when the count was saved; the count moves it to `countedMilli`. */
   expectedMilli: number;
+  /**
+   * What the movements stamped up to the count added up to. A movement stamped later (a fast
+   * clock elsewhere) is left out, so only a late movement stamped before the count changes it.
+   */
+  knownBeforeMilli: number;
   countedMilli: number;
 };
 

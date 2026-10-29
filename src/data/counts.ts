@@ -39,6 +39,7 @@ export async function recordCount(
     throw new RangeError('A product appears twice in one count');
   }
   const id = newId(at.getTime());
+  const stamp = at.toISOString();
   const tables = [db.stockCounts, db.products, db.stockMovements, db.stockLevels, db.outbox];
   return db.transaction('rw', tables, async () => {
     const lines: CountLine[] = [];
@@ -48,11 +49,17 @@ export async function recordCount(
         throw new RecordNotFoundError('Product', line.productId);
       }
       assertCounted(line.countedMilli, product.unit);
+      const expectedMilli = (await db.stockLevels.get(product.id))?.qtyMilli ?? 0;
+      const stampedLater = await db.stockMovements
+        .where('[productId+occurredAt]')
+        .between([product.id, stamp], [product.id, Dexie.maxKey], false, true)
+        .toArray();
       lines.push({
         productId: product.id,
         name: product.name,
         unit: product.unit,
-        expectedMilli: (await db.stockLevels.get(product.id))?.qtyMilli ?? 0,
+        expectedMilli,
+        knownBeforeMilli: expectedMilli - sum(stampedLater),
         countedMilli: line.countedMilli,
       });
     }
@@ -61,7 +68,7 @@ export async function recordCount(
       deviceCode: input.deviceCode,
       lines,
       note: input.note?.trim() || undefined,
-      occurredAt: at.toISOString(),
+      occurredAt: stamp,
       businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
     });
     // The count goes first, so the movements that refer to it are never queued before it.
@@ -85,13 +92,13 @@ export async function recordCount(
 }
 
 /**
- * Counts since `since` whose expected stock no longer matches the movements made before them:
- * a sale another register made earlier arrived after the count, or another register counted
- * the same product. Nothing is corrected here; a person recounts, and a later count of the
- * product clears the earlier ones.
+ * Counts since `since` whose movements stamped before them no longer add up to what was known
+ * then: a sale another register made earlier arrived after the count, or another register
+ * counted the same product. Nothing is corrected here; a person recounts, and a later count of
+ * the product clears the earlier ones. A deleted product is not checked.
  */
 export async function countsNeedingCheck(db: MarketDb, since: Date): Promise<CountCheck[]> {
-  return db.transaction('r', db.stockCounts, db.stockMovements, async () => {
+  return db.transaction('r', db.stockCounts, db.stockMovements, db.products, async () => {
     const counts = (
       await db.stockCounts.where('occurredAt').aboveOrEqual(since.toISOString()).toArray()
     ).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id));
@@ -107,20 +114,26 @@ export async function countsNeedingCheck(db: MarketDb, since: Date): Promise<Cou
         if (latest.get(line.productId) !== count) {
           continue;
         }
+        const product = await db.products.get(line.productId);
+        if (!product || product.deletedAt) {
+          continue;
+        }
         const before = await db.stockMovements
           .where('[productId+occurredAt]')
           .between([line.productId, Dexie.minKey], [line.productId, count.occurredAt], true, true)
           .toArray();
-        const expectedNowMilli = before
-          .filter((movement) => movement.refId !== count.id)
-          .reduce((sum, movement) => sum + movement.delta, 0);
-        if (expectedNowMilli !== line.expectedMilli) {
+        const expectedNowMilli = sum(before.filter((movement) => movement.refId !== count.id));
+        if (expectedNowMilli !== line.knownBeforeMilli) {
           checks.push({ count, line, expectedNowMilli });
         }
       }
     }
     return checks;
   });
+}
+
+function sum(movements: readonly { delta: number }[]): number {
+  return movements.reduce((total, movement) => total + movement.delta, 0);
 }
 
 /** Nothing below zero, and whole pieces for a piece product. */

@@ -56,6 +56,8 @@ describe('recordCount', () => {
       'stockCounts',
       'stockMovements',
     ]);
+    // The count's own movement is not a late one.
+    expect(await countsNeedingCheck(db, minute(0))).toEqual([]);
 
     // The second difference's movement is the last write; everything before it must go too.
     const counts = await db.stockCounts.count();
@@ -115,6 +117,9 @@ describe('recordCount', () => {
     expect(await db.stockCounts.count()).toBe(0);
     await one(cheese.id, 1250);
     expect(await stockOf(db, cheese.id)).toBe(1250);
+    // An empty shelf is counted as nothing.
+    await one(tea.id, 0);
+    expect(await stockOf(db, tea.id)).toBe(0);
   });
 });
 
@@ -147,7 +152,14 @@ describe('countsNeedingCheck', () => {
       id: 'count-k2',
       deviceCode: 'K2',
       lines: [
-        { productId: tea.id, name: 'Çay', unit: 'piece', expectedMilli: 9000, countedMilli: 8000 },
+        {
+          productId: tea.id,
+          name: 'Çay',
+          unit: 'piece',
+          expectedMilli: 9000,
+          knownBeforeMilli: 9000,
+          countedMilli: 8000,
+        },
       ],
       occurredAt: minute(15).toISOString(),
       businessDate: '2026-10-29',
@@ -165,5 +177,31 @@ describe('countsNeedingCheck', () => {
     ]);
     // Counts before `since` are not looked at.
     expect(await countsNeedingCheck(db, minute(30))).toEqual([]);
+  });
+
+  it('is not broken by a sale stamped ahead by a fast clock', async () => {
+    const tea = await stocked('Çay', 10000);
+    // K2's clock runs three hours ahead: its sale, known here before the count, is stamped later.
+    await recordStockMovement(db, { productId: tea.id, delta: -1000, kind: 'sale', at: minute(190) });
+    const count = await recordCount(
+      db,
+      { deviceCode: 'K1', lines: [{ productId: tea.id, countedMilli: 9000 }] },
+      minute(10),
+    );
+    expect(count.lines[0]).toMatchObject({ expectedMilli: 9000, knownBeforeMilli: 10000 });
+    expect(await countsNeedingCheck(db, minute(0))).toEqual([]);
+  });
+
+  it('drops the check of a deleted product', async () => {
+    const tea = await stocked('Çay', 10000);
+    await recordCount(
+      db,
+      { deviceCode: 'K1', lines: [{ productId: tea.id, countedMilli: 10000 }] },
+      minute(10),
+    );
+    await recordStockMovement(db, { productId: tea.id, delta: -1000, kind: 'sale', at: minute(5) });
+    expect(await countsNeedingCheck(db, minute(0))).toHaveLength(1);
+    await deleteProduct(db, tea.id, minute(20));
+    expect(await countsNeedingCheck(db, minute(0))).toEqual([]);
   });
 });

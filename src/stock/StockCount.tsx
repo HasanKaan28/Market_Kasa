@@ -153,7 +153,7 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
                 className="flex flex-wrap items-center justify-between gap-2"
               >
                 <span>
-                  {`${line.name}: sayımda ${formatStock(line.expectedMilli, line.unit)} beklendi, şimdi ${formatStock(expectedNowMilli, line.unit)} görünüyor.`}
+                  {`${line.name}: sayımda ${formatStock(line.knownBeforeMilli, line.unit)} beklendi, şimdi ${formatStock(expectedNowMilli, line.unit)} görünüyor.`}
                 </span>
                 <Button
                   aria-label={`Yeniden say: ${line.name}`}
