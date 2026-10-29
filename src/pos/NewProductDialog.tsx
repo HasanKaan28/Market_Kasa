@@ -3,9 +3,10 @@ import { useData } from '@/app/appData';
 import { DuplicateBarcodeError } from '@/data/errors';
 import { createProduct } from '@/data/products';
 import type { ProductRecord } from '@/data/types';
-import { Button, Dialog, TextField } from '@/design';
+import { Button, ChoiceGroup, Dialog, TextField } from '@/design';
 import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
-import { MAX_UNIT_PRICE, VAT_RATES, type VatRate } from '@/domain/pricing';
+import { MAX_UNIT_PRICE, type VatRate } from '@/domain/pricing';
+import { VAT_OPTIONS } from './format';
 
 export type NewProductDialogProps = {
   open: boolean;
@@ -96,27 +97,13 @@ export function NewProductDialog({
           error={errors.price}
           onChange={(event) => setPrice(event.target.value)}
         />
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="mb-1.5 text-sm font-medium">KDV oranı</legend>
-          <div className="grid grid-cols-4 gap-2">
-            {VAT_RATES.map((rate) => (
-              <label
-                key={rate}
-                className="flex min-h-11 cursor-pointer items-center justify-center rounded-control border border-line-strong font-medium has-checked:border-accent has-checked:bg-accent has-checked:text-white has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent"
-              >
-                <input
-                  type="radio"
-                  name="vatRate"
-                  value={rate}
-                  checked={vatRate === rate}
-                  onChange={() => setVatRate(rate)}
-                  className="sr-only"
-                />
-                %{rate}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <ChoiceGroup
+          legend="KDV oranı"
+          name="vatRate"
+          options={VAT_OPTIONS}
+          value={vatRate}
+          onChange={(rate) => setVatRate(rate)}
+        />
         <label className="flex min-h-11 cursor-pointer items-center gap-3">
           <input
             type="checkbox"

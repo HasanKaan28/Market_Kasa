@@ -1,4 +1,7 @@
 import type { PaymentMethod, ProductUnit } from '@/data/types';
+import type { ChoiceOption } from '@/design';
+import type { Kurus } from '@/domain/money';
+import { VAT_RATES, type VatRate } from '@/domain/pricing';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cash: 'Nakit',
@@ -29,6 +32,20 @@ export function formatDateTime(iso: string): string {
 export function formatTime(iso: string): string {
   return TIME_FORMAT.format(new Date(iso));
 }
+
+/** A price for an input field: "42,50" with no thousands grouping, so `parseTRY` reads it back. */
+export function formatPriceInput(kurus: Kurus): string {
+  return (kurus / 100).toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  });
+}
+
+export const VAT_OPTIONS: readonly ChoiceOption<VatRate>[] = VAT_RATES.map((rate) => ({
+  value: rate,
+  label: `%${rate}`,
+}));
 
 /** A quantity for an input field: no thousands grouping, so `parseQuantity` reads it back. */
 export function formatQtyInput(qtyMilli: number): string {

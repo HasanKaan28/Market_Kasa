@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatStock, parseQuantity } from './format';
+import { formatPriceInput, formatStock, parseQuantity } from './format';
+
+describe('formatPriceInput', () => {
+  it('writes a price for an input field, without grouping', () => {
+    expect(formatPriceInput(4250)).toBe('42,50');
+    expect(formatPriceInput(100_000_000)).toBe('1000000,00');
+  });
+});
 
 describe('formatStock', () => {
   it('formats stock with its unit', () => {
