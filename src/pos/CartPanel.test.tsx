@@ -51,7 +51,7 @@ describe('CartPanel', () => {
     expect(screen.getByText('2 × ₺15,00')).toBeInTheDocument();
     expect(screen.getByTestId('total')).toHaveTextContent('₺566,40');
     expect(screen.getByTestId('vat')).toHaveTextContent('₺5,61');
-    expect(screen.getByTestId('net')).toHaveTextContent('₺560,79');
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('₺566,40');
   });
 
   it('changes quantities, clears and starts payments', async () => {
@@ -126,5 +126,27 @@ describe('CartPanel', () => {
     expect(onDiscount).toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Bölünmüş' }));
     expect(onPay).toHaveBeenCalledWith('split');
+  });
+
+  it('shows rows and totals that add up with a cart discount', () => {
+    let cart = cartReducer(emptyCart('c'), { type: 'add', product: p('e', 'Ekmek', 1500) });
+    cart = cartReducer(cart, { type: 'add', product: p('s', 'Süt', 4250) });
+    cart = cartReducer(cart, { type: 'setLineDiscount', productId: 's', amount: 250 });
+    cart = cartReducer(cart, { type: 'setCartDiscount', amount: 500 });
+    render(
+      <CartPanel
+        cart={cart}
+        dispatch={vi.fn()}
+        onPay={vi.fn()}
+        onEditLine={vi.fn()}
+        onDiscount={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('line-total-e')).toHaveTextContent('₺15,00');
+    expect(screen.getByTestId('line-total-s')).toHaveTextContent('₺40,00');
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('₺55,00');
+    expect(screen.getByTestId('cart-discount')).toHaveTextContent('−₺5,00');
+    expect(screen.getByTestId('total')).toHaveTextContent('₺50,00');
+    expect(screen.getByTestId('vat')).toHaveTextContent('₺0,50');
   });
 });

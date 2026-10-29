@@ -2,8 +2,15 @@ import { Minus, Plus, Trash2 } from 'lucide-react';
 import type { JSX } from 'react';
 import type { PaymentMethod } from '@/data/types';
 import { Button } from '@/design';
-import { formatTRY, type Kurus } from '@/domain/money';
-import { cartTotals, type Cart, type CartAction, type CartLine } from './cart';
+import { formatTRY } from '@/domain/money';
+import {
+  cartTotals,
+  discountBase,
+  lineGross,
+  type Cart,
+  type CartAction,
+  type CartLine,
+} from './cart';
 
 export type CartPanelProps = {
   cart: Cart;
@@ -46,23 +53,19 @@ export function CartPanel({
         </div>
       ) : (
         <ul className="flex-1 divide-y divide-line overflow-y-auto">
-          {cart.lines.map((line, index) => (
-            <CartRow
-              key={line.productId}
-              line={line}
-              total={totals.lines[index]?.net ?? 0}
-              dispatch={dispatch}
-              onEdit={onEditLine}
-            />
+          {cart.lines.map((line) => (
+            <CartRow key={line.productId} line={line} dispatch={dispatch} onEdit={onEditLine} />
           ))}
         </ul>
       )}
 
       <dl className="flex flex-col gap-1.5 border-t border-line px-4 py-3">
+        {/* Rows show their own discount only, so rows, Ara toplam, Sepet indirimi and Toplam
+            add up as written; VAT is included in the prices and shown for information. */}
         <div className="flex justify-between text-text-2">
           <dt>Ara toplam</dt>
-          <dd data-testid="net" className="font-mono">
-            {formatTRY(totals.total - totals.vatTotal)}
+          <dd data-testid="subtotal" className="font-mono">
+            {formatTRY(discountBase(cart))}
           </dd>
         </div>
         {cart.cartDiscount > 0 ? (
@@ -73,16 +76,16 @@ export function CartPanel({
             </dd>
           </div>
         ) : null}
-        <div className="flex justify-between text-text-2">
-          <dt>KDV</dt>
-          <dd data-testid="vat" className="font-mono">
-            {formatTRY(totals.vatTotal)}
-          </dd>
-        </div>
         <div className="flex items-baseline justify-between">
           <dt className="text-[17px] font-semibold">Toplam</dt>
           <dd data-testid="total" className="font-mono text-[28px] font-semibold">
             {formatTRY(totals.total)}
+          </dd>
+        </div>
+        <div className="flex justify-between text-sm text-muted">
+          <dt>KDV (dahil)</dt>
+          <dd data-testid="vat" className="font-mono">
+            {formatTRY(totals.vatTotal)}
           </dd>
         </div>
       </dl>
@@ -117,12 +120,10 @@ export function CartPanel({
 
 function CartRow({
   line,
-  total,
   dispatch,
   onEdit,
 }: {
   line: CartLine;
-  total: Kurus;
   dispatch(action: CartAction): void;
   onEdit(productId: string): void;
 }): JSX.Element {
@@ -157,7 +158,12 @@ function CartRow({
         icon={<Plus aria-hidden="true" size={18} />}
         onClick={() => dispatch({ type: 'increment', productId: line.productId })}
       />
-      <p className="w-24 text-right font-mono font-semibold">{formatTRY(total)}</p>
+      <p
+        data-testid={`line-total-${line.productId}`}
+        className="w-24 text-right font-mono font-semibold"
+      >
+        {formatTRY(lineGross(line) - line.lineDiscount)}
+      </p>
     </li>
   );
 }
