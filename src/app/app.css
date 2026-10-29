@@ -1,2 +1,17 @@
 @import 'tailwindcss';
 @import '../design/tokens.css';
+
+/* Printing a receipt: only #print-root is shown on paper (see src/pos/printReceipt.tsx). */
+#print-root {
+  display: none;
+}
+
+@media print {
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block;
+  }
+}
