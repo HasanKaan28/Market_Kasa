@@ -11,6 +11,7 @@ import { businessDate } from '@/domain/businessDate';
 import { formatTRY } from '@/domain/money';
 import { formatStock } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
+import { BulkPriceDialog } from './BulkPriceDialog';
 import { CategoriesDialog } from './CategoriesDialog';
 import { downloadText, productsToCsv } from './exportCsv';
 import { ImportDialog } from './ImportDialog';
@@ -30,6 +31,7 @@ type OpenDialog =
   | { kind: 'product'; product?: ProductRecord; barcode?: string }
   | { kind: 'categories' }
   | { kind: 'import' }
+  | { kind: 'bulkPrice' }
   | null;
 
 /** The catalogue: every product with its stock and category, and the way to add or change one. */
@@ -135,6 +137,12 @@ export function ProductsScreen(): JSX.Element {
             <h1 className="text-xl font-semibold">Ürünler</h1>
             <p className="text-sm text-text-2">{`${liveCount} ürün`}</p>
           </div>
+          <Button
+            disabled={filter === 'deleted' || rows.length === 0}
+            onClick={() => setDialog({ kind: 'bulkPrice' })}
+          >
+            Toplu fiyat
+          </Button>
           <Button onClick={() => setDialog({ kind: 'import' })}>İçe aktar</Button>
           <Button
             disabled={rows.length === 0}
@@ -205,6 +213,14 @@ export function ProductsScreen(): JSX.Element {
       ) : null}
       {dialog?.kind === 'categories' ? <CategoriesDialog open onClose={close} /> : null}
       {dialog?.kind === 'import' ? <ImportDialog open onClose={close} onDone={saved} /> : null}
+      {dialog?.kind === 'bulkPrice' ? (
+        <BulkPriceDialog
+          open
+          products={rows.map((row) => row.product)}
+          onClose={close}
+          onDone={saved}
+        />
+      ) : null}
       <ToastRegion message={toast.message} />
     </>
   );

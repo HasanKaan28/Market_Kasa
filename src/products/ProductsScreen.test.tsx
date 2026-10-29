@@ -229,6 +229,27 @@ describe('ProductsScreen', () => {
     }
   });
 
+  it('changes the prices of the listed products only', async () => {
+    const data = createTestData();
+    const bread = await createCategory(data.db, 'Ekmek', at);
+    const simit = await createProduct(
+      data.db,
+      { name: 'Simit', sellPrice: 1500, vatRate: 1, categoryId: bread.id },
+      at,
+    );
+    const milk = await createProduct(data.db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    await renderWithData(<ProductsScreen />, data);
+    await screen.findByRole('button', { name: 'Simit' });
+    await userEvent.selectOptions(screen.getByLabelText('Kategori'), 'Ekmek');
+    await userEvent.click(screen.getByRole('button', { name: 'Toplu fiyat' }));
+    await userEvent.type(await screen.findByLabelText('Miktar'), '10');
+    await userEvent.click(screen.getByRole('button', { name: '1 ürünün fiyatını değiştir' }));
+    await waitFor(async () => expect((await data.db.products.get(simit.id))?.sellPrice).toBe(1650));
+    expect((await data.db.products.get(milk.id))?.sellPrice).toBe(4250);
+    await userEvent.click(screen.getByRole('radio', { name: 'Silinenler' }));
+    expect(screen.getByRole('button', { name: 'Toplu fiyat' })).toBeDisabled();
+  });
+
   it('shows 100 products at a time', async () => {
     const data = createTestData();
     const stamp = at.toISOString();
