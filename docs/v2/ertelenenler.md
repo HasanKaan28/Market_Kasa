@@ -82,7 +82,9 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Geri getirilen ürünün barkodu bu arada başka cihazda başka ürüne verilmişse kullanıcıya bir şey söylenmiyor. (M3a)
 - Saati geride bir kasanın iptali kendi satışının borcundan önce sıralanınca borç yaşı yanlış borçtan sayılıyor; gerçek sıra sunucu sıra numarasıyla gelir. (M4a)
 - İki kasanın alan bazında birleşmesi, kritik seviyesi kesirli bir adetli ürün üretebilir; form sonra kaydetmeyi reddeder. (M3b)
-- Fiyat değişiklikleri için iz kaydı (§2.3). (M3b)
+- Fiyat değişiklikleri için iz kaydı (§2.3). (M3b) — M6b iz kaydı ekranda değişen fiyatları kaydediyor; içe aktarma ve mal kabul fiyatları kaydetmiyor.
+- **Sahip oturumu (M6a I2):** ayarlar, personel ve dışa aktarma için sahibin Supabase Auth oturumu (§8.3); şimdilik sahip rolündeki PIN açıyor.
+- Sunucu: son aktif sahip kuralı, personel satırlarının denetimi, yönetim değişikliklerinde yetki denetimi için kuyruğa işlemi yapanın eklenmesi (§8.4). (M6a)
 
 ## M3 · Ürün ve stok
 
@@ -129,12 +131,19 @@ M5 tamamlandı. İncelemeden kalan küçük bulgular:
 
 ## M6 · Yönetim
 
-- Fiş ayarlarını her kasiyer değiştirebiliyor (roller). (M2d)
-- Gün dönümü ayarı: ekranlar ayar geçirmiyor; borç yaşı kayıtlı `businessDate` yerine `occurredAt`'ten yeniden hesaplanıyor. Ayar gelince ikisi birlikte düzeltilmeli; ayar girildiği yerde 0–720 dakika denetlenmeli. (M4a)
-- Ürünleri ve kategorileri her kasiyer ekleyip silebiliyor (roller); yönetim ekranları için yan menü (§13). (M3a)
-- Mal kabulü ve stok düzeltmesini her kasiyer yapabiliyor (§8.5, roller). (M3c)
-- Tedarikçi işlemlerini her kasiyer yapabiliyor (§8.5); tedarikçi ve müşteri arşivden geri getirilemiyor. (M4b)
-- İçe aktarma, dışa aktarma ve toplu fiyatı her kasiyer yapabiliyor; §8.5'e göre dışa aktarma yalnız sahibe açık olmalı. (M3b)
+M6a (personel, PIN, izinler) tamamlandı; bu bölümün rol maddeleri ve gün dönümü maddesi kapandı. İncelemeden kalan küçük bulgular:
+
+- Hatalı PIN sayacı okunup ayrı yazılıyor; aynı anda birkaç sekmeden deneme eksik sayılır.
+- Son sahip kuralı yalnız bir cihazda geçerli: iki çevrimdışı kasa iki sahibi de pasife alabilir (sunucu kuralı M0b'de).
+- Sunucudan gelen personel satırları denetlenmiyor (çok büyük `pinIterations` girişi kilitler).
+- "Kilitle" öbür sekmeleri kapatmıyor; PIN değişikliği o kişinin açık oturumlarını bitirmiyor.
+- Sağlayıcı dışında `useSession` her izni veriyor (bugün böyle bir kullanım yok).
+- Kişiye özel izinler yalnız raporlarda tam uygulanıyor: maliyet izni kapalı biri ürün formunda alış fiyatını görüyor; ürün düzenleme izni olmayan stokçu mal kabulde fiyat değiştirebiliyor.
+- Onaylayan kişi olayın kendisinde yok; M6b'nin iz kaydı onayları bundan sonra kaydediyor.
+- Son sahibi düşürmeye çalışınca "pasife alınamaz" yazıyor; "Pasife al" onay sormuyor; kimse onaylayamıyorsa onay penceresi boş seçim gösteriyor; giriş ekranındaki gönderim hatayı yakalamıyor.
+- Satır indirimi izinsiz kişiye gizleniyor, onaya sunulmuyor.
+- Test eksikleri: oturumdayken rol değişmesi, kilit bitince yanlış PIN, pasif onaylayan, paralel PIN denemesi, yeni PIN'in kilidi kaldırması.
+- Müşteri ve tedarikçi arşivden geri getirilemiyor. (M4b)
 
 ## M7 · e-Arşiv
 
@@ -142,6 +151,7 @@ M5 tamamlandı. İncelemeden kalan küçük bulgular:
 
 ## M8 · Yayın
 
+- **Güvenlik (M6a I2):** yayındaki uygulamada geliştirici araçları kapanmalı (Electron menüsü ve F12, §8.7). Açık kaldıkça kasiyer cihazdaki oturum kimliğini ya da veritabanını değiştirerek sahip olabilir.
 - Electron: `electron/main.cjs`'de `setWindowOpenHandler` yok; WhatsApp `webSecurity: false` olan bir alt pencerede açılıyor. v2 Electron'da çalışmadan önce bağlantılar sistem tarayıcısına gitmeli. (M2d)
 - Android/Capacitor'da yazdırma ve paylaşım (`window.print` WebView'da çalışmıyor); PDF. (M2d)
 - Sessiz yazdırma: otomatik yazdırma açıkken okuyucu tuşları yazdırma penceresine gidiyor. (M2d)

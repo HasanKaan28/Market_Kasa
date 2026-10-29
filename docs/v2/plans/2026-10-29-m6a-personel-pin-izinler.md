@@ -103,3 +103,24 @@
   - "Yeni personel": ad, rol, PIN, PIN tekrar. Hiç personel yokken ilk kayıt sahip olarak açılır ve kaydedilince oturum o kişiyle başlar.
   - Personel penceresi: ad, rol, izinler (rolün varsayılanı işaretli; kişiye özel değişiklik ayrıca belirtilir), "PIN'i değiştir", "Pasife al" / "Geri al".
 - [ ] **Step 1–5:** `it('lets only the owner manage staff')`, `it('adds the first person as the owner and signs them in')`, `it('changes a role and a permission')`, `it('renews a PIN and archives a person')`. Commit — `git commit -m "feat(settings): staff management"`
+
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `5a8c9e0`, `bc3d255`, `010cf67`, `bd0dd66`, `d677fd9` (5 görev); kırılgan test düzeltmesi `1a69a5a`; inceleme düzeltmeleri `230af66`. Son durumda 661 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): 1 kritik, 5 önemli, 10 küçük bulgu. Kritik ve önemliler düzeltildi; bir önemli karar olarak kaldı; küçükler ertelendi.
+  - **C1:** Her kasiyer Müşteriler'de veresiye limitini kaldırıp borç düşebiliyordu. Artık "Düzeltme" ve limit değişikliği yöneticinin onayını (PIN) ister; onaylar iz kaydına düşer.
+  - **I1:** Bölünmüş ödemenin veresiye kısmı veresiye iznini aramıyordu. Artık arıyor.
+  - **I2 (karar):** Oturum cihazda yalnız bir kimlik olarak durur; geliştirici araçlarını açabilen biri PIN'siz sahip olabilir. İstemcide bunu durduracak bir denetim yok; çözüm yayında geliştirici araçlarının kaldırılması (M8) ve sahibin sunucu oturumu (M0b).
+  - **I3:** "Personel, cihaz, ayar, dışa aktarma" izni kişiye verilebiliyordu ve böyle biri sahibin PIN'ini değiştirebiliyordu. Artık yalnız sahiptedir. Bilinmeyen bir rol hiçbir izin almaz (kasayı düşürmez).
+  - **I4:** PIN alanında Enter, PIN'i değil kişiyi kaydediyordu. PIN değişikliği artık ayrı bir form.
+  - **I5:** Açılış stoğu ve elle stok düzeltmesi yapanı taşımıyordu. Artık taşıyor.
+- **Bozma denemeleri:** 30 deneme, hepsi kırmızı.
+- **Kararlar:**
+  - PIN: PBKDF2-SHA256, 150.000 tur, kişiye özel 16 baytlık tuz. Hatalı deneme sayacı her cihazda ayrı.
+  - Pasif personel `archivedAt` taşır. Son aktif sahip korunur.
+  - Hiç personel yokken uygulama eskisi gibi açık çalışır; ilk kişi sahip olur ve hemen oturum açar.
+  - İzni olmayan biri kasada işlemi yetkili birinin PIN'iyle yapar; ekranlar menüde görünmez, dışa aktarma ile maliyet ve kâr gizlenir.
+  - Limit aşımı yönetici için de onay ister (kendi PIN'iyle).
+  - Stok hareketleri yalnız üstlerinde bir kayıt yoksa personel taşır.
+- **Doğrulama:** Production build Chromium'da denendi. Ayarlar'dan ilk sahip "Kaan" eklendi ve oturum açıldı; "Kilitle" giriş ekranını getirdi; PIN ile geri girildi.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M6, M8 ve M0b bölümlerinde.
