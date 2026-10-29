@@ -11,6 +11,7 @@ import { formatTRY } from '@/domain/money';
 import { formatStock } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
 import { CategoriesDialog } from './CategoriesDialog';
+import { ImportDialog } from './ImportDialog';
 import { ProductFormDialog } from './ProductFormDialog';
 import {
   buildProductRows,
@@ -24,7 +25,10 @@ import {
 const PAGE_SIZE = 100;
 
 type OpenDialog =
-  { kind: 'product'; product?: ProductRecord; barcode?: string } | { kind: 'categories' } | null;
+  | { kind: 'product'; product?: ProductRecord; barcode?: string }
+  | { kind: 'categories' }
+  | { kind: 'import' }
+  | null;
 
 /** The catalogue: every product with its stock and category, and the way to add or change one. */
 export function ProductsScreen(): JSX.Element {
@@ -129,6 +133,7 @@ export function ProductsScreen(): JSX.Element {
             <h1 className="text-xl font-semibold">Ürünler</h1>
             <p className="text-sm text-text-2">{`${liveCount} ürün`}</p>
           </div>
+          <Button onClick={() => setDialog({ kind: 'import' })}>İçe aktar</Button>
           <Button onClick={() => setDialog({ kind: 'categories' })}>Kategoriler</Button>
           <Button
             variant="primary"
@@ -189,6 +194,7 @@ export function ProductsScreen(): JSX.Element {
         />
       ) : null}
       {dialog?.kind === 'categories' ? <CategoriesDialog open onClose={close} /> : null}
+      {dialog?.kind === 'import' ? <ImportDialog open onClose={close} onDone={saved} /> : null}
       <ToastRegion message={toast.message} />
     </>
   );

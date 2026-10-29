@@ -14,7 +14,7 @@ type Sheet = readonly (readonly string[])[];
 export function makeXlsx(
   rows: Sheet,
   { sharedStrings = true, secondSheet }: { sharedStrings?: boolean; secondSheet?: Sheet } = {},
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
   const strings: string[] = [];
   const sheetXml = (sheet: Sheet) =>
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${MAIN}"><sheetData>${sheet
@@ -64,7 +64,8 @@ export function makeXlsx(
         .join('')}</sst>`,
     );
   }
-  return zipSync(files);
+  // Copied into its own buffer, which is what File and Blob accept.
+  return new Uint8Array(zipSync(files));
 }
 
 function column(index: number): string {

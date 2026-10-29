@@ -7,6 +7,8 @@ export type DialogProps = {
   onOpenChange(open: boolean): void;
   title: string;
   description?: string;
+  /** `lg` for a dialog that holds a table, such as an import preview. */
+  size?: 'md' | 'lg';
   children: ReactNode;
 };
 
@@ -16,6 +18,7 @@ export function Dialog({
   onOpenChange,
   title,
   description,
+  size = 'md',
   children,
 }: DialogProps): JSX.Element {
   // Radix gives focus back only to its own trigger. These dialogs open from a row, a shortcut or
@@ -39,7 +42,7 @@ export function Dialog({
             event.preventDefault();
             opener.current?.focus();
           }}
-          className="fixed top-1/2 left-1/2 z-40 flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[440px] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-control border border-line bg-surface p-5 shadow-lg"
+          className={`fixed top-1/2 left-1/2 z-40 flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] ${size === 'lg' ? 'max-w-[880px]' : 'max-w-[440px]'} -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-control border border-line bg-surface p-5 shadow-lg`}
         >
           <div className="flex items-start justify-between gap-3">
             <RadixDialog.Title className="pt-2 text-lg font-semibold">{title}</RadixDialog.Title>

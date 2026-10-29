@@ -184,6 +184,22 @@ describe('ProductsScreen', () => {
     expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Ürün eklendi.');
   });
 
+  it('imports products from a file and lists them', async () => {
+    await renderWithData(<ProductsScreen />);
+    await userEvent.click(await screen.findByRole('button', { name: 'İçe aktar' }));
+    const file = new File(['Ürün adı;Satış fiyatı\nSimit;15\n'], 'liste.csv', {
+      type: 'text/csv',
+    });
+    await userEvent.upload(screen.getByLabelText('Dosya seç'), file);
+    await userEvent.click(await screen.findByRole('button', { name: 'Devam' }));
+    await userEvent.click(await screen.findByRole('button', { name: '1 ürünü içe aktar' }));
+    expect(await screen.findByRole('button', { name: 'Simit' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent(
+      '1 ürün eklendi, 0 ürün güncellendi.',
+    );
+  });
+
   it('shows 100 products at a time', async () => {
     const data = createTestData();
     const stamp = at.toISOString();
