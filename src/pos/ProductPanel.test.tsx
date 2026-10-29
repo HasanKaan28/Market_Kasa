@@ -59,7 +59,8 @@ describe('ProductPanel', () => {
     const onAdd = vi.fn();
     await renderWithData(<ProductPanel onAdd={onAdd} onNewProduct={vi.fn()} />, data);
     expect(await screen.findByRole('button', { name: /Süt/ })).toBeInTheDocument();
-    const groups = screen.getByRole('group', { name: 'Ürün grubu' });
+    // The categories are read apart from the products and can arrive later.
+    const groups = await screen.findByRole('group', { name: 'Ürün grubu' });
     expect(within(groups).getByRole('radio', { name: 'Hızlı' })).toBeChecked();
     expect(within(groups).getAllByRole('radio')).toHaveLength(3);
 
