@@ -6,7 +6,7 @@ import { createProduct, updateProduct } from '@/data/products';
 import type { ProductRecord } from '@/data/types';
 import { makeTestDb } from '@/test/db';
 import { cartReducer, emptyCart, type Cart } from './cart';
-import { checkout, checkoutErrorMessage, suggestCash } from './checkout';
+import { checkout, checkoutErrorMessage, StaleCartError, suggestCash } from './checkout';
 
 let db: MarketDb;
 let milk: ProductRecord;
@@ -35,6 +35,20 @@ describe('checkout', () => {
       receiptNo: 'K1-20261029-0001',
     });
     expect(again.id).toBe(first.id);
+    expect(await db.sales.count()).toBe(1);
+  });
+
+  it('refuses a cart id that was already sold with other lines', async () => {
+    await checkout(db, { cart, deviceCode: 'K1', method: 'card', at });
+    const bread = await createProduct(db, { name: 'Ekmek', sellPrice: 1500, vatRate: 1 }, at);
+    const grown = cartReducer(cart, { type: 'add', product: bread });
+    const error = await checkout(db, { cart: grown, deviceCode: 'K1', method: 'card', at }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(StaleCartError);
+    expect(checkoutErrorMessage(error)).toBe(
+      'Bu sepet başka bir pencerede satılmış. Sepet yenilendi, yeniden deneyin.',
+    );
     expect(await db.sales.count()).toBe(1);
   });
 

@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
 import { recentSales } from '@/data/sales';
 import { createTestData, renderWithData } from '@/test/renderWithData';
+import { cartReducer, emptyCart, loadCart } from './cart';
+import { checkout } from './checkout';
 import { PosScreen } from './PosScreen';
 
 const milk = { barcode: '8690000000017', name: 'Süt', sellPrice: 4250, vatRate: 1 } as const;
@@ -80,5 +82,37 @@ describe('PosScreen', () => {
     first.unmount();
     await renderWithData(<PosScreen />, data);
     expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+  });
+
+  it('takes over the cart another tab saved', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    const created = await createProduct(data.db, milk, new Date());
+    const other = cartReducer(emptyCart(), { type: 'add', product: created });
+    localStorage.setItem('mk2.cart', JSON.stringify(other));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mk2.cart' }));
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+  });
+
+  it('renews a cart that another tab already sold', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    await vi.waitFor(() => expect(loadCart().lines).toHaveLength(1));
+    const saved = loadCart();
+    const doubled = saved.lines.map((line) => ({ ...line, qtyMilli: 2000 }));
+    await checkout(data.db, {
+      cart: { ...saved, lines: doubled },
+      deviceCode: 'K1',
+      method: 'card',
+      at: new Date(),
+    });
+    fireEvent.keyDown(window, { key: 'F4' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Satışı tamamla' }));
+    expect(
+      await screen.findByText('Bu sepet başka bir pencerede satılmış. Sepet yenilendi, yeniden deneyin.'),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
+    await vi.waitFor(async () => expect(await data.db.sales.count()).toBe(2));
   });
 });

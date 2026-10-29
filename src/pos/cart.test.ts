@@ -53,6 +53,18 @@ describe('cart', () => {
     expect(cleared.id).not.toBe('cart-1');
   });
 
+  it('renews the id but keeps the lines', () => {
+    const cart = mockupCart();
+    const renewed = cartReducer(cart, { type: 'renew' });
+    expect(renewed.id).not.toBe(cart.id);
+    expect(renewed.lines).toEqual(cart.lines);
+  });
+
+  it('takes over a cart saved elsewhere', () => {
+    const other = mockupCart();
+    expect(cartReducer(emptyCart('c'), { type: 'replace', cart: other })).toBe(other);
+  });
+
   it('follows price changes made elsewhere', () => {
     const cart = mockupCart();
     const refreshed = cartReducer(cart, {

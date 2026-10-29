@@ -6,9 +6,9 @@ import { findProductByBarcode } from '@/data/products';
 import type { PaymentMethod, ProductRecord } from '@/data/types';
 import { ToastRegion, useToast } from '@/design';
 import type { Kurus } from '@/domain/money';
-import { cartReducer, cartTotals, loadCart, saveCart } from './cart';
+import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from './cart';
 import { CartPanel } from './CartPanel';
-import { checkout, checkoutErrorMessage } from './checkout';
+import { checkout, checkoutErrorMessage, StaleCartError } from './checkout';
 import { CustomerPicker } from './CustomerPicker';
 import { useBarcodeScanner, useShortcuts } from './keyboard';
 import { NewProductDialog } from './NewProductDialog';
@@ -35,6 +35,17 @@ export function PosScreen(): JSX.Element {
   useEffect(() => {
     saveCart(cart);
   }, [cart]);
+
+  // One register, one cart: a cart saved by another tab replaces this one.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === CART_STORAGE_KEY) {
+        dispatch({ type: 'replace', cart: loadCart() });
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // Names and prices follow edits made while the product sits in the cart, here or elsewhere.
   const productIds = cart.lines.map((line) => line.productId).join(',');
@@ -81,6 +92,9 @@ export function PosScreen(): JSX.Element {
       toast.show(`Satış tamamlandı · ${sale.receiptNo}`);
       void runner.run();
     } catch (error) {
+      if (error instanceof StaleCartError) {
+        dispatch({ type: 'renew' });
+      }
       toast.show(checkoutErrorMessage(error));
     } finally {
       setBusy(false);

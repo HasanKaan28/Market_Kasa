@@ -18,9 +18,12 @@ export type CartAction =
   | { type: 'add'; product: ProductRecord }
   | { type: 'increment' | 'decrement' | 'remove'; productId: string }
   | { type: 'clear' }
+  | { type: 'renew' }
+  | { type: 'replace'; cart: Cart }
   | { type: 'refresh'; products: readonly ProductRecord[] };
 
-const STORAGE_KEY = 'mk2.cart';
+/** Where the cart is kept between reloads; other tabs watch it through `storage` events. */
+export const CART_STORAGE_KEY = 'mk2.cart';
 const ONE = 1000;
 
 export function emptyCart(id: string = newId()): Cart {
@@ -54,6 +57,11 @@ export function cartReducer(cart: Cart, action: CartAction): Cart {
       return withQuantity(cart, action.productId, 0);
     case 'clear':
       return emptyCart();
+    case 'renew':
+      // Same lines under a new id, so a checkout cannot be mistaken for an earlier sale.
+      return { ...cart, id: newId() };
+    case 'replace':
+      return action.cart;
     case 'refresh':
       return refreshLines(cart, action.products);
   }
@@ -68,7 +76,7 @@ export function cartTotals(cart: Cart): CartTotals {
 /** Keeps the cart across reloads; a full or blocked storage leaves it in memory only. */
 export function saveCart(cart: Cart, storage?: Pick<Storage, 'setItem'>): void {
   try {
-    (storage ?? localStorage).setItem(STORAGE_KEY, JSON.stringify(cart));
+    (storage ?? localStorage).setItem(CART_STORAGE_KEY, JSON.stringify(cart));
   } catch {
     // Nothing to do: the cart still works, it just will not survive a reload.
   }
@@ -76,7 +84,7 @@ export function saveCart(cart: Cart, storage?: Pick<Storage, 'setItem'>): void {
 
 export function loadCart(storage?: Pick<Storage, 'getItem'>): Cart {
   try {
-    const raw = (storage ?? localStorage).getItem(STORAGE_KEY);
+    const raw = (storage ?? localStorage).getItem(CART_STORAGE_KEY);
     const parsed: unknown = raw === null ? null : JSON.parse(raw);
     return isCart(parsed) ? parsed : emptyCart();
   } catch {

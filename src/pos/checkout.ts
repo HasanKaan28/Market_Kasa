@@ -14,15 +14,26 @@ export type CheckoutInput = {
   at: Date;
 };
 
+/**
+ * The cart's id already belongs to a sale with other lines: another tab, or a cart saved before
+ * its sale finished, sold it. Checking out again under that id would only return the old sale.
+ */
+export class StaleCartError extends Error {
+  constructor(receiptNo: string) {
+    super(`This cart was already sold as ${receiptNo}`);
+    this.name = 'StaleCartError';
+  }
+}
+
 // Round amounts a customer hands over: the next ₺10, ₺50, ₺100 and ₺500 above the total.
 const CASH_STEPS: readonly Kurus[] = [1000, 5000, 10000, 50000];
 
 /** Records the cart as one sale paid by one method. The cart's id makes a retry harmless. */
-export function checkout(
+export async function checkout(
   db: MarketDb,
   { cart, deviceCode, method, customerId, cashGiven, at }: CheckoutInput,
 ): Promise<SaleRecord> {
-  return recordSale(db, {
+  const sale = await recordSale(db, {
     id: cart.id,
     deviceCode,
     at,
@@ -31,6 +42,10 @@ export function checkout(
     ...(method === 'cash' && cashGiven !== undefined ? { cashGiven } : {}),
     ...(method === 'credit' && customerId !== undefined ? { customerId } : {}),
   });
+  if (!sameLines(sale, cart)) {
+    throw new StaleCartError(sale.receiptNo);
+  }
+  return sale;
 }
 
 export function checkoutErrorMessage(error: unknown): string {
@@ -40,6 +55,9 @@ export function checkoutErrorMessage(error: unknown): string {
   if (error instanceof PaymentMismatchError) {
     return 'Tutar değişti, toplamı kontrol edip yeniden deneyin.';
   }
+  if (error instanceof StaleCartError) {
+    return 'Bu sepet başka bir pencerede satılmış. Sepet yenilendi, yeniden deneyin.';
+  }
   return 'Satış kaydedilemedi.';
 }
 
@@ -48,4 +66,15 @@ export function suggestCash(total: Kurus): Kurus[] {
     (amount) => amount > total,
   );
   return [...new Set(amounts)].sort((a, b) => a - b);
+}
+
+function sameLines(sale: SaleRecord, cart: Cart): boolean {
+  return (
+    sale.lines.length === cart.lines.length &&
+    sale.lines.every(
+      (line, index) =>
+        line.productId === cart.lines[index]?.productId &&
+        line.qtyMilli === cart.lines[index]?.qtyMilli,
+    )
+  );
 }
