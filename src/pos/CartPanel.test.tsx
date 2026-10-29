@@ -30,7 +30,7 @@ function mockupCart(): Cart {
 
 describe('CartPanel', () => {
   it('shows the mockup cart totals', () => {
-    render(<CartPanel cart={mockupCart()} dispatch={vi.fn()} onPay={vi.fn()} />);
+    render(<CartPanel cart={mockupCart()} dispatch={vi.fn()} onPay={vi.fn()} onEditLine={vi.fn()} onDiscount={vi.fn()} />);
     expect(screen.getByText('4 kalem')).toBeInTheDocument();
     expect(screen.getByText('2 × ₺15,00')).toBeInTheDocument();
     expect(screen.getByTestId('total')).toHaveTextContent('₺566,40');
@@ -41,7 +41,15 @@ describe('CartPanel', () => {
   it('changes quantities, clears and starts payments', async () => {
     const dispatch = vi.fn();
     const onPay = vi.fn();
-    render(<CartPanel cart={mockupCart()} dispatch={dispatch} onPay={onPay} />);
+    render(
+      <CartPanel
+        cart={mockupCart()}
+        dispatch={dispatch}
+        onPay={onPay}
+        onEditLine={vi.fn()}
+        onDiscount={vi.fn()}
+      />,
+    );
     await userEvent.click(screen.getAllByRole('button', { name: 'Artır' })[0]!);
     expect(dispatch).toHaveBeenCalledWith({ type: 'increment', productId: 'e' });
     await userEvent.click(screen.getByRole('button', { name: 'Sepeti temizle' }));
@@ -51,10 +59,48 @@ describe('CartPanel', () => {
   });
 
   it('disables payment for an empty cart', () => {
-    render(<CartPanel cart={emptyCart('c')} dispatch={vi.fn()} onPay={vi.fn()} />);
+    render(<CartPanel cart={emptyCart('c')} dispatch={vi.fn()} onPay={vi.fn()} onEditLine={vi.fn()} onDiscount={vi.fn()} />);
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
     for (const name of ['Nakit', 'Kart', 'Veresiye']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
     }
+  });
+
+  it('shows line and cart discounts', () => {
+    let cart = cartReducer(mockupCart(), { type: 'setLineDiscount', productId: 'e', amount: 300 });
+    cart = cartReducer(cart, { type: 'setCartDiscount', amount: 1000 });
+    render(
+      <CartPanel
+        cart={cart}
+        dispatch={vi.fn()}
+        onPay={vi.fn()}
+        onEditLine={vi.fn()}
+        onDiscount={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('İndirim −₺3,00')).toBeInTheDocument();
+    expect(screen.getByTestId('cart-discount')).toHaveTextContent('−₺10,00');
+    expect(screen.getByTestId('total')).toHaveTextContent('₺553,40');
+  });
+
+  it('opens the line editor and the discount dialog', async () => {
+    const onEditLine = vi.fn();
+    const onDiscount = vi.fn();
+    const onPay = vi.fn();
+    render(
+      <CartPanel
+        cart={mockupCart()}
+        dispatch={vi.fn()}
+        onPay={onPay}
+        onEditLine={onEditLine}
+        onDiscount={onDiscount}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Düzenle · Ekmek' }));
+    expect(onEditLine).toHaveBeenCalledWith('e');
+    await userEvent.click(screen.getByRole('button', { name: 'İndirim' }));
+    expect(onDiscount).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Bölünmüş' }));
+    expect(onPay).toHaveBeenCalledWith('split');
   });
 });

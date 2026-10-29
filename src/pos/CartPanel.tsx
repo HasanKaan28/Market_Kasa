@@ -8,10 +8,18 @@ import { cartTotals, type Cart, type CartAction, type CartLine } from './cart';
 export type CartPanelProps = {
   cart: Cart;
   dispatch(action: CartAction): void;
-  onPay(method: PaymentMethod): void;
+  onPay(method: PaymentMethod | 'split'): void;
+  onEditLine(productId: string): void;
+  onDiscount(): void;
 };
 
-export function CartPanel({ cart, dispatch, onPay }: CartPanelProps): JSX.Element {
+export function CartPanel({
+  cart,
+  dispatch,
+  onPay,
+  onEditLine,
+  onDiscount,
+}: CartPanelProps): JSX.Element {
   const totals = cartTotals(cart);
   const empty = cart.lines.length === 0;
   return (
@@ -44,6 +52,7 @@ export function CartPanel({ cart, dispatch, onPay }: CartPanelProps): JSX.Elemen
               line={line}
               total={totals.lines[index]?.net ?? 0}
               dispatch={dispatch}
+              onEdit={onEditLine}
             />
           ))}
         </ul>
@@ -56,6 +65,14 @@ export function CartPanel({ cart, dispatch, onPay }: CartPanelProps): JSX.Elemen
             {formatTRY(totals.total - totals.vatTotal)}
           </dd>
         </div>
+        {cart.cartDiscount > 0 ? (
+          <div className="flex justify-between text-success">
+            <dt>Sepet indirimi</dt>
+            <dd data-testid="cart-discount" className="font-mono">
+              {`−${formatTRY(cart.cartDiscount)}`}
+            </dd>
+          </div>
+        ) : null}
         <div className="flex justify-between text-text-2">
           <dt>KDV</dt>
           <dd data-testid="vat" className="font-mono">
@@ -87,6 +104,12 @@ export function CartPanel({ cart, dispatch, onPay }: CartPanelProps): JSX.Elemen
         <Button size="lg" disabled={empty} onClick={() => onPay('credit')}>
           Veresiye
         </Button>
+        <Button size="lg" disabled={empty} onClick={() => onPay('split')}>
+          Bölünmüş
+        </Button>
+        <Button size="lg" disabled={empty} onClick={onDiscount}>
+          İndirim
+        </Button>
       </div>
     </div>
   );
@@ -96,17 +119,29 @@ function CartRow({
   line,
   total,
   dispatch,
+  onEdit,
 }: {
   line: CartLine;
   total: Kurus;
   dispatch(action: CartAction): void;
+  onEdit(productId: string): void;
 }): JSX.Element {
   const quantity = (line.qtyMilli / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 3 });
   return (
     <li className="flex items-center gap-2 py-2 pr-4 pl-4">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{line.name}</p>
+        <button
+          type="button"
+          aria-label={`Düzenle · ${line.name}`}
+          onClick={() => onEdit(line.productId)}
+          className="block max-w-full truncate text-left font-medium underline-offset-2 hover:underline"
+        >
+          {line.name}
+        </button>
         <p className="font-mono text-sm text-text-2">{`${quantity} × ${formatTRY(line.unitPrice)}`}</p>
+        {line.lineDiscount > 0 ? (
+          <p className="text-sm text-success">{`İndirim −${formatTRY(line.lineDiscount)}`}</p>
+        ) : null}
       </div>
       <Button
         variant="ghost"

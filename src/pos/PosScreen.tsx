@@ -10,19 +10,25 @@ import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from '.
 import { CartPanel } from './CartPanel';
 import { checkout, checkoutErrorMessage, singlePayment, StaleCartError } from './checkout';
 import { CustomerPicker } from './CustomerPicker';
+import { DiscountDialog } from './DiscountDialog';
 import { HELD_STORAGE_KEY, holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld } from './held';
 import { HeldCartsDialog } from './HeldCartsDialog';
 import { useBarcodeScanner, useShortcuts } from './keyboard';
+import { LineDialog } from './LineDialog';
 import { NewProductDialog } from './NewProductDialog';
 import { PaymentDialog } from './PaymentDialog';
 import { ProductPanel } from './ProductPanel';
 import { ReceiptsDialog } from './ReceiptsDialog';
 import { ReturnDialog } from './ReturnDialog';
+import { SplitPaymentDialog } from './SplitPaymentDialog';
 import { VoidDialog } from './VoidDialog';
 
 type OpenDialog =
   | { kind: 'cash' | 'card' }
   | { kind: 'credit' }
+  | { kind: 'split' }
+  | { kind: 'discount' }
+  | { kind: 'line'; productId: string }
   | { kind: 'newProduct'; barcode?: string }
   | { kind: 'held' }
   | { kind: 'receipts' }
@@ -171,6 +177,10 @@ export function PosScreen(): JSX.Element {
   );
 
   const close = () => setDialog(null);
+  const editedLine =
+    dialog?.kind === 'line'
+      ? cart.lines.find((line) => line.productId === dialog.productId)
+      : undefined;
   const paymentMethod = dialog?.kind === 'cash' || dialog?.kind === 'card' ? dialog.kind : null;
 
   return (
@@ -182,7 +192,13 @@ export function PosScreen(): JSX.Element {
         pendingCount={status.pendingCount}
         activeNav="pos"
         cart={
-          <CartPanel cart={cart} dispatch={dispatch} onPay={(method) => setDialog({ kind: method })} />
+          <CartPanel
+            cart={cart}
+            dispatch={dispatch}
+            onPay={(method) => setDialog({ kind: method })}
+            onEditLine={(productId) => setDialog({ kind: 'line', productId })}
+            onDiscount={() => setDialog({ kind: 'discount' })}
+          />
         }
       >
         <ProductPanel
@@ -212,6 +228,23 @@ export function PosScreen(): JSX.Element {
           onClose={close}
           onConfirm={(cashGiven) => void pay(singlePayment(cart, paymentMethod), { cashGiven })}
         />
+      ) : null}
+      {dialog?.kind === 'split' ? (
+        <SplitPaymentDialog
+          open
+          total={cartTotals(cart).total}
+          busy={busy}
+          onClose={close}
+          onConfirm={({ payments, cashGiven, customerId }) =>
+            void pay(payments, { cashGiven, customerId })
+          }
+        />
+      ) : null}
+      {dialog?.kind === 'discount' ? (
+        <DiscountDialog open cart={cart} dispatch={dispatch} onClose={close} />
+      ) : null}
+      {editedLine ? (
+        <LineDialog open line={editedLine} dispatch={dispatch} onClose={close} />
       ) : null}
       {dialog?.kind === 'credit' ? (
         <CustomerPicker

@@ -209,4 +209,36 @@ describe('PosScreen', () => {
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Bekleyenler (0)' })).toBeDisabled();
   });
+
+  it('sells a discounted cart', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    await userEvent.click(screen.getByRole('button', { name: 'Düzenle · Süt' }));
+    await userEvent.click(await screen.findByRole('radio', { name: 'Yüzde (%)' }));
+    await userEvent.type(screen.getByLabelText('İndirim'), '10');
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    await vi.waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('₺38,25'));
+    fireEvent.keyDown(window, { key: 'F2' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Satışı tamamla' }));
+    await screen.findByText(/Satış tamamlandı/);
+    expect((await recentSales(data.db))[0]?.lines[0]?.lineDiscount).toBe(425);
+  });
+
+  it('sells with a split payment', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    await userEvent.click(screen.getByRole('button', { name: 'Bölünmüş' }));
+    await userEvent.type(await screen.findByLabelText('Nakit'), '20');
+    await userEvent.type(screen.getByLabelText('Kart'), '22,50');
+    await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
+    await screen.findByText(/Satış tamamlandı/);
+    expect((await recentSales(data.db))[0]?.payments).toEqual([
+      { method: 'cash', amount: 2000 },
+      { method: 'card', amount: 2250 },
+    ]);
+  });
 });
