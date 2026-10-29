@@ -259,3 +259,34 @@ describe('refundShare', () => {
 - [ ] **Step 4: Bütün kontroller** — Run: `npm run lint && npm run typecheck && npm test && npm run build` · Expected: PASS.
 - [ ] **Step 5: Gözle kontrol** — `kasa-preview` (production build), 1366 × 768 ve 375 × 812: iki sepet beklet ve sırayla devam et; satış yap, F9'dan iade al, başka satışı iptal et; rozetler ve bildirimler doğru, yatay kaydırma yok.
 - [ ] **Step 6: Commit** — `git add src` · `git commit -m "feat(pos): wire holding, recent receipts, voids and returns into the register"`
+
+## Uygulama notları (2026-10-29)
+
+Commit'ler `0c1cd1e`…`4319d22`. Son inceleme: 0 kritik, 4 önemli (düzeltildi); bir küçük bulgu önemliye yükseltildi (düzeltildi); 12 küçük bulgu ertelendi.
+
+**Verilen kararlar:**
+- İade bölüşümünün örneği planda yanlıştı (indirim olmadan birim net hep tam); test, KDV'nin düzensiz bölünmesini (22/23/22) kullanıyor.
+- Aynı ürünü iki kez içeren iade isteği reddediliyor.
+- Bekleyenler listesine F8'in yanında "Bekleyenler (n)" butonuyla da ulaşılıyor; dolu sepetle F8 bekletir.
+- İptal ya da iade penceresi kapanınca son fişlere dönülüyor.
+- İptal kaydının, stok hareketlerinin ve veresiye düzeltmesinin kimliği satıştan türetiliyor (`deriveId`, UUID v8): iki cihazda yapılan iptal tek sayılıyor. İki kopyanın neden ve saat metni cihazlara göre farklı kalabilir.
+- İki cihazın satılandan fazla iade alması ya da iptal ile iadenin çakışması birleştirilmiyor: kayıtlar kalıyor, fiş "Kontrol gerekli" olarak işaretleniyor (DESIGN §7).
+- İade penceresi, açıkken başka yerden gelen iadeye göre seçimleri kırpıyor.
+- Okunamayan zamanı olan bekleyen sepet atlanıyor, en fazla 10 tanesi yükleniyor; hata ekranındaki sıfırlama bekleyen sepetleri de siliyor.
+- Fiş araması yalnız son 50 fişe değil bütün satışlara bakıyor; liste tarih de gösteriyor.
+- Başka sekmede satılmış bekleyen sepete devam edilince sepet bekleyenlerden çıkarılıyor (küçük bulgudan önemliye yükseltildi).
+- Kapsam dışı bırakılanlar: bölünmüş ödemede iade (M2c), kasadan çıkan iade parası ve Z raporu (M5), iptal ve iade izinleri ile olaylarda `staffId` (M6), sunucu tabloları (M0b), e-Arşiv iade faturası (M7).
+
+**Ertelenen küçük bulgular:**
+- İptal ya da iadeden sonra borç yaşı en eski borçtan düşülüyor, ilgili satışın borcundan değil (M4'te görünür olur).
+- Tartılı satırlarda iade adımı tam birim; birim etiketi yok.
+- Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor (sepet satırları birleştirdiği için şimdilik oluşmuyor).
+- Bu arada iptal edilmiş satışın iadesi genel "İade kaydedilemedi." mesajını veriyor.
+- İptal penceresinin hataları duyurulmuyor ve neden alanını hatalı gösteriyor.
+- İade yöntemi seçeneklerinde görünür klavye odağı yok.
+- Bekleyenler listesi: aynı dakikadaki iki sepetin etiketi aynı, eski günlerin tarihi yok, sepeti açmadan silmenin yolu yok.
+- Boş sepette "Beklet" butonu pasif, oysa F8 listeyi açıyor.
+- Metin: iade bildirimi paranın nasıl döndüğünü, iptal bildirimi tutarı söylemiyor; iptal penceresi nakit satışta da "veresiye geri alınır" diyor.
+- `addLedgerEntry` kendi transaction'ını açmıyor (bugün her çağıran açıyor).
+- Sunucudan gelen iptal ve iade satırları, stok hareketleri gibi şekil denetiminden geçmiyor.
+- Test boşlukları: pencereler açıkken okutma ve kısayollar, satıştan önce gelen iptal/iade, arayüzden veresiye iptali ve iadesi, yakınsama testinde iptal/iade.
