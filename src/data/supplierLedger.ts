@@ -1,13 +1,16 @@
 import { businessDate } from '@/domain/businessDate';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
+import { addCashMovement } from './cash';
 import type { MarketDb } from './db';
 import { RecordNotFoundError } from './errors';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
 import { withoutUndefined } from './records';
-import type { SupplierLedgerRecord, SupplierPaymentMethod } from './types';
+import type { SupplierLedgerRecord, SupplierPaymentMethod, SupplierRecord } from './types';
 
 export type SupplierPaymentInput = {
+  /** The register that paid: cash comes out of its drawer. */
+  deviceCode: string;
   supplierId: string;
   /** What was paid, above zero; written on the ledger as a negative amount. */
   amount: Kurus;
@@ -28,8 +31,9 @@ export type SupplierInvoiceInput = {
 const METHODS: readonly SupplierPaymentMethod[] = ['cash', 'bank', 'card', 'cheque'];
 
 /**
- * Pays a supplier, in cash, by bank, by card or by cheque, in one transaction. An archived
- * supplier still owed money (another register's delivery on account) can be paid too.
+ * Pays a supplier, in cash, by bank, by card or by cheque, in one transaction; cash comes out of
+ * the register's drawer as a cash movement in the same transaction. An archived supplier still
+ * owed money (another register's delivery on account) can be paid too.
  */
 export async function recordSupplierPayment(
   db: MarketDb,
@@ -43,9 +47,10 @@ export async function recordSupplierPayment(
   if (!METHODS.includes(input.method)) {
     throw new RangeError(`Unknown payment method: ${String(input.method)}`);
   }
-  return db.transaction('rw', db.suppliers, db.supplierLedger, db.outbox, async () => {
-    await requireSupplier(db, input.supplierId, { active: false });
-    return addEntry(
+  const tables = [db.suppliers, db.supplierLedger, db.cashMovements, db.outbox, db.meta];
+  return db.transaction('rw', tables, async () => {
+    const supplier = await requireSupplier(db, input.supplierId, { active: false });
+    const entry = await addEntry(
       db,
       {
         supplierId: input.supplierId,
@@ -57,6 +62,21 @@ export async function recordSupplierPayment(
       at,
       input.cutoffMinutes,
     );
+    if (input.method === 'cash') {
+      await addCashMovement(
+        db,
+        {
+          deviceCode: input.deviceCode,
+          kind: 'out',
+          amount: input.amount,
+          reason: `Tedarikçi ödemesi · ${supplier.name}`,
+          refId: entry.id,
+          cutoffMinutes: input.cutoffMinutes,
+        },
+        at,
+      );
+    }
+    return entry;
   });
 }
 
@@ -152,9 +172,10 @@ async function requireSupplier(
   db: MarketDb,
   supplierId: string,
   { active }: { active: boolean },
-): Promise<void> {
+): Promise<SupplierRecord> {
   const supplier = await db.suppliers.get(supplierId);
   if (!supplier || (active && supplier.archivedAt)) {
     throw new RecordNotFoundError('Supplier', supplierId);
   }
+  return supplier;
 }

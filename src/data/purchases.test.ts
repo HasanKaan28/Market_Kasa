@@ -139,12 +139,14 @@ describe('recordPurchase', () => {
       ['purchase', purchase.id],
       ['purchase', purchase.id],
     ]);
-    // The receipt is queued before what refers to it; only the one changed price is patched.
+    // The receipt is queued before what refers to it; only the one changed price is patched, and
+    // the cash paid for it leaves the drawer.
     expect((await pendingOps(db)).slice(before).map((op) => op.table)).toEqual([
       'purchases',
       'products',
       'stockMovements',
       'stockMovements',
+      'cashMovements',
     ]);
   });
 

@@ -1,6 +1,7 @@
 import { businessDate } from '@/domain/businessDate';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { lineTotal, MAX_UNIT_PRICE } from '@/domain/pricing';
+import { addCashMovement } from './cash';
 import type { MarketDb } from './db';
 import { RecordNotFoundError } from './errors';
 import { newId } from './ids';
@@ -62,14 +63,15 @@ export async function recordPurchase(
     db.stockLevels,
     db.suppliers,
     db.supplierLedger,
+    db.cashMovements,
     db.outbox,
+    db.meta,
   ];
   return db.transaction('rw', tables, async () => {
-    if (input.supplierId !== undefined) {
-      const supplier = await db.suppliers.get(input.supplierId);
-      if (!supplier || supplier.archivedAt) {
-        throw new RecordNotFoundError('Supplier', input.supplierId);
-      }
+    const supplier =
+      input.supplierId === undefined ? undefined : await db.suppliers.get(input.supplierId);
+    if (input.supplierId !== undefined && (!supplier || supplier.archivedAt)) {
+      throw new RecordNotFoundError('Supplier', input.supplierId);
     }
     const checked: { product: ProductRecord; line: PurchaseLine; patch: ProductPatch }[] = [];
     for (const line of input.lines) {
@@ -134,6 +136,21 @@ export async function recordPurchase(
         at,
         cutoffMinutes: input.cutoffMinutes,
       });
+    }
+    // Paid in cash, it comes out of the register's drawer; free goods alone take nothing out.
+    if (payment === 'cash' && record.total > 0) {
+      await addCashMovement(
+        db,
+        {
+          deviceCode: input.deviceCode,
+          kind: 'out',
+          amount: record.total,
+          reason: supplier ? `Mal kabul · ${supplier.name}` : 'Mal kabul',
+          refId: id,
+          cutoffMinutes: input.cutoffMinutes,
+        },
+        at,
+      );
     }
     // Free goods alone owe nothing, so they write no invoice.
     if (payment === 'on_account' && input.supplierId && record.total > 0) {

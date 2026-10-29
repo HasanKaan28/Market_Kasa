@@ -1,6 +1,7 @@
 import type { LedgerKind } from '@/domain/ledger';
 import type { Kurus } from '@/domain/money';
 import type { VatRate } from '@/domain/pricing';
+import type { Summary } from '@/reports/summary';
 
 export type ProductUnit = 'piece' | 'kg';
 
@@ -119,7 +120,8 @@ export type PurchaseRecord = {
   total: Kurus;
   supplierId?: string;
   invoiceNo?: string;
-  payment: PurchasePayment;
+  /** Cash when absent: receipts written before the payment was kept. */
+  payment?: PurchasePayment;
   note?: string;
   occurredAt: string;
   businessDate: string;
@@ -228,6 +230,52 @@ export type ReturnRecord = {
   businessDate: string;
 };
 
+/** Where a drawer's cash came from and went over a session. */
+export type CashBreakdown = {
+  /** The cash part of the register's sales. */
+  sales: Kurus;
+  /** The cash part of the sales voided on the register, those of earlier days included. */
+  voids: Kurus;
+  /** Cash given back for returns on the register. */
+  refunds: Kurus;
+  movementsIn: Kurus;
+  movementsOut: Kurus;
+};
+
+/** Cash put into or taken out of a drawer, by hand or by a collection or payment made from it. */
+export type CashMovementRecord = {
+  id: string;
+  deviceCode: string;
+  /** The drawer session it happened in; absent when the drawer was not open. */
+  sessionId?: string;
+  kind: 'in' | 'out';
+  /** Above zero; `kind` says which way it went. */
+  amount: Kurus;
+  reason: string;
+  /** The ledger entry or goods receipt that moved the cash; absent when entered by hand. */
+  refId?: string;
+  occurredAt: string;
+  businessDate: string;
+};
+
+/** The Z record: a drawer closed at the end of the day, written once and never changed. */
+export type CashSessionRecord = {
+  id: string;
+  deviceCode: string;
+  /** When the drawer was opened; absent when it was closed without being opened. */
+  openedAt?: string;
+  openingCash: Kurus;
+  closedAt: string;
+  cash: CashBreakdown;
+  expectedCash: Kurus;
+  countedCash: Kurus;
+  /** Counted less expected: below zero is cash missing from the drawer. */
+  difference: Kurus;
+  /** The register's sales over the session; every product sold is left to the reports. */
+  summary: Omit<Summary, 'productsSold'>;
+  businessDate: string;
+};
+
 export type OutboxTable =
   | 'products'
   | 'customers'
@@ -240,7 +288,9 @@ export type OutboxTable =
   | 'purchases'
   | 'stockCounts'
   | 'suppliers'
-  | 'supplierLedger';
+  | 'supplierLedger'
+  | 'cashMovements'
+  | 'cashSessions';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }

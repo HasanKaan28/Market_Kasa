@@ -30,7 +30,7 @@ export function PaymentForm({
   onSaved,
   onCancel,
 }: FormProps & { balance: number }): JSX.Element {
-  const { db } = useData();
+  const { db, settings } = useData();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<LedgerMethod>('cash');
   const [note, setNote] = useState('');
@@ -47,7 +47,11 @@ export function PaymentForm({
     setError(undefined);
     setBusy(true);
     try {
-      await recordPayment(db, { customerId, amount: kurus, method, note }, new Date());
+      await recordPayment(
+        db,
+        { deviceCode: settings.deviceCode, customerId, amount: kurus, method, note },
+        new Date(),
+      );
       onSaved(`Tahsilat alındı: ${formatTRY(kurus)}.`);
     } catch {
       setFailure('Tahsilat kaydedilemedi.');

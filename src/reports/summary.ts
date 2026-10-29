@@ -1,4 +1,4 @@
-import Dexie from 'dexie';
+import Dexie, { type Table } from 'dexie';
 import type { MarketDb } from '@/data/db';
 import type {
   CategoryRecord,
@@ -232,21 +232,32 @@ export function buildSummary({
   };
 }
 
-/** The summary of the business days `from`–`to` (YYYY-MM-DD), of one register or all. */
-export async function loadSummary(
+/** Which records a summary reads: a span of business days or of time, of one register or all. */
+export type SummaryRange = {
+  /** `businessDate` for days (YYYY-MM-DD), `occurredAt` for instants (ISO). */
+  index: 'businessDate' | 'occurredAt';
+  from: string;
+  to: string;
+  /** False leaves out the records at `from` itself: a span that starts where the last one ended. */
+  includeFrom?: boolean;
+  deviceCode?: string;
+};
+
+/** The sales, voids and returns of a range, with every sale they refer to. */
+export async function loadRange(
   db: MarketDb,
-  { from, to, deviceCode }: { from: string; to: string; deviceCode?: string },
-): Promise<Summary> {
-  const inRange = (record: { businessDate: string; deviceCode: string }) =>
-    record.businessDate >= from &&
-    record.businessDate <= to &&
-    (deviceCode === undefined || record.deviceCode === deviceCode);
-  const [sales, voids, returns, products, categories] = await Promise.all([
-    db.sales.filter(inRange).toArray(),
-    db.saleVoids.filter(inRange).toArray(),
-    db.returns.filter(inRange).toArray(),
-    db.products.toArray(),
-    db.categories.toArray(),
+  { index, from, to, includeFrom = true, deviceCode }: SummaryRange,
+): Promise<Pick<SummaryInput, 'sales' | 'voids' | 'returns' | 'salesById'>> {
+  const read = <T extends { deviceCode: string }>(table: Table<T, string>) =>
+    table
+      .where(index)
+      .between(from, to, includeFrom, true)
+      .filter((record) => deviceCode === undefined || record.deviceCode === deviceCode)
+      .toArray();
+  const [sales, voids, returns] = await Promise.all([
+    read(db.sales),
+    read(db.saleVoids),
+    read(db.returns),
   ]);
   const known = new Set(sales.map((sale) => sale.id));
   const referenced = [
@@ -258,7 +269,20 @@ export async function loadSummary(
   const salesById = new Map(
     [...sales, ...earlier.flatMap((sale) => (sale ? [sale] : []))].map((sale) => [sale.id, sale]),
   );
-  return buildSummary({ sales, voids, returns, salesById, products, categories });
+  return { sales, voids, returns, salesById };
+}
+
+/** The summary of the business days `from`–`to` (YYYY-MM-DD), of one register or all. */
+export async function loadSummary(
+  db: MarketDb,
+  { from, to, deviceCode }: { from: string; to: string; deviceCode?: string },
+): Promise<Summary> {
+  const [records, products, categories] = await Promise.all([
+    loadRange(db, { index: 'businessDate', from, to, ...(deviceCode ? { deviceCode } : {}) }),
+    db.products.toArray(),
+    db.categories.toArray(),
+  ]);
+  return buildSummary({ ...records, products, categories });
 }
 
 /** Every register that has rung up a sale, in order: one index step per register, not per sale. */

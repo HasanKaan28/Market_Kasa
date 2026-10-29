@@ -98,7 +98,11 @@ describe('SupplierDialog', () => {
   it('says an overpayment is one, and keeps an overpaid supplier from being archived', async () => {
     const data = createTestData();
     const eti = await createSupplier(data.db, { name: 'Eti' }, at);
-    await recordSupplierPayment(data.db, { supplierId: eti.id, amount: 5000, method: 'cash' }, at);
+    await recordSupplierPayment(
+      data.db,
+      { deviceCode: 'K1', supplierId: eti.id, amount: 5000, method: 'cash' },
+      at,
+    );
     await renderWithData(
       <SupplierDialog open supplierId={eti.id} onClose={vi.fn()} onDone={vi.fn()} />,
       data,
@@ -134,7 +138,11 @@ describe('SupplierDialog', () => {
   it('prints the supplier statement under its own title', async () => {
     const data = createTestData();
     const eti = await createSupplier(data.db, { name: 'Eti' }, at);
-    await recordSupplierPayment(data.db, { supplierId: eti.id, amount: 5000, method: 'cash' }, at);
+    await recordSupplierPayment(
+      data.db,
+      { deviceCode: 'K1', supplierId: eti.id, amount: 5000, method: 'cash' },
+      at,
+    );
     const print = vi.spyOn(window, 'print').mockImplementation(() => {});
     await renderWithData(
       <SupplierDialog open supplierId={eti.id} onClose={vi.fn()} onDone={vi.fn()} />,

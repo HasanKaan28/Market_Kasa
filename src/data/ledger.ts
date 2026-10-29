@@ -1,12 +1,13 @@
 import { businessDate } from '@/domain/businessDate';
 import type { LedgerKind } from '@/domain/ledger';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
+import { addCashMovement } from './cash';
 import type { MarketDb } from './db';
 import { RecordNotFoundError } from './errors';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
 import { withoutUndefined } from './records';
-import type { LedgerMethod, LedgerRecord } from './types';
+import type { CustomerRecord, LedgerMethod, LedgerRecord } from './types';
 
 export type NewLedgerEntry = {
   /** Set only when the id must be the same on every device (see `deriveId`). */
@@ -22,6 +23,8 @@ export type NewLedgerEntry = {
 };
 
 export type PaymentInput = {
+  /** The register that took it: a cash payment goes into its drawer. */
+  deviceCode: string;
   customerId: string;
   /** What was paid, above zero; written on the ledger as a negative amount. */
   amount: Kurus;
@@ -65,8 +68,9 @@ export async function addLedgerEntry(
 }
 
 /**
- * Takes a payment from a customer, in cash or by card, in one transaction. An archived customer
- * who still owes (a return or another register's sale after archiving) can pay too.
+ * Takes a payment from a customer, in cash or by card, in one transaction; cash goes into the
+ * register's drawer as a cash movement in the same transaction. An archived customer who still
+ * owes (a return or another register's sale after archiving) can pay too.
  */
 export async function recordPayment(
   db: MarketDb,
@@ -80,9 +84,10 @@ export async function recordPayment(
   if (!METHODS.includes(input.method)) {
     throw new RangeError(`A payment is made in cash or by card, got ${String(input.method)}`);
   }
-  return db.transaction('rw', db.customers, db.ledger, db.outbox, async () => {
-    await requireCustomer(db, input.customerId);
-    return addLedgerEntry(
+  const tables = [db.customers, db.ledger, db.cashMovements, db.outbox, db.meta];
+  return db.transaction('rw', tables, async () => {
+    const customer = await requireCustomer(db, input.customerId);
+    const entry = await addLedgerEntry(
       db,
       {
         customerId: input.customerId,
@@ -94,6 +99,21 @@ export async function recordPayment(
       },
       at,
     );
+    if (input.method === 'cash') {
+      await addCashMovement(
+        db,
+        {
+          deviceCode: input.deviceCode,
+          kind: 'in',
+          amount: input.amount,
+          reason: `Tahsilat · ${customer.name}`,
+          refId: entry.id,
+          cutoffMinutes: input.cutoffMinutes,
+        },
+        at,
+      );
+    }
+    return entry;
   });
 }
 
@@ -127,9 +147,10 @@ export async function recordAdjustment(
   });
 }
 
-async function requireCustomer(db: MarketDb, customerId: string): Promise<void> {
+async function requireCustomer(db: MarketDb, customerId: string): Promise<CustomerRecord> {
   const customer = await db.customers.get(customerId);
   if (!customer) {
     throw new RecordNotFoundError('Customer', customerId);
   }
+  return customer;
 }

@@ -23,7 +23,11 @@ describe('customer balances', () => {
   it('keeps an overpayment as credit', async () => {
     const ahmet = await createCustomer(db, { name: 'Ahmet' }, day(1));
     await recordAdjustment(db, { customerId: ahmet.id, amount: 5000, note: 'Eski borç' }, day(1));
-    await recordPayment(db, { customerId: ahmet.id, amount: 7000, method: 'cash' }, day(2));
+    await recordPayment(
+      db,
+      { deviceCode: 'K1', customerId: ahmet.id, amount: 7000, method: 'cash' },
+      day(2),
+    );
     expect(await customerSummaries(db, '2026-10-29')).toMatchObject([
       { customer: { id: ahmet.id }, balance: -2000, debtAgeDays: 0 },
     ]);
@@ -91,7 +95,7 @@ describe('customerStatement', () => {
     });
     await recordPayment(
       db,
-      { customerId: ahmet.id, amount: 5000, method: 'card', note: 'kart' },
+      { deviceCode: 'K1', customerId: ahmet.id, amount: 5000, method: 'card', note: 'kart' },
       day(6),
     );
     await recordAdjustment(db, { customerId: ahmet.id, amount: -1000, note: 'yuvarlama' }, day(7));

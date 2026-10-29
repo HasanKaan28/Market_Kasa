@@ -36,12 +36,21 @@ describe('recordPayment', () => {
     await recordAdjustment(db, { customerId: customer.id, amount: 10000, note: 'Eski borç' }, at);
     const payment = await recordPayment(
       db,
-      { customerId: customer.id, amount: 4000, method: 'cash', note: ' elden ' },
+      { deviceCode: 'K1', customerId: customer.id, amount: 4000, method: 'cash', note: ' elden ' },
       at,
     );
-    expect(payment).toMatchObject({ kind: 'payment', amount: -4000, method: 'cash', note: 'elden' });
+    expect(payment).toMatchObject({
+      kind: 'payment',
+      amount: -4000,
+      method: 'cash',
+      note: 'elden',
+    });
     expect(await customerBalance(db, customer.id)).toBe(6000);
-    expect((await pendingOps(db)).at(-1)).toMatchObject({ table: 'ledger', recordId: payment.id });
+    // Cash also goes into the drawer, queued after the entry it comes from.
+    expect((await pendingOps(db)).slice(-2)).toMatchObject([
+      { table: 'ledger', recordId: payment.id },
+      { table: 'cashMovements' },
+    ]);
 
     // The outbox write comes last; when it fails, the payment must not stay behind.
     const entries = await db.ledger.count();
@@ -49,7 +58,11 @@ describe('recordPayment', () => {
       throw new Error('disk full');
     });
     await expect(
-      recordPayment(db, { customerId: customer.id, amount: 1000, method: 'card' }, at),
+      recordPayment(
+        db,
+        { deviceCode: 'K1', customerId: customer.id, amount: 1000, method: 'card' },
+        at,
+      ),
     ).rejects.toThrow('disk full');
     expect(await db.ledger.count()).toBe(entries);
   });
@@ -59,7 +72,7 @@ describe('recordPayment', () => {
     const gone = await createCustomer(db, { name: 'Veli' }, at);
     await archiveCustomer(db, gone.id, at);
     const pay = (customerId: string, amount: number, method = 'cash') =>
-      recordPayment(db, { customerId, amount, method: method as 'cash' }, at);
+      recordPayment(db, { deviceCode: 'K1', customerId, amount, method: method as 'cash' }, at);
     await expect(pay(customer.id, 0)).rejects.toBeInstanceOf(RangeError);
     await expect(pay(customer.id, -100)).rejects.toBeInstanceOf(RangeError);
     await expect(pay(customer.id, 0.5)).rejects.toBeInstanceOf(RangeError);

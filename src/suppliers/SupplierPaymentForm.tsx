@@ -26,7 +26,7 @@ export function SupplierPaymentForm({
   onSaved(message: string): void;
   onCancel(): void;
 }): JSX.Element {
-  const { db } = useData();
+  const { db, settings } = useData();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<SupplierPaymentMethod>('cash');
   const [note, setNote] = useState('');
@@ -53,7 +53,11 @@ export function SupplierPaymentForm({
     setError(undefined);
     setBusy(true);
     try {
-      await recordSupplierPayment(db, { supplierId, amount: kurus, method, note }, new Date());
+      await recordSupplierPayment(
+        db,
+        { deviceCode: settings.deviceCode, supplierId, amount: kurus, method, note },
+        new Date(),
+      );
       onSaved(`Ödeme kaydedildi: ${formatTRY(kurus)}.`);
     } catch {
       setFailure('Ödeme kaydedilemedi.');

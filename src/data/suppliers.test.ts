@@ -78,7 +78,7 @@ describe('supplier ledger', () => {
     await addSupplierInvoice(db, { supplierId: supplier.id, amount: 10000, purchaseId: 'p1' }, at);
     const payment = await recordSupplierPayment(
       db,
-      { supplierId: supplier.id, amount: 4000, method: 'bank', note: ' havale ' },
+      { deviceCode: 'K1', supplierId: supplier.id, amount: 4000, method: 'bank', note: ' havale ' },
       at,
     );
     expect(payment).toMatchObject({
@@ -94,7 +94,11 @@ describe('supplier ledger', () => {
       throw new Error('disk full');
     });
     await expect(
-      recordSupplierPayment(db, { supplierId: supplier.id, amount: 1000, method: 'cash' }, at),
+      recordSupplierPayment(
+        db,
+        { deviceCode: 'K1', supplierId: supplier.id, amount: 1000, method: 'cash' },
+        at,
+      ),
     ).rejects.toThrow('disk full');
     expect(await db.supplierLedger.count()).toBe(entries);
   });
@@ -104,7 +108,11 @@ describe('supplier ledger', () => {
     const gone = await createSupplier(db, { name: 'Pınar' }, at);
     await archiveSupplier(db, gone.id, at);
     const pay = (supplierId: string, amount: number, method = 'cash') =>
-      recordSupplierPayment(db, { supplierId, amount, method: method as 'cash' }, at);
+      recordSupplierPayment(
+        db,
+        { deviceCode: 'K1', supplierId, amount, method: method as 'cash' },
+        at,
+      );
     await expect(pay(supplier.id, 0)).rejects.toBeInstanceOf(RangeError);
     await expect(pay(supplier.id, -100)).rejects.toBeInstanceOf(RangeError);
     await expect(pay(supplier.id, 0.5)).rejects.toBeInstanceOf(RangeError);
@@ -124,7 +132,11 @@ describe('supplier ledger', () => {
     await addSupplierInvoice(db, { supplierId: supplier.id, amount: 10000, purchaseId: 'p1' }, at);
     await expect(archiveSupplier(db, supplier.id, at)).rejects.toBeInstanceOf(RangeError);
     // Overpaid is not settled either.
-    await recordSupplierPayment(db, { supplierId: supplier.id, amount: 10100, method: 'bank' }, at);
+    await recordSupplierPayment(
+      db,
+      { deviceCode: 'K1', supplierId: supplier.id, amount: 10100, method: 'bank' },
+      at,
+    );
     await expect(archiveSupplier(db, supplier.id, at)).rejects.toBeInstanceOf(RangeError);
     await recordSupplierAdjustment(
       db,

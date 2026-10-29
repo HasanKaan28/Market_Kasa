@@ -192,6 +192,35 @@ describe('applyServerRows', () => {
     expect(await db.supplierLedger.toArray()).toEqual([entry]);
   });
 
+  it('applies pulled cash records once', async () => {
+    const movement = {
+      id: 'm1',
+      deviceCode: 'K2',
+      kind: 'out',
+      amount: 500,
+      reason: 'Ekmekçi',
+      occurredAt: at.toISOString(),
+      businessDate: '2026-10-29',
+    };
+    const session = {
+      id: 'z1',
+      deviceCode: 'K2',
+      openingCash: 0,
+      closedAt: at.toISOString(),
+      expectedCash: -500,
+      countedCash: -500,
+      difference: 0,
+      businessDate: '2026-10-29',
+    };
+    const rows: ServerRow[] = [
+      { table: 'cashMovements', id: 'm1', serverSeq: 12, row: movement },
+      { table: 'cashSessions', id: 'z1', serverSeq: 13, row: session },
+    ];
+    await applyServerRows(db, [...rows, ...rows]);
+    expect(await db.cashMovements.toArray()).toEqual([movement]);
+    expect(await db.cashSessions.toArray()).toEqual([session]);
+  });
+
   it('stores two sales that share a receipt number', async () => {
     const sale = (id: string, serverSeq: number): ServerRow => ({
       table: 'sales',

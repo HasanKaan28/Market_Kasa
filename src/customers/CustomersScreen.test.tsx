@@ -49,7 +49,11 @@ describe('CustomersScreen', () => {
       daysAgo(3),
     );
     await recordAdjustment(data.db, { customerId: veli.id, amount: 1000, note: 'x' }, daysAgo(2));
-    await recordPayment(data.db, { customerId: veli.id, amount: 3000, method: 'cash' }, daysAgo(1));
+    await recordPayment(
+      data.db,
+      { deviceCode: 'K1', customerId: veli.id, amount: 3000, method: 'cash' },
+      daysAgo(1),
+    );
     await renderWithData(<CustomersScreen />, data);
     const table = await screen.findByRole('table', { name: 'Müşteriler' });
     expect(rowsOf(table)).toEqual([

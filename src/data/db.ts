@@ -1,5 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
+  CashMovementRecord,
+  CashSessionRecord,
   CategoryRecord,
   CustomerRecord,
   PurchaseRecord,
@@ -35,6 +37,8 @@ export class MarketDb extends Dexie {
   declare stockCounts: Table<StockCountRecord, string>;
   declare suppliers: Table<SupplierRecord, string>;
   declare supplierLedger: Table<SupplierLedgerRecord, string>;
+  declare cashSessions: Table<CashSessionRecord, string>;
+  declare cashMovements: Table<CashMovementRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -79,6 +83,15 @@ export class MarketDb extends Dexie {
     this.version(9).stores({
       suppliers: 'id, name, updatedAt',
       supplierLedger: 'id, supplierId, occurredAt',
+    });
+    // v10: cash drawer sessions and movements (M5), read per register by time; sales, voids and
+    // returns read by business day for the reports and by time for the Z report.
+    this.version(10).stores({
+      sales: 'id, receiptNo, [deviceCode+businessDate+seq], occurredAt, customerId, businessDate',
+      saleVoids: 'id, saleId, businessDate, occurredAt',
+      returns: 'id, saleId, businessDate, occurredAt',
+      cashSessions: 'id, [deviceCode+closedAt], closedAt',
+      cashMovements: 'id, [deviceCode+occurredAt], occurredAt',
     });
   }
 }

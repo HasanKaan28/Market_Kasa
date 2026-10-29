@@ -19,6 +19,8 @@ describe('openMarketDb', () => {
     db = openMarketDb('tables-check');
     await db.open();
     expect(db.tables.map((t) => t.name).sort()).toEqual([
+      'cashMovements',
+      'cashSessions',
       'categories',
       'customers',
       'ledger',
