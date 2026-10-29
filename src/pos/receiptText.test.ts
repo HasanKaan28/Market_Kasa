@@ -83,6 +83,19 @@ describe('receiptText', () => {
     expect(lines).toContain('Müşteri: Ahmet Yılmaz');
     expect(lines).toContain('*** İPTAL EDİLDİ ***');
   });
+
+  it('never cuts an emoji in half', () => {
+    const emoji: ReceiptModel = {
+      ...model,
+      header: [`a${'🙂'.repeat(40)}`],
+      lines: [{ name: 'Süt Tam Yağlı Günlük 1 🥛🥛🥛🥛', detail: '1 × ₺42,50', amount: '₺42,50' }],
+    };
+    // Half an emoji makes encodeURIComponent throw, and the WhatsApp button does nothing.
+    expect(() => whatsappLink(whatsappText(emoji))).not.toThrow();
+    for (const line of receiptText(emoji, 32).split('\n')) {
+      expect(Array.from(line).length).toBeLessThanOrEqual(32);
+    }
+  });
 });
 
 describe('whatsappText', () => {

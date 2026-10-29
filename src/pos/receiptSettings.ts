@@ -67,10 +67,11 @@ export function shortLine(text: string): string {
 
 /** At most three lines of 48 characters: what fits a receipt header or footer. */
 export function shortText(text: string): string {
+  // Cut by code points: half an emoji would break the WhatsApp link.
   return text
     .split('\n')
     .slice(0, MAX_LINES)
-    .map((line) => line.slice(0, MAX_LINE_LENGTH))
+    .map((line) => Array.from(line).slice(0, MAX_LINE_LENGTH).join(''))
     .join('\n');
 }
 

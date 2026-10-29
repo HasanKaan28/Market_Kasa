@@ -62,14 +62,14 @@ function whatsappNumber(phone: string): string {
 }
 
 function twoColumns(left: string, right: string, columns: number): string {
-  const room = columns - right.length - 1;
-  const shown = left.length <= room ? left : `${left.slice(0, Math.max(0, room - 1))}…`;
-  return `${shown}${' '.repeat(columns - shown.length - right.length)}${right}`;
+  const room = columns - width(right) - 1;
+  const shown = width(left) <= room ? left : `${cut(left, Math.max(0, room - 1))}…`;
+  return `${shown}${' '.repeat(columns - width(shown) - width(right))}${right}`;
 }
 
 function centered(text: string, columns: number): string[] {
   return wrapped(text, columns).map(
-    (line) => `${' '.repeat(Math.floor((columns - line.length) / 2))}${line}`,
+    (line) => `${' '.repeat(Math.floor((columns - width(line)) / 2))}${line}`,
   );
 }
 
@@ -78,14 +78,24 @@ function wrapped(text: string, columns: number): string[] {
   let current = '';
   for (const word of text.split(/\s+/).filter(Boolean)) {
     const next = current === '' ? word : `${current} ${word}`;
-    if (next.length <= columns) {
+    if (width(next) <= columns) {
       current = next;
     } else {
       if (current !== '') {
         lines.push(current);
       }
-      current = word.slice(0, columns);
+      current = cut(word, columns);
     }
   }
   return current === '' ? lines : [...lines, current];
+}
+
+// Lengths and cuts count code points: a cut by UTF-16 units can split an emoji, and the lone
+// half makes encodeURIComponent throw.
+function width(text: string): number {
+  return Array.from(text).length;
+}
+
+function cut(text: string, length: number): string {
+  return Array.from(text).slice(0, length).join('');
 }

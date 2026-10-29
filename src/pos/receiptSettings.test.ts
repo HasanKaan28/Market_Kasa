@@ -59,6 +59,17 @@ describe('receipt settings', () => {
     });
   });
 
+  it('never cuts an emoji in half', () => {
+    const loaded = loadReceiptSettings(
+      stored({
+        ...DEFAULT_RECEIPT_SETTINGS,
+        shopName: `b${'🙂'.repeat(60)}`,
+        header: `a${'🙂'.repeat(60)}`,
+      }),
+    );
+    expect(() => encodeURIComponent(`${loaded.shopName}${loaded.header}`)).not.toThrow();
+  });
+
   it('keeps settings saved before the shop name existed', () => {
     const saved = {
       printing: true,
