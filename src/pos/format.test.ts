@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuantity } from './format';
+import { formatStock, parseQuantity } from './format';
+
+describe('formatStock', () => {
+  it('formats stock with its unit', () => {
+    expect(formatStock(12000, 'piece')).toBe('12 adet');
+    expect(formatStock(1250, 'kg')).toBe('1,25 kg');
+    expect(formatStock(-3000, 'piece')).toBe('−3 adet');
+    expect(formatStock(0, 'kg')).toBe('0 kg');
+  });
+});
 
 describe('parseQuantity', () => {
   it('reads quantities by unit', () => {

@@ -43,6 +43,14 @@ export function formatQty(qtyMilli: number): string {
   return (qtyMilli / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 3 });
 }
 
+export const UNIT_LABELS: Record<ProductUnit, string> = { piece: 'adet', kg: 'kg' };
+
+/** Stock with its unit: "12 adet", "1,25 kg"; a shortfall gets a real minus sign, "−3 adet". */
+export function formatStock(qtyMilli: number, unit: ProductUnit): string {
+  const sign = qtyMilli < 0 ? '−' : '';
+  return `${sign}${formatQty(Math.abs(qtyMilli))} ${UNIT_LABELS[unit]}`;
+}
+
 // Ten thousand units keeps quantity × unit price exact even at the highest allowed price.
 const MAX_QUANTITY_MILLI = 10_000_000;
 const PIECES = /^\d+$/;
