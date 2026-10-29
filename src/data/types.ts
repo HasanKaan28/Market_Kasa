@@ -20,6 +20,16 @@ export type ProductRecord = {
   deletedAt?: string;
 };
 
+/** A group of products; `sort` orders the group buttons at the register. */
+export type CategoryRecord = {
+  id: string;
+  name: string;
+  sort: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+};
+
 /** `creditLimit` 0 means no limit. */
 export type CustomerRecord = {
   id: string;
@@ -129,11 +139,23 @@ export type ReturnRecord = {
 };
 
 export type OutboxTable =
-  'products' | 'customers' | 'sales' | 'stockMovements' | 'ledger' | 'saleVoids' | 'returns';
+  | 'products'
+  | 'customers'
+  | 'categories'
+  | 'sales'
+  | 'stockMovements'
+  | 'ledger'
+  | 'saleVoids'
+  | 'returns';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }
-  | { kind: 'patch'; table: 'products' | 'customers'; recordId: string; patch: object };
+  | {
+      kind: 'patch';
+      table: 'products' | 'customers' | 'categories';
+      recordId: string;
+      patch: object;
+    };
 
 /** `opId` is unique per operation, so the server can skip a retry it already applied. */
 export type OutboxItem = OutboxOp & { seq?: number; opId: string; createdAt: string };

@@ -18,6 +18,13 @@ export class DuplicateBarcodeError extends Error {
   }
 }
 
+export class DuplicateCategoryError extends Error {
+  constructor(name: string) {
+    super(`Category name already in use: ${name}`);
+    this.name = 'DuplicateCategoryError';
+  }
+}
+
 export class PaymentMismatchError extends Error {
   constructor(message: string) {
     super(message);

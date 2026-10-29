@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type {
+  CategoryRecord,
   CustomerRecord,
   LedgerRecord,
   MetaRecord,
@@ -25,6 +26,7 @@ export class MarketDb extends Dexie {
   declare meta: Table<MetaRecord, string>;
   declare saleVoids: Table<SaleVoidRecord, string>;
   declare returns: Table<ReturnRecord, string>;
+  declare categories: Table<CategoryRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -56,6 +58,8 @@ export class MarketDb extends Dexie {
     this.version(5)
       .stores({})
       .upgrade((tx) => upperCaseBarcodes(tx.table('products')));
+    // v6: product categories (M3a).
+    this.version(6).stores({ categories: 'id, updatedAt' });
   }
 }
 

@@ -129,6 +129,18 @@ describe('applyServerRows', () => {
     expect((await parkedRows(db)).map((parked) => parked.row.id)).toEqual(['p-3']);
   });
 
+  it('applies pulled categories', async () => {
+    const row = {
+      id: 'c1',
+      name: 'Ekmek',
+      sort: 0,
+      createdAt: at.toISOString(),
+      updatedAt: at.toISOString(),
+    };
+    await applyServerRows(db, [{ table: 'categories', id: 'c1', serverSeq: 7, row }]);
+    expect(await db.categories.get('c1')).toEqual(row);
+  });
+
   it('stores two sales that share a receipt number', async () => {
     const sale = (id: string, serverSeq: number): ServerRow => ({
       table: 'sales',
@@ -142,7 +154,7 @@ describe('applyServerRows', () => {
 
   it('sets aside rows it cannot apply and applies the rest', async () => {
     const rows: ServerRow[] = [
-      { table: 'categories' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
+      { table: 'suppliers' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
       {
         table: 'stockMovements',
         id: 'm2',
