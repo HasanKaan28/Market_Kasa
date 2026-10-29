@@ -119,8 +119,9 @@ async function loadProducts(
     if (line.qtyMilli <= 0) {
       throw new RangeError(`A sale line needs a positive quantity, got ${line.qtyMilli}`);
     }
+    // A product deleted after it entered the cart still sells (DESIGN §7): only a missing one fails.
     const product = await db.products.get(line.productId);
-    if (!product || product.deletedAt) {
+    if (!product) {
       throw new RecordNotFoundError('Product', line.productId);
     }
     products.push(product);

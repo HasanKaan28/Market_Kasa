@@ -131,14 +131,21 @@ describe('recordSale', () => {
       }),
     ).rejects.toThrow(RangeError));
 
-  it('rejects unknown and deleted products without writing anything', async () => {
-    await deleteProduct(db, ids.cay, setupAt);
+  it('rejects an unknown product without writing anything', async () => {
     const before = await pendingCount(db);
-    await expect(recordSale(db, cashSale('2026-10-28T09:00:00Z'))).rejects.toBeInstanceOf(
-      RecordNotFoundError,
-    );
+    const sale = cashSale('2026-10-28T09:00:00Z');
+    const lines = [...sale.lines, { productId: 'missing', qtyMilli: 1000 }];
+    await expect(recordSale(db, { ...sale, lines })).rejects.toBeInstanceOf(RecordNotFoundError);
     expect(await pendingCount(db)).toBe(before);
     expect(await stockOf(db, ids.ekmek)).toBe(0);
+  });
+
+  it('sells a product deleted after it entered the cart', async () => {
+    // DESIGN §7: one device deletes a product while another sells it; the sale is valid.
+    await deleteProduct(db, ids.cay, setupAt);
+    const sale = await recordSale(db, cashSale('2026-10-28T09:00:00Z'));
+    expect(sale.lines.map((line) => line.name)).toContain('Siyah Çay');
+    expect(await stockOf(db, ids.cay)).toBe(-1000);
   });
 
   it('rolls back every write when the sale itself cannot be stored', async () => {
