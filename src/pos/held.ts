@@ -1,4 +1,4 @@
-import { CART_STORAGE_KEY, cartTotals, isCart, type Cart } from './cart';
+import { CART_STORAGE_KEY, cartTotals, readCart, type Cart } from './cart';
 
 /** A cart parked on this device; held carts are not synced. */
 export type HeldCart = { cart: Cart; heldAt: string };
@@ -54,29 +54,32 @@ export function loadHeld(storage?: Pick<Storage, 'getItem'>): HeldCart[] {
   try {
     const raw = (storage ?? localStorage).getItem(HELD_STORAGE_KEY);
     const parsed: unknown = raw === null ? [] : JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isHeldCart).slice(0, MAX_HELD) : [];
+    return Array.isArray(parsed)
+      ? parsed.flatMap((entry) => readHeldCart(entry) ?? []).slice(0, MAX_HELD)
+      : [];
   } catch {
     return [];
   }
 }
 
-function isHeldCart(value: unknown): value is HeldCart {
+function readHeldCart(value: unknown): HeldCart | null {
   if (typeof value !== 'object' || value === null) {
-    return false;
+    return null;
   }
-  const { cart, heldAt } = value as Record<string, unknown>;
+  const { cart: stored, heldAt } = value as Record<string, unknown>;
+  const cart = readCart(stored);
   if (
     typeof heldAt !== 'string' ||
     Number.isNaN(Date.parse(heldAt)) ||
-    !isCart(cart) ||
+    !cart ||
     cart.lines.length === 0
   ) {
-    return false;
+    return null;
   }
   try {
     cartTotals(cart);
-    return true;
+    return { cart, heldAt };
   } catch {
-    return false;
+    return null;
   }
 }

@@ -115,4 +115,55 @@ describe('cart', () => {
     expect(loadCart(stored(869_000_000_001_700, 1000)).lines).toEqual([]);
     expect(loadCart(stored(1000, 9_000_000_000_000_000)).lines).toEqual([]);
   });
+
+  it('applies line and cart discounts to the totals', () => {
+    let cart = cartReducer(mockupCart(), { type: 'setLineDiscount', productId: 'ekmek', amount: 300 });
+    cart = cartReducer(cart, { type: 'setCartDiscount', amount: 1000 });
+    expect(cartTotals(cart).total).toBe(56640 - 1300);
+  });
+
+  it('clamps discounts when the line shrinks', () => {
+    let cart = cartReducer(cartReducer(emptyCart('c'), { type: 'add', product: ekmek }), {
+      type: 'add',
+      product: ekmek,
+    });
+    cart = cartReducer(cart, { type: 'setLineDiscount', productId: 'ekmek', amount: 2500 });
+    cart = cartReducer(cart, { type: 'decrement', productId: 'ekmek' });
+    expect(cart.lines[0]?.lineDiscount).toBe(1500);
+    cart = cartReducer(cart, { type: 'refresh', products: [{ ...ekmek, sellPrice: 1000 }] });
+    expect(cart.lines[0]?.lineDiscount).toBe(1000);
+    expect(cartReducer(cart, { type: 'setCartDiscount', amount: 5000 }).cartDiscount).toBe(0);
+  });
+
+  it('sets a weighed quantity and removes a line at zero', () => {
+    let cart = cartReducer(emptyCart('c'), { type: 'add', product: { ...peynir, unit: 'kg' } });
+    expect(cart.lines[0]?.unit).toBe('kg');
+    cart = cartReducer(cart, { type: 'setQuantity', productId: 'peynir', qtyMilli: 1250 });
+    expect(cart.lines[0]?.qtyMilli).toBe(1250);
+    expect(cartReducer(cart, { type: 'setQuantity', productId: 'peynir', qtyMilli: 0 }).lines).toEqual(
+      [],
+    );
+  });
+
+  it('reads a cart saved before discounts existed', () => {
+    const old = {
+      id: 'old',
+      lines: [{ productId: 'p', name: 'Süt', unitPrice: 4250, vatRate: 1, qtyMilli: 1000 }],
+    };
+    expect(loadCart({ getItem: () => JSON.stringify(old) })).toEqual({
+      id: 'old',
+      cartDiscount: 0,
+      lines: [
+        {
+          productId: 'p',
+          name: 'Süt',
+          unit: 'piece',
+          unitPrice: 4250,
+          vatRate: 1,
+          qtyMilli: 1000,
+          lineDiscount: 0,
+        },
+      ],
+    });
+  });
 });
