@@ -3,11 +3,11 @@ import { ArrowLeft } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { saleStatus } from '@/data/returns';
-import { findSaleByReceiptNo, recentSales } from '@/data/sales';
+import { findSalesByReceiptEnding, recentSales } from '@/data/sales';
 import type { SaleRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
-import { formatQty, formatTime, PAYMENT_LABELS } from './format';
+import { formatDateTime, formatQty, PAYMENT_LABELS } from './format';
 
 export type ReceiptsDialogProps = {
   open: boolean;
@@ -47,12 +47,11 @@ function ReceiptList({ onSelect }: { onSelect(sale: SaleRecord): void }): JSX.El
   const [query, setQuery] = useState('');
   const term = query.trim().toUpperCase();
   const rows = useLiveQuery(async () => {
-    const recent = await recentSales(db, RECENT_LIMIT);
-    let sales = term === '' ? recent : recent.filter((sale) => sale.receiptNo.endsWith(term));
-    if (sales.length === 0 && term !== '') {
-      const exact = await findSaleByReceiptNo(db, term);
-      sales = exact ? [exact] : [];
-    }
+    // A search looks through every sale, not only the recent ones: returns come days later.
+    const sales =
+      term === ''
+        ? await recentSales(db, RECENT_LIMIT)
+        : await findSalesByReceiptEnding(db, term, RECENT_LIMIT);
     return Promise.all(sales.map(async (sale) => ({ sale, status: await saleStatus(db, sale.id) })));
   }, [db, term]);
 
@@ -77,7 +76,7 @@ function ReceiptList({ onSelect }: { onSelect(sale: SaleRecord): void }): JSX.El
               className="flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-control border border-line px-3 py-2 text-left hover:border-line-strong"
             >
               <span className="font-mono text-sm font-medium">{sale.receiptNo}</span>{' '}
-              <span className="text-sm text-text-2">{formatTime(sale.occurredAt)}</span>{' '}
+              <span className="text-sm text-text-2">{formatDateTime(sale.occurredAt)}</span>{' '}
               <span className="ml-auto font-mono font-semibold">{formatTRY(sale.total)}</span>{' '}
               <span className="w-full text-sm text-text-2">
                 {sale.payments.map((payment) => PAYMENT_LABELS[payment.method]).join(' + ')}
@@ -129,7 +128,7 @@ function ReceiptDetail({
         />
         <div className="flex flex-col">
           <span className="font-mono font-semibold">{sale.receiptNo}</span>
-          <span className="text-sm text-text-2">{formatTime(sale.occurredAt)}</span>
+          <span className="text-sm text-text-2">{formatDateTime(sale.occurredAt)}</span>
         </div>
         {status?.voided ? <Badge tone="danger">İptal edildi</Badge> : null}
         {status && status.returned.size > 0 ? <Badge tone="muted">İade var</Badge> : null}

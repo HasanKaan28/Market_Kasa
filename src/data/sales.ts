@@ -110,6 +110,20 @@ export function recentSales(db: MarketDb, limit: number = DEFAULT_RECENT): Promi
   return db.sales.orderBy('occurredAt').reverse().limit(limit).toArray();
 }
 
+/** Sales whose receipt number ends with `ending` ("0042" or a whole number), newest first. */
+export function findSalesByReceiptEnding(
+  db: MarketDb,
+  ending: string,
+  limit: number = DEFAULT_RECENT,
+): Promise<SaleRecord[]> {
+  return db.sales
+    .orderBy('occurredAt')
+    .reverse()
+    .filter((sale) => sale.receiptNo.endsWith(ending))
+    .limit(limit)
+    .toArray();
+}
+
 export function findSaleByReceiptNo(
   db: MarketDb,
   receiptNo: string,

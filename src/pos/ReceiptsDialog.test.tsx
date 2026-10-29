@@ -100,4 +100,21 @@ describe('ReceiptsDialog', () => {
     });
     expect(await screen.findByText('Kontrol gerekli')).toBeInTheDocument();
   });
+
+  it('finds an older receipt by its last four digits', async () => {
+    const { data } = await renderWithData(
+      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+    );
+    const milk = await createProduct(data.db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    for (let minute = 0; minute < 55; minute += 1) {
+      await recordSale(data.db, {
+        deviceCode: 'K1',
+        at: new Date(at.getTime() + minute * 60_000),
+        lines: [{ productId: milk.id, qtyMilli: 1000 }],
+        payments: [{ method: 'cash', amount: 4250 }],
+      });
+    }
+    await userEvent.type(screen.getByLabelText('Fiş no'), '0001');
+    expect(await screen.findByText('K1-20261029-0001')).toBeInTheDocument();
+  });
 });
