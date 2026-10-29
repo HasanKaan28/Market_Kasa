@@ -155,6 +155,26 @@ describe('products', () => {
     await expect(restoreProduct(db, 'missing', later)).rejects.toBeInstanceOf(RecordNotFoundError);
   });
 
+  it('refuses fractions for a piece product', async () => {
+    const pen = { name: 'Kalem', sellPrice: 1500, vatRate: 20 } as const;
+    await expect(createProduct(db, pen, at, { openingStockMilli: 1500 })).rejects.toBeInstanceOf(
+      RangeError,
+    );
+    await expect(
+      createProduct(db, { ...pen, criticalLevelMilli: 1500 }, at),
+    ).rejects.toBeInstanceOf(RangeError);
+    const cheese = await createProduct(
+      db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 30000, vatRate: 1, criticalLevelMilli: 1500 },
+      at,
+    );
+    await expect(updateProduct(db, cheese.id, { unit: 'piece' }, later)).rejects.toBeInstanceOf(
+      RangeError,
+    );
+    expect((await db.products.get(cheese.id))?.unit).toBe('kg');
+    expect(await db.products.count()).toBe(1);
+  });
+
   it('records opening stock as a count movement', async () => {
     const cheese = await createProduct(
       db,

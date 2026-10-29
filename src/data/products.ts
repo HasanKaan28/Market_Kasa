@@ -59,6 +59,7 @@ export async function createProduct(
     updatedAt: stamp,
   };
 
+  assertWholePieces(record.unit, [openingStockMilli, record.criticalLevelMilli]);
   const tables = [db.products, db.stockMovements, db.stockLevels, db.outbox];
   await db.transaction('rw', tables, async () => {
     await claimBarcode(db, record.barcode, record.id, at);
@@ -95,6 +96,9 @@ export async function updateProduct(
     }
     const changed = changedFields(current, changes);
     const updated = withoutUndefined({ ...current, ...changed, updatedAt: stamp });
+    if ('unit' in changed || 'criticalLevelMilli' in changed) {
+      assertWholePieces(updated.unit, [updated.criticalLevelMilli]);
+    }
     await db.products.put(updated);
     await appendOutbox(
       db,
@@ -266,6 +270,13 @@ export function canonicalBarcode(raw: string): string | undefined {
     throw new RangeError(`A barcode may only hold letters, digits and "-", got "${raw}"`);
   }
   return barcode;
+}
+
+/** A piece product counts whole pieces: its opening stock and critical level too. */
+function assertWholePieces(unit: ProductUnit, quantitiesMilli: readonly number[]): void {
+  if (unit === 'piece' && quantitiesMilli.some((milli) => milli % 1000 !== 0)) {
+    throw new RangeError('A piece product takes whole quantities');
+  }
 }
 
 function assertNonNegativeInteger(value: number, what: string): void {
