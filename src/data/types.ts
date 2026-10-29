@@ -106,12 +106,18 @@ export type PurchaseLine = {
   cost: Kurus;
 };
 
-/** Goods received in one go; each line's stock movement carries its id. M4 adds the supplier. */
+/** How a delivery was paid: on the spot, or owed to the supplier (its ledger gets the invoice). */
+export type PurchasePayment = 'cash' | 'card' | 'on_account';
+
+/** Goods received in one go; each line's stock movement carries its id. */
 export type PurchaseRecord = {
   id: string;
   deviceCode: string;
   lines: PurchaseLine[];
   total: Kurus;
+  supplierId?: string;
+  invoiceNo?: string;
+  payment: PurchasePayment;
   note?: string;
   occurredAt: string;
   businessDate: string;

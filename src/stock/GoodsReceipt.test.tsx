@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, deleteProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
+import { createSupplier, supplierBalance } from '@/data/suppliers';
 import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
@@ -256,5 +257,28 @@ describe('GoodsReceipt', () => {
     expect(within(line).getByLabelText('Satış fiyatı')).toHaveAccessibleDescription(
       'Kilogram fiyatı',
     );
+  });
+
+  it('picks a supplier and saves on account', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    const supplier = await createSupplier(data.db, { name: 'Eti' }, at);
+    const onDone = vi.fn();
+    await renderWithData(<GoodsReceipt onDone={onDone} />, data);
+    await scan('8690000000017');
+    await lineOf('Süt');
+    await userEvent.click(screen.getByRole('radio', { name: 'Açık hesap' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    expect(await screen.findByText('Açık hesap için tedarikçi seçin.')).toBeInTheDocument();
+    await userEvent.selectOptions(await screen.findByLabelText('Tedarikçi'), 'Eti');
+    await userEvent.type(screen.getByLabelText('Fatura no'), 'F-77');
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('Mal kabul kaydedildi: 1 ürün, ₺30,00.'),
+    );
+    expect(await supplierBalance(data.db, supplier.id)).toBe(3000);
+    expect(await data.db.purchases.toArray()).toMatchObject([
+      { supplierId: supplier.id, invoiceNo: 'F-77', payment: 'on_account' },
+    ]);
   });
 });

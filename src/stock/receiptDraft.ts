@@ -1,5 +1,5 @@
 import type { PurchaseInput } from '@/data/purchases';
-import type { ProductRecord, ProductUnit } from '@/data/types';
+import type { ProductRecord, ProductUnit, PurchasePayment } from '@/data/types';
 import { formatTRY, parseTRY } from '@/domain/money';
 import { lineTotal, MAX_UNIT_PRICE } from '@/domain/pricing';
 import { formatPriceInput, formatQtyInput, parseQuantity } from '@/pos/format';
@@ -21,7 +21,13 @@ export type DraftLine = {
   sellPrice?: string;
 };
 
-export type ReceiptDraft = { lines: DraftLine[]; note: string };
+export type ReceiptDraft = {
+  lines: DraftLine[];
+  note: string;
+  supplierId?: string;
+  invoiceNo?: string;
+  payment?: PurchasePayment;
+};
 
 export const EMPTY_DRAFT: ReceiptDraft = { lines: [], note: '' };
 
@@ -166,8 +172,14 @@ function isDraft(value: unknown): value is ReceiptDraft {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const { lines, note } = value as { lines?: unknown; note?: unknown };
-  return typeof note === 'string' && Array.isArray(lines) && lines.every(isDraftLine);
+  const { lines, note, supplierId, invoiceNo, payment } = value as Record<string, unknown>;
+  return (
+    typeof note === 'string' &&
+    Array.isArray(lines) &&
+    lines.every(isDraftLine) &&
+    [supplierId, invoiceNo].every((field) => field === undefined || typeof field === 'string') &&
+    (payment === undefined || ['cash', 'card', 'on_account'].includes(payment as string))
+  );
 }
 
 function isDraftLine(line: unknown): boolean {

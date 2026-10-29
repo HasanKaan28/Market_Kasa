@@ -3,9 +3,10 @@ import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
 import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
+import { searchSuppliers } from '@/data/suppliers';
 import { recordPurchase } from '@/data/purchases';
-import type { ProductRecord } from '@/data/types';
-import { Button, TextField } from '@/design';
+import type { ProductRecord, PurchasePayment } from '@/data/types';
+import { Button, ChoiceGroup, SelectField, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { formatPriceInput, formatStock, UNIT_LABELS } from '@/pos/format';
 import { CameraButton } from '@/pos/CameraButton';
@@ -26,6 +27,12 @@ import {
 import { useDraftProducts } from './useDraftProducts';
 
 const SEARCH_LIMIT = 8;
+
+const PAYMENTS: readonly { value: PurchasePayment; label: string }[] = [
+  { value: 'cash', label: 'Nakit' },
+  { value: 'card', label: 'Kart' },
+  { value: 'on_account', label: 'Açık hesap' },
+];
 
 type LineField = 'qty' | 'buyPrice' | 'sellPrice';
 type PriceField = 'buyPrice' | 'sellPrice';
@@ -58,15 +65,21 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   // The draft's products as they are now: their prices fill the boxes nobody typed in, and a
   // product deleted elsewhere is marked on its line before anyone tries to save.
   const live = useDraftProducts(draft.lines);
+  const suppliers = useLiveQuery(() => searchSuppliers(db, ''), [db]);
+  // A supplier archived elsewhere is shown, and saved, as none; until the list loads, the
+  // stored one stands.
+  const supplierId =
+    suppliers === undefined || suppliers.some((supplier) => supplier.id === draft.supplierId)
+      ? (draft.supplierId ?? '')
+      : '';
+  const payment = draft.payment ?? 'cash';
 
   useEffect(() => {
     saveDraft(draft);
   }, [draft]);
 
   function add(product: ProductRecord) {
-    setBumped(
-      draft.lines.some((line) => line.productId === product.id) ? product.id : undefined,
-    );
+    setBumped(draft.lines.some((line) => line.productId === product.id) ? product.id : undefined);
     setDraft((current) => addProduct(current, product));
     setQuery('');
   }
@@ -132,6 +145,10 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   }
 
   async function save() {
+    if (payment === 'on_account' && supplierId === '') {
+      setFailure('Açık hesap için tedarikçi seçin.');
+      return;
+    }
     setBusy(true);
     setFailure(undefined);
     try {
@@ -151,7 +168,14 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
       }
       const purchase = await recordPurchase(
         db,
-        { deviceCode: settings.deviceCode, lines: read.lines, note: draft.note },
+        {
+          deviceCode: settings.deviceCode,
+          lines: read.lines,
+          note: draft.note,
+          ...(supplierId !== '' ? { supplierId } : {}),
+          invoiceNo: draft.invoiceNo,
+          payment,
+        },
         new Date(),
       );
       setDraft(EMPTY_DRAFT);
@@ -228,9 +252,41 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         </ul>
       )}
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SelectField
+          label="Tedarikçi"
+          hint="Tedarikçiler ekranından eklenir."
+          value={supplierId}
+          options={[
+            { value: '', label: 'Tedarikçisiz' },
+            ...(suppliers ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name })),
+          ]}
+          onChange={(event) =>
+            setDraft((current) => ({
+              ...current,
+              supplierId: event.target.value || undefined,
+            }))
+          }
+        />
+        <TextField
+          label="Fatura no"
+          autoComplete="off"
+          value={draft.invoiceNo ?? ''}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, invoiceNo: event.target.value }))
+          }
+        />
+      </div>
+      <ChoiceGroup
+        legend="Ödeme"
+        name="receiptPayment"
+        options={PAYMENTS}
+        value={payment}
+        onChange={(next) => setDraft((current) => ({ ...current, payment: next }))}
+      />
       <TextField
         label="Not"
-        hint="İrsaliye numarası, tedarikçi ya da başka bir not."
+        hint="İrsaliye numarası ya da başka bir not."
         autoComplete="off"
         value={draft.note}
         onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))}

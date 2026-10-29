@@ -7,6 +7,7 @@ import { pendingOps } from './outbox';
 import { createProduct, deleteProduct } from './products';
 import { recordPurchase } from './purchases';
 import { stockOf } from './stock';
+import { createSupplier, supplierBalance } from './suppliers';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -173,5 +174,85 @@ describe('recordPurchase', () => {
       ),
     ).rejects.toBeInstanceOf(RangeError);
     expect(await db.purchases.count()).toBe(0);
+  });
+
+  it('writes an on-account receipt and its invoice all or nothing', async () => {
+    const milk = await createProduct(
+      db,
+      { name: 'Süt', sellPrice: 4250, buyPrice: 3000, vatRate: 1 },
+      at,
+    );
+    const supplier = await createSupplier(db, { name: 'Eti' }, at);
+    const purchase = await recordPurchase(
+      db,
+      {
+        deviceCode: 'K1',
+        lines: [{ productId: milk.id, qtyMilli: 10000 }],
+        supplierId: supplier.id,
+        invoiceNo: ' F-77 ',
+        payment: 'on_account',
+      },
+      later,
+    );
+    expect(purchase).toMatchObject({
+      supplierId: supplier.id,
+      invoiceNo: 'F-77',
+      payment: 'on_account',
+    });
+    expect(await db.supplierLedger.toArray()).toMatchObject([
+      { supplierId: supplier.id, kind: 'invoice', amount: 30000, purchaseId: purchase.id },
+    ]);
+    expect(await supplierBalance(db, supplier.id)).toBe(30000);
+
+    // The invoice is the last write; when it fails, the receipt must not stay behind.
+    db.supplierLedger.hook('creating', () => {
+      throw new Error('disk full');
+    });
+    await expect(
+      recordPurchase(
+        db,
+        {
+          deviceCode: 'K1',
+          lines: [{ productId: milk.id, qtyMilli: 1000 }],
+          supplierId: supplier.id,
+          payment: 'on_account',
+        },
+        later,
+      ),
+    ).rejects.toThrow('disk full');
+    expect(await db.purchases.count()).toBe(1);
+    expect(await stockOf(db, milk.id)).toBe(10000);
+  });
+
+  it('needs a live supplier for an on-account receipt', async () => {
+    const milk = await createProduct(
+      db,
+      { name: 'Süt', sellPrice: 4250, buyPrice: 3000, vatRate: 1 },
+      at,
+    );
+    const line = [{ productId: milk.id, qtyMilli: 1000 }];
+    await expect(
+      recordPurchase(db, { deviceCode: 'K1', lines: line, payment: 'on_account' }, later),
+    ).rejects.toBeInstanceOf(RangeError);
+    await expect(
+      recordPurchase(db, { deviceCode: 'K1', lines: line, supplierId: 'nobody' }, later),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect(await db.purchases.count()).toBe(0);
+  });
+
+  it('keeps a receipt without a supplier as before', async () => {
+    const milk = await createProduct(
+      db,
+      { name: 'Süt', sellPrice: 4250, buyPrice: 3000, vatRate: 1 },
+      at,
+    );
+    const purchase = await recordPurchase(
+      db,
+      { deviceCode: 'K1', lines: [{ productId: milk.id, qtyMilli: 1000 }] },
+      later,
+    );
+    expect(purchase.payment).toBe('cash');
+    expect(purchase).not.toHaveProperty('supplierId');
+    expect(await db.supplierLedger.count()).toBe(0);
   });
 });

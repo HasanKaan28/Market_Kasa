@@ -8,7 +8,8 @@ import { appendOutbox } from './outbox';
 import { updateProduct, type ProductPatch } from './products';
 import { withoutUndefined } from './records';
 import { recordStockMovement } from './stock';
-import type { ProductRecord, PurchaseLine, PurchaseRecord } from './types';
+import { addSupplierInvoice } from './supplierLedger';
+import type { ProductRecord, PurchaseLine, PurchasePayment, PurchaseRecord } from './types';
 
 export type PurchaseInput = {
   deviceCode: string;
@@ -20,13 +21,19 @@ export type PurchaseInput = {
     /** A new sell price, set together with the receipt. */
     sellPrice?: Kurus;
   }[];
+  /** Who delivered; needed when the delivery is owed (`on_account`). */
+  supplierId?: string;
+  invoiceNo?: string;
+  /** Cash when not said. */
+  payment?: PurchasePayment;
   note?: string;
   cutoffMinutes?: number;
 };
 
 /**
  * Records goods received: the receipt, one `purchase` movement per line and any changed prices,
- * in one transaction. Every line is checked before the first write, so a bad line stops all.
+ * in one transaction. Every line is checked before the first write, so a bad line stops all. A
+ * delivery on account also writes its invoice on the supplier's ledger, in the same transaction.
  */
 export async function recordPurchase(
   db: MarketDb,
@@ -36,9 +43,27 @@ export async function recordPurchase(
   if (input.lines.length === 0) {
     throw new RangeError('A goods receipt needs at least one line');
   }
+  const payment = input.payment ?? 'cash';
+  if (payment === 'on_account' && !input.supplierId) {
+    throw new RangeError('A delivery on account needs its supplier');
+  }
   const id = newId(at.getTime());
-  const tables = [db.purchases, db.products, db.stockMovements, db.stockLevels, db.outbox];
+  const tables = [
+    db.purchases,
+    db.products,
+    db.stockMovements,
+    db.stockLevels,
+    db.suppliers,
+    db.supplierLedger,
+    db.outbox,
+  ];
   return db.transaction('rw', tables, async () => {
+    if (input.supplierId !== undefined) {
+      const supplier = await db.suppliers.get(input.supplierId);
+      if (!supplier || supplier.archivedAt) {
+        throw new RecordNotFoundError('Supplier', input.supplierId);
+      }
+    }
     const checked: { product: ProductRecord; line: PurchaseLine; patch: ProductPatch }[] = [];
     for (const line of input.lines) {
       const product = await db.products.get(line.productId);
@@ -77,6 +102,9 @@ export async function recordPurchase(
       deviceCode: input.deviceCode,
       lines: checked.map(({ line }) => line),
       total: checked.reduce((sum, { line }) => sum + line.cost, 0),
+      supplierId: input.supplierId,
+      invoiceNo: input.invoiceNo?.trim() || undefined,
+      payment,
       note: input.note?.trim() || undefined,
       occurredAt: at.toISOString(),
       businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
@@ -96,6 +124,20 @@ export async function recordPurchase(
         at,
         cutoffMinutes: input.cutoffMinutes,
       });
+    }
+    // Free goods alone owe nothing, so they write no invoice.
+    if (payment === 'on_account' && input.supplierId && record.total > 0) {
+      await addSupplierInvoice(
+        db,
+        {
+          supplierId: input.supplierId,
+          amount: record.total,
+          purchaseId: id,
+          note: record.invoiceNo,
+          cutoffMinutes: input.cutoffMinutes,
+        },
+        at,
+      );
     }
     return record;
   });
