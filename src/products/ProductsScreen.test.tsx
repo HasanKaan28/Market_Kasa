@@ -200,6 +200,35 @@ describe('ProductsScreen', () => {
     );
   });
 
+  it('exports the listed products as a CSV file', async () => {
+    const data = createTestData();
+    await createProduct(data.db, { name: 'Simit', sellPrice: 1500, vatRate: 1 }, at);
+    await createProduct(data.db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    const files: Blob[] = [];
+    // jsdom has no object URLs; these stay for the rest of this file, after the timer that frees them.
+    URL.createObjectURL = vi.fn((file: Blob) => {
+      files.push(file);
+      return 'blob:urunler';
+    });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      await renderWithData(<ProductsScreen />, data);
+      await screen.findByRole('button', { name: 'Simit' });
+      await userEvent.type(screen.getByLabelText('Ürün ara'), 'sim');
+      await userEvent.click(screen.getByRole('button', { name: 'Dışa aktar' }));
+      expect(click).toHaveBeenCalledTimes(1);
+      expect((click.mock.contexts[0] as HTMLAnchorElement).download).toMatch(
+        /^urunler-\d{4}-\d{2}-\d{2}\.csv$/,
+      );
+      const text = (await files[0]?.text()) ?? '';
+      expect(text).toContain('Simit');
+      expect(text).not.toContain('Süt');
+    } finally {
+      click.mockRestore();
+    }
+  });
+
   it('shows 100 products at a time', async () => {
     const data = createTestData();
     const stamp = at.toISOString();

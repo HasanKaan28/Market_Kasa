@@ -7,10 +7,12 @@ import { listCategories } from '@/data/categories';
 import { findProductByBarcode } from '@/data/products';
 import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, SelectField, TextField, ToastRegion, useToast } from '@/design';
+import { businessDate } from '@/domain/businessDate';
 import { formatTRY } from '@/domain/money';
 import { formatStock } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
 import { CategoriesDialog } from './CategoriesDialog';
+import { downloadText, productsToCsv } from './exportCsv';
 import { ImportDialog } from './ImportDialog';
 import { ProductFormDialog } from './ProductFormDialog';
 import {
@@ -134,6 +136,14 @@ export function ProductsScreen(): JSX.Element {
             <p className="text-sm text-text-2">{`${liveCount} ürün`}</p>
           </div>
           <Button onClick={() => setDialog({ kind: 'import' })}>İçe aktar</Button>
+          <Button
+            disabled={rows.length === 0}
+            onClick={() =>
+              downloadText(`urunler-${businessDate(new Date())}.csv`, productsToCsv(rows))
+            }
+          >
+            Dışa aktar
+          </Button>
           <Button onClick={() => setDialog({ kind: 'categories' })}>Kategoriler</Button>
           <Button
             variant="primary"

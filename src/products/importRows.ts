@@ -140,10 +140,10 @@ export function readImportRows(
 const READERS: Record<ImportField, (text: string, row: ImportRow) => void> = {
   barcode: readBarcode,
   name: (text, row) => {
-    row.fields.name = text;
+    row.fields.name = withoutFormulaGuard(text);
   },
   category: (text, row) => {
-    row.fields.category = text;
+    row.fields.category = withoutFormulaGuard(text);
   },
   unit: (text, row) => {
     const unit = UNIT_NAMES[headerKey(text)];
@@ -266,6 +266,11 @@ function isGtin(code: string): boolean {
     .reverse()
     .reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0);
   return (10 - (sum % 10)) % 10 === check;
+}
+
+/** The text without the apostrophe the export puts before a formula start ("'=…"). */
+function withoutFormulaGuard(text: string): string {
+  return text.replace(/^'(?=[=+\-@])/, '');
 }
 
 /** A header or word as the matching tables write it: "Satış Fiyatı (₺)" → "satis fiyati". */
