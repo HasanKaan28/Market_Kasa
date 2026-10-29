@@ -2,7 +2,10 @@ import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
 import { ChoiceGroup, ToastRegion, useToast } from '@/design';
+import type { ProductRecord } from '@/data/types';
+import { CriticalStock } from './CriticalStock';
 import { GoodsReceipt } from './GoodsReceipt';
+import { addProduct, loadDraft, saveDraft } from './receiptDraft';
 
 type StockView = 'receive' | 'critical';
 
@@ -17,6 +20,13 @@ export function StockScreen(): JSX.Element {
   const status = useSyncStatus(runner);
   const [view, setView] = useState<StockView>('receive');
   const toast = useToast();
+
+  // The goods receipt reads its draft when it opens, so the product is written to the draft.
+  function receive(product: ProductRecord) {
+    saveDraft(addProduct(loadDraft(), product));
+    setView('receive');
+    toast.show(`${product.name} mal kabule eklendi.`);
+  }
 
   return (
     <>
@@ -35,7 +45,11 @@ export function StockScreen(): JSX.Element {
           value={view}
           onChange={(next) => setView(next)}
         />
-        {view === 'receive' ? <GoodsReceipt onDone={toast.show} /> : null}
+        {view === 'receive' ? (
+          <GoodsReceipt onDone={toast.show} />
+        ) : (
+          <CriticalStock onReceive={receive} />
+        )}
       </AppShell>
       <ToastRegion message={toast.message} />
     </>
