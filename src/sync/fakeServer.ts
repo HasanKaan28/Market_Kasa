@@ -128,7 +128,11 @@ export class FakeServer implements SyncTransport {
       }
     }
     for (const ids of holders.values()) {
-      for (const loserId of ids.sort().slice(1)) {
+      const [winnerId, ...loserIds] = ids.sort();
+      if (winnerId === undefined || loserIds.length === 0) {
+        continue;
+      }
+      for (const loserId of loserIds) {
         const stored = products.get(loserId);
         if (stored) {
           const row = { ...stored.row };
@@ -136,6 +140,9 @@ export class FakeServer implements SyncTransport {
           products.set(loserId, { row, serverSeq: this.bumpSeq() });
         }
       }
+      // A device may have taken the barcode off the winner while a losing edit was pending;
+      // sending the winner again gives it back.
+      this.resend('products', winnerId);
     }
   }
 

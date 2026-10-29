@@ -8,6 +8,7 @@ import { makeTestDb } from '@/test/db';
 import { syncOnce } from './engine';
 import { FakeServer } from './fakeServer';
 import { rejectedOps } from './issues';
+import type { SyncTransport } from './protocol';
 
 let a: MarketDb;
 let b: MarketDb;
@@ -82,6 +83,36 @@ describe('syncOnce', () => {
         op: expect.objectContaining({ table: 'products', recordId: milk.id }),
       }),
     ]);
+  });
+
+  it('gives a contested barcode back to its owner after an edit races a pull', async () => {
+    const later = new Date('2026-10-29T10:00:00Z');
+    const eski = await createProduct(b, { name: 'Eski', sellPrice: 1000, vatRate: 1 }, at);
+    const yeni = await createProduct(b, { name: 'Yeni', sellPrice: 1000, vatRate: 1 }, later);
+    await syncOnce(b, server);
+    await syncOnce(a, server, { overlap: 0 });
+    await updateProduct(b, eski.id, { barcode: 'N1' }, later);
+    await updateProduct(b, yeni.id, { sellPrice: 1200 }, later);
+    await syncOnce(b, server);
+    // A's manager gives N1 to Yeni after A's push and before its pull.
+    let edited = false;
+    const racing: SyncTransport = {
+      push: (request) => server.push(request),
+      pull: async (request) => {
+        if (!edited) {
+          edited = true;
+          await updateProduct(a, yeni.id, { barcode: 'N1' }, later);
+        }
+        return server.pull(request);
+      },
+    };
+    await syncOnce(a, racing, { overlap: 0 });
+    for (let round = 0; round < 2; round += 1) {
+      await syncOnce(a, server, { overlap: 0 });
+      await syncOnce(b, server, { overlap: 0 });
+    }
+    expect((await findProductByBarcode(a, 'N1'))?.id).toBe(eski.id);
+    expect((await findProductByBarcode(b, 'N1'))?.id).toBe(eski.id);
   });
 
   it('pages through large pushes and pulls', async () => {

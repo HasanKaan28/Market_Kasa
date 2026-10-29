@@ -73,6 +73,17 @@ describe('FakeServer', () => {
     expect((await server.pull({ since: 1, limit: 10 })).rows.map((r) => r.id)).toEqual(['p1']);
   });
 
+  it('sends the winner of a contested barcode again', async () => {
+    const server = new FakeServer();
+    await server.push({ ops: [insert(1, 'products', { id: 'p1', barcode: 'N1' })] });
+    await server.push({ ops: [insert(2, 'products', { id: 'p2', barcode: 'N1' })] });
+    const { rows } = await server.pull({ since: 2, limit: 10 });
+    expect(rows.map((r) => [r.id, r.row.barcode])).toEqual([
+      ['p2', undefined],
+      ['p1', 'N1'],
+    ]);
+  });
+
   it('pages changes in server order', async () => {
     const server = new FakeServer();
     await server.push({
@@ -99,7 +110,10 @@ describe('FakeServer', () => {
       { id: 'p-2', name: 'Geç' },
     ]);
     const changes = await server.pull({ since: 0, limit: 10 });
-    expect(changes.rows.at(-1)).toMatchObject({ id: 'p-2', row: { id: 'p-2', name: 'Geç' } });
+    expect(changes.rows.map((r) => [r.id, r.row.barcode])).toEqual([
+      ['p-2', undefined],
+      ['p-1', 'X'],
+    ]);
   });
 
   it('can fail a push on purpose', async () => {
