@@ -168,6 +168,39 @@ describe('planImport', () => {
     ]);
   });
 
+  it('lets a later row through when the first with its barcode fails', () => {
+    const plan = planImport(
+      [
+        row(2, { barcode: '8690000000017', name: 'Süt' }),
+        row(3, { barcode: '8690000000017', name: 'Süt', sellPrice: 4250 }),
+      ],
+      [],
+      [],
+      new Map(),
+    );
+    expect(plan.rows.map((planned) => [planned.action, planned.errors])).toEqual([
+      ['error', ['Yeni ürün için satış fiyatı gerekli.']],
+      ['create', []],
+    ]);
+  });
+
+  it('warns that a new product with a blank VAT cell gets %1', () => {
+    const milk = product('milk', { name: 'Süt', barcode: '8690000000017', sellPrice: 4250 });
+    const plan = planImport(
+      [
+        { ...row(2, { name: 'Simit', sellPrice: 1500 }), blankVat: true },
+        { ...row(3, { barcode: '8690000000017', sellPrice: 4500 }), blankVat: true },
+      ],
+      [milk],
+      [],
+      new Map(),
+    );
+    expect(plan.rows.map((planned) => [planned.action, planned.warnings])).toEqual([
+      ['create', ['KDV boş: %1 sayıldı.']],
+      ['update', []],
+    ]);
+  });
+
   it('matches a list without barcodes to products that have them', () => {
     const milk = product('milk', { barcode: '8690000000017', name: 'Süt', sellPrice: 4250 });
     const plan = planImport([row(2, { name: 'SÜT', sellPrice: 4500 })], [milk], [], new Map());

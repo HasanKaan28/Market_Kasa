@@ -139,4 +139,40 @@ describe('readImportRows', () => {
       1,
     );
   });
+
+  it('reads the words Excel and shops write for yes, no and pieces', () => {
+    const rows = readImportRows(
+      [
+        ['DOĞRU', 'AD'],
+        ['YANLIŞ', 'ADT'],
+        ['doğru', 'PK'],
+      ],
+      { isQuick: 0, unit: 1 },
+      false,
+    );
+    expect(rows.map((row) => [row.fields.isQuick, row.fields.unit, row.errors])).toEqual([
+      [true, 'piece', []],
+      [false, 'piece', []],
+      [true, 'piece', []],
+    ]);
+  });
+
+  it('takes a code with a letter E for a barcode, not a number', () => {
+    const rows = readImportRows([['12E45'], ['8,69E+12'], ['8.69e+12']], { barcode: 0 }, false);
+    expect(rows[0]?.fields.barcode).toBe('12E45');
+    expect(rows[0]?.errors).toEqual([]);
+    expect(rows.slice(1).map((row) => row.errors.length)).toEqual([1, 1]);
+  });
+
+  it('refuses a quantity above 10.000', () => {
+    const rows = readImportRows([['10000', '10000,001']], { stock: 0, criticalLevel: 1 }, false);
+    expect(rows[0]?.fields.stockMilli).toBe(10_000_000);
+    expect(rows[0]?.errors).toEqual(['Kritik stok en fazla 10.000 olabilir.']);
+  });
+
+  it('marks a blank cell in a mapped VAT column', () => {
+    const rows = readImportRows([['Simit', ''], ['Ayran', '1']], { name: 0, vatRate: 1 }, false);
+    expect(rows.map((row) => row.blankVat)).toEqual([true, undefined]);
+    expect(readImportRows([['Simit']], { name: 0 }, false)[0]?.blankVat).toBeUndefined();
+  });
 });

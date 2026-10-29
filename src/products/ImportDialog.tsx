@@ -32,6 +32,10 @@ const PREVIEW_ROWS = 50;
 const LISTED_ERROR_ROWS = 20;
 const SAMPLE_LENGTH = 24;
 const UNREADABLE = 'Dosya okunamadı. CSV ya da XLSX seçin.';
+const OLD_EXCEL = 'Eski Excel (.xls) dosyası okunamıyor; XLSX ya da CSV olarak kaydedin.';
+// An XLSX file is a zip; an old .xls workbook is a compound file.
+const ZIP = [0x50, 0x4b, 0x03, 0x04];
+const COMPOUND_FILE = [0xd0, 0xcf, 0x11, 0xe0];
 
 const ACTION_LABELS: Record<ImportAction, string> = {
   create: 'Yeni',
@@ -63,9 +67,9 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
     }
     setPreview(undefined);
     const table = await readTable(file);
-    if (!table || table.length === 0) {
+    if (typeof table === 'string' || table.length === 0) {
       setLoaded(undefined);
-      setError(UNREADABLE);
+      setError(typeof table === 'string' ? table : UNREADABLE);
       return;
     }
     const guessed = guessMapping(table[0] ?? []);
@@ -124,7 +128,8 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
         <input
           id={inputId}
           type="file"
-          accept=".csv,.txt,.xlsx,text/csv"
+          // .xls is listed so an old workbook can be picked and told what to do with it.
+          accept=".csv,.txt,.xlsx,.xls,text/csv"
           aria-describedby={`${inputId}-hint`}
           onChange={(event) => void chooseFile(event)}
           className="min-h-11 rounded-control border border-line-strong bg-surface px-3 py-2 text-base file:mr-3 file:rounded-chip file:border-0 file:bg-bg file:px-3 file:py-1.5 file:font-medium"
@@ -244,6 +249,8 @@ function PreviewStep({
   onApply(): void;
 }): JSX.Element {
   const { counts } = plan;
+  // Rows that need a look come first, so a long file does not hide them past the shown ones.
+  const shown = [...plan.rows].sort((a, b) => attention(a) - attention(b)).slice(0, PREVIEW_ROWS);
   const toWrite = counts.create + counts.update;
   const errorRows = plan.rows.filter((row) => row.action === 'error').map((row) => row.rowNumber);
   const listedErrors =
@@ -283,7 +290,7 @@ function PreviewStep({
             </tr>
           </thead>
           <tbody>
-            {plan.rows.slice(0, PREVIEW_ROWS).map((row) => (
+            {shown.map((row) => (
               <tr key={row.rowNumber} className="border-b border-line align-top last:border-0">
                 <td className="py-2 pr-3">{row.rowNumber}</td>
                 <td className="py-2 pr-3 break-words">{row.name || '—'}</td>
@@ -302,7 +309,7 @@ function PreviewStep({
       <div className="flex flex-wrap gap-2">
         <Button onClick={onBack}>Geri</Button>
         <Button variant="primary" disabled={busy || toWrite === 0} onClick={onApply}>
-          {`${toWrite} ürünü içe aktar`}
+          {busy ? 'İçe aktarılıyor…' : `${toWrite} ürünü içe aktar`}
         </Button>
       </div>
     </div>
@@ -350,15 +357,30 @@ function shorten(text: string): string {
 }
 
 /** The table in a file: an Excel workbook (a zip) or CSV text; nothing when it cannot be read. */
-async function readTable(file: File): Promise<string[][] | undefined> {
+/** The file's rows, or why it cannot be read. */
+async function readTable(file: File): Promise<string[][] | string> {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
-    if (isZip || file.name.toLowerCase().endsWith('.xlsx')) {
+    if (startsWith(bytes, COMPOUND_FILE)) {
+      return OLD_EXCEL;
+    }
+    if (startsWith(bytes, ZIP) || file.name.toLowerCase().endsWith('.xlsx')) {
       return readXlsx(bytes);
     }
     return parseCsv(decodeText(bytes));
   } catch {
-    return undefined;
+    return UNREADABLE;
   }
+}
+
+function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((byte, index) => bytes[index] === byte);
+}
+
+/** Errors first, then rows with a warning, then the rest. */
+function attention(row: PlannedRow): number {
+  if (row.action === 'error') {
+    return 0;
+  }
+  return row.warnings.length > 0 ? 1 : 2;
 }

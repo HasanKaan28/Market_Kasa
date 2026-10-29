@@ -51,4 +51,11 @@ describe('bulkUpdatePrices', () => {
     );
     expect((await db.products.get(milk.id))?.sellPrice).toBe(4675);
   });
+
+  it('leaves an unknown buy price alone', async () => {
+    const tea = await createProduct(db, { name: 'Çay', sellPrice: 9000, vatRate: 1 }, at);
+    const change: PriceChange = { target: 'buyPrice', by: 'amount', value: 500, roundTo: 0 };
+    expect(await bulkUpdatePrices(db, [tea.id], change, at)).toBe(0);
+    expect((await db.products.get(tea.id))?.buyPrice).toBe(0);
+  });
 });

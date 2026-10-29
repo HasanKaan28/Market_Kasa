@@ -4,7 +4,7 @@ import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, TextField } from '@/design';
 import { formatTRY, parseTRY } from '@/domain/money';
 import { MAX_UNIT_PRICE } from '@/domain/pricing';
-import { bulkUpdatePrices, changedPrice, type PriceChange } from './bulkPrice';
+import { bulkUpdatePrices, changedPrice, unknownBuyPrice, type PriceChange } from './bulkPrice';
 
 export type BulkPriceDialogProps = {
   open: boolean;
@@ -37,7 +37,13 @@ const STEPS = [
 ] as const;
 
 type Outcome =
-  { error: string } | { change: PriceChange; prices: { product: ProductRecord; next: number }[] };
+  | { error: string }
+  | {
+      change: PriceChange;
+      prices: { product: ProductRecord; next: number }[];
+      /** Products left as they are because their buy price is unknown. */
+      unknown: number;
+    };
 
 /** Raises or lowers one price of the listed products by a percentage or an amount, rounded. */
 export function BulkPriceDialog({
@@ -131,6 +137,9 @@ export function BulkPriceDialog({
             ))}
           </ul>
         ) : null}
+        {'unknown' in outcome && outcome.unknown > 0 ? (
+          <p className="text-sm text-text-2">{`Alış fiyatı bilinmeyen ${outcome.unknown} ürün değişmez.`}</p>
+        ) : null}
         {failed ? (
           <p role="alert" className="font-medium text-danger">
             Fiyatlar değiştirilemedi. Hiçbir fiyat değişmedi.
@@ -182,7 +191,12 @@ function workOut(
     roundTo: form.roundTo,
   };
   const prices: { product: ProductRecord; next: number }[] = [];
+  let unknown = 0;
   for (const product of products) {
+    if (unknownBuyPrice(product, form.target)) {
+      unknown += 1;
+      continue;
+    }
     let next: number;
     try {
       next = changedPrice(product[form.target], change);
@@ -197,5 +211,5 @@ function workOut(
     }
     prices.push({ product, next });
   }
-  return { change, prices };
+  return { change, prices, unknown };
 }

@@ -42,7 +42,8 @@ export async function bulkUpdatePrices(
     let changed = 0;
     for (const id of productIds) {
       const product = await db.products.get(id);
-      if (!product || product.deletedAt) {
+      // An unknown buy price (₺0) stays unknown; a change to it would invent one.
+      if (!product || product.deletedAt || unknownBuyPrice(product, change.target)) {
         continue;
       }
       const next = changedPrice(product[change.target], change);
@@ -53,4 +54,12 @@ export async function bulkUpdatePrices(
     }
     return changed;
   });
+}
+
+/** A buy price of ₺0 means nobody entered one. */
+export function unknownBuyPrice(
+  product: { buyPrice: Kurus },
+  target: PriceChange['target'],
+): boolean {
+  return target === 'buyPrice' && product.buyPrice === 0;
 }

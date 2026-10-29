@@ -1,10 +1,19 @@
 const DELIMITERS = [';', ',', '\t'] as const;
+// Excel can name the delimiter on a first line of its own: sep=;
+const SEP_LINE = /^"?sep=(.)"?\r?\n/i;
 
 /**
- * A text file's contents: UTF-8 when the bytes are valid UTF-8, otherwise windows-1254, which
- * Excel uses for CSV on a Turkish Windows. A byte order mark is dropped.
+ * A text file's contents: UTF-16 when it starts with a UTF-16 byte order mark (Excel's
+ * "Unicode Metin"), UTF-8 when the bytes are valid UTF-8, otherwise windows-1254, which Excel
+ * uses for CSV on a Turkish Windows. A byte order mark is dropped.
  */
 export function decodeText(bytes: Uint8Array): string {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  }
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  }
   let text: string;
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -15,12 +24,14 @@ export function decodeText(bytes: Uint8Array): string {
 }
 
 /**
- * The rows of a CSV text. The delimiter is the one of ";", "," and tab that the header line
- * uses most. A field that starts with a quote may hold delimiters, line breaks and doubled
+ * The rows of a CSV text. The delimiter is the one a first "sep=" line names (that line is
+ * dropped), else the one of ";", "," and tab that the header line uses most. A field that starts with a quote may hold delimiters, line breaks and doubled
  * quotes; rows with nothing in them are dropped.
  */
-export function parseCsv(text: string): string[][] {
-  const delimiter = detectDelimiter(text);
+export function parseCsv(source: string): string[][] {
+  const sep = source.match(SEP_LINE);
+  const text = sep ? source.slice(sep[0].length) : source;
+  const delimiter = sep?.[1] ?? detectDelimiter(text);
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';

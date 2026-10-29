@@ -68,4 +68,27 @@ describe('BulkPriceDialog', () => {
     expect(screen.getByText('Geçerli bir miktar girin.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /fiyatını değiştir/ })).toBeDisabled();
   });
+
+  it('leaves the products without a buy price alone', async () => {
+    const data = createTestData();
+    const milk = await createProduct(
+      data.db,
+      { name: 'Süt', sellPrice: 4250, buyPrice: 3000, vatRate: 1 },
+      at,
+    );
+    const tea = await createProduct(data.db, { name: 'Çay', sellPrice: 9000, vatRate: 1 }, at);
+    const onDone = vi.fn();
+    await renderWithData(
+      <BulkPriceDialog open products={[milk, tea]} onClose={vi.fn()} onDone={onDone} />,
+      data,
+    );
+    await userEvent.click(screen.getByRole('radio', { name: 'Alış fiyatı' }));
+    await userEvent.click(screen.getByRole('radio', { name: '₺' }));
+    await userEvent.type(screen.getByLabelText('Miktar'), '5');
+    expect(screen.getByText('Alış fiyatı bilinmeyen 1 ürün değişmez.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '1 ürünün fiyatını değiştir' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('1 ürünün fiyatı değişti.'));
+    expect((await data.db.products.get(tea.id))?.buyPrice).toBe(0);
+    expect((await data.db.products.get(milk.id))?.buyPrice).toBe(3500);
+  });
 });

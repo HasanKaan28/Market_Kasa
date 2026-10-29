@@ -56,4 +56,19 @@ describe('parseCsv', () => {
       ['8690000000017', 'Süt 1 L', 'Süt', '30', '42.5', '1', '12', 'Adet', 'Evet'],
     ]);
   });
+
+  it('reads UTF-16 text and a delimiter named on the first line', () => {
+    const text = 'Ürün adı;Satış fiyatı' + String.fromCharCode(13, 10) + 'Şeker;45';
+    const units = Array.from(text, (char) => char.charCodeAt(0));
+    const little = new Uint8Array([0xff, 0xfe, ...units.flatMap((unit) => [unit & 0xff, unit >> 8])]);
+    const big = new Uint8Array([0xfe, 0xff, ...units.flatMap((unit) => [unit >> 8, unit & 0xff])]);
+    expect(decodeText(little)).toBe(text);
+    expect(decodeText(big)).toBe(text);
+    const newline = String.fromCharCode(10);
+    expect(parseCsv(['sep=,', 'Ad,Fiyat', 'Şeker,45'].join(newline))).toEqual([
+      ['Ad', 'Fiyat'],
+      ['Şeker', '45'],
+    ]);
+    expect(parseCsv(['"sep=;"', 'Ad;Fiyat'].join(newline))).toEqual([['Ad', 'Fiyat']]);
+  });
 });

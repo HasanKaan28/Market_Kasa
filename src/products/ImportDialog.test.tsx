@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createProduct } from '@/data/products';
@@ -107,5 +107,37 @@ describe('ImportDialog', () => {
     await userEvent.upload(input, csvFile('', 'bos.csv'));
     expect(await screen.findByText('Dosya okunamadı. CSV ya da XLSX seçin.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Devam' })).not.toBeInTheDocument();
+  });
+
+  it('names an old Excel file and reads a CSV that starts with PK', async () => {
+    await renderWithData(<ImportDialog open onClose={vi.fn()} onDone={vi.fn()} />);
+    const input = screen.getByLabelText('Dosya seç');
+    const xls = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+    await userEvent.upload(input, new File([xls], 'eski.xls'));
+    expect(
+      await screen.findByText(
+        'Eski Excel (.xls) dosyası okunamıyor; XLSX ya da CSV olarak kaydedin.',
+      ),
+    ).toBeInTheDocument();
+    const text = 'PK kodu;Ürün adı;Satış fiyatı' + String.fromCharCode(10) + 'A1;Simit;15';
+    await userEvent.upload(input, csvFile(text, 'liste.csv'));
+    expect(await screen.findByRole('button', { name: 'Devam' })).toBeInTheDocument();
+    expect(screen.queryByText('Dosya okunamadı. CSV ya da XLSX seçin.')).not.toBeInTheDocument();
+  });
+
+  it('shows the rows with errors and warnings first', async () => {
+    const lines = ['Ürün adı;Satış fiyatı;KDV', 'Simit;15;1', 'Gofret;12;18', 'Ayran;10;'];
+    await renderWithData(<ImportDialog open onClose={vi.fn()} onDone={vi.fn()} />);
+    await userEvent.upload(
+      screen.getByLabelText('Dosya seç'),
+      csvFile(lines.join(String.fromCharCode(10)), 'liste.csv'),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Devam' }));
+    const table = await screen.findByRole('table', { name: 'Önizleme' });
+    const names = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => within(row).getAllByRole('cell')[1]?.textContent);
+    expect(names).toEqual(['Gofret', 'Ayran', 'Simit']);
   });
 });

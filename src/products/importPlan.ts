@@ -104,8 +104,6 @@ export function planImport(
       const first = firstRow.get(identity);
       if (first !== undefined) {
         base.errors.push(`Bu ürün dosyada ${first}. satırda da var.`);
-      } else {
-        firstRow.set(identity, row.rowNumber);
       }
     }
     const match = findProduct(fields, byBarcode, liveByName);
@@ -116,12 +114,19 @@ export function planImport(
     if (base.errors.length > 0) {
       return base;
     }
+    // Only a row that will be imported claims its product; a failed one leaves it to the next.
+    if (identity !== undefined) {
+      firstRow.set(identity, row.rowNumber);
+    }
     const category = fields.category?.trim();
     const categoryKey = category ? normalizeForSearch(category) : undefined;
     if (category && categoryKey && !categoryIds.has(categoryKey)) {
       newCategories.set(categoryKey, newCategories.get(categoryKey) ?? category);
     }
     if (!product) {
+      if (row.blankVat) {
+        base.warnings.push('KDV boş: %1 sayıldı.');
+      }
       return { ...base, action: 'create' };
     }
     const changes = describeChanges(product, fields, match.giveBarcode);

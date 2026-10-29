@@ -65,6 +65,8 @@ export type ImportRow = {
   fields: Partial<ImportValues>;
   errors: string[];
   warnings: string[];
+  /** The VAT column is mapped but blank on this row: a new product gets %1. */
+  blankVat?: boolean;
 };
 
 // The headers each field is known by, as `headerKey` writes them; v1's export uses the first ones.
@@ -83,6 +85,9 @@ const HEADER_NAMES: Record<ImportField, readonly string[]> = {
 
 const UNIT_NAMES: Record<string, ProductUnit> = {
   adet: 'piece',
+  ad: 'piece',
+  adt: 'piece',
+  pk: 'piece',
   paket: 'piece',
   koli: 'piece',
   kutu: 'piece',
@@ -93,11 +98,15 @@ const UNIT_NAMES: Record<string, ProductUnit> = {
   kilo: 'kg',
   kilogram: 'kg',
 };
-const YES = new Set(['evet', 'e', 'yes', 'true', '1', 'x']);
-const NO = new Set(['hayir', 'h', 'no', 'false', '0']);
+// Turkish Excel writes TRUE and FALSE as DOĞRU and YANLIŞ.
+const YES = new Set(['evet', 'e', 'yes', 'true', 'dogru', '1', 'x']);
+const NO = new Set(['hayir', 'h', 'no', 'false', 'yanlis', '0']);
 // The ="…" wrapper the CSV export puts around a barcode so Excel keeps it as text.
 const WRAPPED = /^="(.*)"$/;
-const SCIENTIFIC = /^\d+(?:[.,]\d+)?e\+?\d+$/i;
+// How Excel shows a long number it took for a number: "8,69E+12". "12E45" is a shop's code.
+const SCIENTIFIC = /^\d+[.,]\d+e\+?\d+$/i;
+// The most the product form takes: ten thousand units.
+const MAX_QUANTITY_MILLI = 10_000_000;
 const QUANTITY = /^-?\d+(?:[.,]\d{1,3})?$/;
 const LONG_FRACTION = /^(\d+),(\d{2})(\d+)$/;
 
@@ -132,6 +141,8 @@ export function readImportRows(
       const text = column === undefined ? '' : (cells[column] ?? '').trim();
       if (text !== '') {
         READERS[field](text, row);
+      } else if (field === 'vatRate' && column !== undefined) {
+        row.blankVat = true;
       }
     }
     return row;
@@ -254,6 +265,8 @@ function readQuantity(
   const milli = Number(whole) * 1000 + Number(fraction.padEnd(3, '0'));
   if (!Number.isSafeInteger(milli)) {
     row.errors.push(`${label} okunamadı: "${text}".`);
+  } else if (milli > MAX_QUANTITY_MILLI) {
+    row.errors.push(`${label} en fazla 10.000 olabilir.`);
   } else if (text.startsWith('-') && field === 'criticalLevelMilli') {
     row.errors.push(`${label} eksi olamaz.`);
   } else {
