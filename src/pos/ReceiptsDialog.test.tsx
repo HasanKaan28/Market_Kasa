@@ -79,4 +79,25 @@ describe('ReceiptsDialog', () => {
     );
     expect(within(detail).getByRole('button', { name: 'İade al' })).toBeDisabled();
   });
+
+  it('flags a receipt that needs checking', async () => {
+    const { data } = await renderWithData(
+      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+    );
+    const [first] = await twoSales(data.db);
+    const stamp = { occurredAt: at.toISOString(), businessDate: '2026-10-29' };
+    // A void and a return made on two devices that had not seen each other yet.
+    await data.db.saleVoids.add({ id: 'v1', saleId: first.id, reason: 'X', deviceCode: 'K2', ...stamp });
+    await data.db.returns.add({
+      id: 'r1',
+      saleId: first.id,
+      deviceCode: 'K1',
+      lines: [{ productId: first.lines[0]?.productId ?? '', name: 'Süt', qtyMilli: 1000, net: 4250, vat: 42 }],
+      refundMethod: 'cash',
+      amount: 4250,
+      vat: 42,
+      ...stamp,
+    });
+    expect(await screen.findByText('Kontrol gerekli')).toBeInTheDocument();
+  });
 });

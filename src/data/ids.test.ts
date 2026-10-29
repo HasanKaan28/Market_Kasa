@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newId } from './ids';
+import { deriveId, newId } from './ids';
 
 const V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -15,5 +15,18 @@ describe('newId', () => {
     const early = newId(1000, new Uint8Array(10).fill(255));
     const late = newId(1001, new Uint8Array(10));
     expect(early < late).toBe(true);
+  });
+});
+
+const V8 = /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+describe('deriveId', () => {
+  it('derives the same id from the same parts', () => {
+    const saleId = '01a181bc-da80-7001-8203-040506070809';
+    const id = deriveId(saleId, 'void');
+    expect(id).toMatch(V8);
+    expect(deriveId(saleId, 'void')).toBe(id);
+    expect(deriveId('01a181bc-da80-7001-8203-04050607080a', 'void')).not.toBe(id);
+    expect(deriveId('a', 'bc')).not.toBe(deriveId('ab', 'c'));
   });
 });

@@ -196,6 +196,8 @@ Bütün olaylar ortak olarak `id`, `market_id`, `device_id`, `staff_id`, `occurr
 | İki cihaz çevrimdışı aynı ürünü sattı | İki hareket de eklenir; stok ikisinin toplamı kadar düşer. |
 | İki cihaz aynı ürünün fiyatını değiştirdi | Sunucuya son ulaşan kazanır; iz kaydına ikisi de düşer. |
 | Bir cihaz ürünü sildi, öteki sattı | Satış geçerlidir (ad ve fiyat satış satırında saklıdır). Ürün silinmiş kalır. |
+| İki cihaz aynı satışı iptal etti | Tek iptal sayılır: iptal kaydının, stok hareketlerinin ve veresiye düzeltmesinin kimliği satıştan türetilir, ikinci kopya yinelenen kayıt olarak düşer. |
+| İki cihaz aynı satıştan toplamda satılandan fazla iade aldı, ya da biri iptal ederken öteki iade aldı | Bütün kayıtlar geçerli kalır (para el değiştirdi). Fiş "Kontrol gerekli" olarak işaretlenir; düzeltmeyi yönetici yapar. |
 | Sayım yapılırken başka cihazda satış oldu | Sayım, cihazın o an bildiği stoka göre fark hareketi yazar. Rapor "sayım sırasında eşitlenmemiş satış vardı" uyarısı verir. |
 
 ## 8. Kimlik, yetki ve güvenlik

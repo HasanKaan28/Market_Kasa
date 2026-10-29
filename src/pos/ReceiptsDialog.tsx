@@ -84,6 +84,7 @@ function ReceiptList({ onSelect }: { onSelect(sale: SaleRecord): void }): JSX.El
               </span>
               {status.voided ? <Badge tone="danger">İptal edildi</Badge> : null}
               {status.returned.size > 0 ? <Badge tone="muted">İade var</Badge> : null}
+              {status.conflict ? <Badge tone="danger">Kontrol gerekli</Badge> : null}
             </button>
           </li>
         ))}
@@ -132,6 +133,7 @@ function ReceiptDetail({
         </div>
         {status?.voided ? <Badge tone="danger">İptal edildi</Badge> : null}
         {status && status.returned.size > 0 ? <Badge tone="muted">İade var</Badge> : null}
+        {status?.conflict ? <Badge tone="danger">Kontrol gerekli</Badge> : null}
       </div>
       <ul className="flex flex-col divide-y divide-line">
         {sale.lines.map((line) => (

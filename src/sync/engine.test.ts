@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MarketDb } from '@/data/db';
+import { createCustomer, customerBalance } from '@/data/customers';
 import { pendingCount } from '@/data/outbox';
 import { createProduct, findProductByBarcode, updateProduct } from '@/data/products';
-import { recordReturn, returnedQuantities } from '@/data/returns';
+import { recordReturn, returnedQuantities, saleStatus } from '@/data/returns';
 import { recentSales, recordSale } from '@/data/sales';
 import { stockOf } from '@/data/stock';
 import { isVoided, voidSale } from '@/data/voids';
@@ -85,6 +86,52 @@ describe('syncOnce', () => {
     expect((await returnedQuantities(b, second.id)).get(milk.id)).toBe(1000);
     expect(await stockOf(b, milk.id)).toBe(await stockOf(a, milk.id));
     expect(await parkedRows(b)).toEqual([]);
+  });
+
+  it('counts a sale voided on two devices once', async () => {
+    const customer = await createCustomer(a, { name: 'Ahmet' }, at);
+    const milk = await createProduct(
+      a,
+      { barcode: 'B1', name: 'Süt', sellPrice: 4250, vatRate: 1 },
+      at,
+    );
+    const sale = await recordSale(a, {
+      deviceCode: 'K1',
+      at,
+      customerId: customer.id,
+      lines: [{ productId: milk.id, qtyMilli: 1000 }],
+      payments: [{ method: 'credit', amount: 4250 }],
+    });
+    await syncOnce(a, server);
+    await syncOnce(b, server);
+    await voidSale(a, { saleId: sale.id, reason: 'Kasada', deviceCode: 'K1', at });
+    await voidSale(b, { saleId: sale.id, reason: 'Arkada', deviceCode: 'K2', at });
+    for (const db of [a, b, a]) await syncOnce(db, server);
+    expect(server.rows('saleVoids')).toHaveLength(1);
+    for (const db of [a, b]) {
+      expect(await stockOf(db, milk.id)).toBe(0);
+      expect(await customerBalance(db, customer.id)).toBe(0);
+    }
+  });
+
+  it('flags a sale returned beyond what was sold across devices', async () => {
+    const milk = await sellOneMilk(a);
+    const [sale] = await recentSales(a);
+    if (!sale) throw new Error('sale missing');
+    await syncOnce(a, server);
+    await syncOnce(b, server);
+    for (const db of [a, b]) {
+      await recordReturn(db, {
+        saleId: sale.id,
+        lines: [{ productId: milk.id, qtyMilli: 1000 }],
+        refundMethod: 'cash',
+        deviceCode: 'K1',
+        at,
+      });
+    }
+    for (const db of [a, b, a]) await syncOnce(db, server);
+    expect((await saleStatus(a, sale.id)).conflict).toBe(true);
+    expect((await saleStatus(b, sale.id)).conflict).toBe(true);
   });
 
   it('still pulls when the push fails', async () => {

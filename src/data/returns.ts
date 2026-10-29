@@ -33,11 +33,29 @@ export async function returnedQuantities(
   return totals;
 }
 
-export async function saleStatus(
-  db: MarketDb,
-  saleId: string,
-): Promise<{ voided: boolean; returned: Map<string, number> }> {
-  return { voided: await isVoided(db, saleId), returned: await returnedQuantities(db, saleId) };
+export type SaleStatus = {
+  voided: boolean;
+  returned: Map<string, number>;
+  /**
+   * Two devices acted on the sale before they synced: it was voided and also returned, or more
+   * was returned than sold. Every record stays (the money changed hands); a person must check.
+   */
+  conflict: boolean;
+};
+
+export async function saleStatus(db: MarketDb, saleId: string): Promise<SaleStatus> {
+  const voided = await isVoided(db, saleId);
+  const returned = await returnedQuantities(db, saleId);
+  const sale = await db.sales.get(saleId);
+  const overReturned =
+    sale !== undefined &&
+    [...returned].some(([productId, qtyMilli]) => {
+      const sold = sale.lines
+        .filter((line) => line.productId === productId)
+        .reduce((sum, line) => sum + line.qtyMilli, 0);
+      return qtyMilli > sold;
+    });
+  return { voided, returned, conflict: (voided && returned.size > 0) || overReturned };
 }
 
 /**

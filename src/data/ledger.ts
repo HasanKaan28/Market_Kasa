@@ -8,6 +8,8 @@ import { withoutUndefined } from './records';
 import type { LedgerRecord } from './types';
 
 export type NewLedgerEntry = {
+  /** Set only when the id must be the same on every device (see `deriveId`). */
+  id?: string;
   customerId: string;
   kind: LedgerKind;
   /** Signed: debts positive, payments negative, adjustments either way. */
@@ -25,7 +27,7 @@ export async function addLedgerEntry(
 ): Promise<LedgerRecord> {
   assertSafeInteger(entry.amount, 'Ledger amount');
   const record: LedgerRecord = withoutUndefined({
-    id: newId(at.getTime()),
+    id: entry.id ?? newId(at.getTime()),
     customerId: entry.customerId,
     kind: entry.kind,
     amount: entry.amount,

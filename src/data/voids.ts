@@ -1,7 +1,7 @@
 import { businessDate } from '@/domain/businessDate';
 import type { MarketDb } from './db';
 import { RecordNotFoundError, SaleReturnedError, SaleVoidedError } from './errors';
-import { newId } from './ids';
+import { deriveId } from './ids';
 import { addLedgerEntry } from './ledger';
 import { appendOutbox } from './outbox';
 import { recordStockMovement } from './stock';
@@ -45,8 +45,9 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
     if ((await db.returns.where('saleId').equals(sale.id).count()) > 0) {
       throw new SaleReturnedError(sale.receiptNo);
     }
+    // Ids come from the sale: a void made on two devices before they synced is one void.
     const record: SaleVoidRecord = {
-      id: newId(input.at.getTime()),
+      id: deriveId(sale.id, 'void'),
       saleId: sale.id,
       reason,
       deviceCode: input.deviceCode,
@@ -59,8 +60,9 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
       { kind: 'insert', table: 'saleVoids', recordId: record.id, record },
       input.at,
     );
-    for (const line of sale.lines) {
+    for (const [index, line] of sale.lines.entries()) {
       await recordStockMovement(db, {
+        id: deriveId(record.id, 'stock', String(index)),
         productId: line.productId,
         delta: line.qtyMilli,
         kind: 'void',
@@ -76,6 +78,7 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
       await addLedgerEntry(
         db,
         {
+          id: deriveId(record.id, 'ledger'),
           customerId: sale.customerId,
           kind: 'adjustment',
           amount: -credit,

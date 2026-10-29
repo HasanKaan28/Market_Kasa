@@ -8,6 +8,8 @@ import { withoutUndefined } from './records';
 import type { StockMovementKind, StockMovementRecord } from './types';
 
 export type NewStockMovement = {
+  /** Set only when the id must be the same on every device (see `deriveId`). */
+  id?: string;
   productId: string;
   delta: number;
   kind: StockMovementKind;
@@ -29,7 +31,7 @@ export async function recordStockMovement(
     throw new RangeError('A stock movement cannot be zero');
   }
   const movement: StockMovementRecord = withoutUndefined({
-    id: newId(input.at.getTime()),
+    id: input.id ?? newId(input.at.getTime()),
     productId: input.productId,
     delta: input.delta,
     kind: input.kind,
