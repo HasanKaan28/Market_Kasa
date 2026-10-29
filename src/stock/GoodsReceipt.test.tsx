@@ -281,4 +281,26 @@ describe('GoodsReceipt', () => {
       { supplierId: supplier.id, invoiceNo: 'F-77', payment: 'on_account' },
     ]);
   });
+
+  it('saves free goods and VAT-exclusive prices', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, { ...milk, vatRate: 20 }, at);
+    const onDone = vi.fn();
+    await renderWithData(<GoodsReceipt onDone={onDone} />, data);
+    await scan('8690000000017');
+    const line = await lineOf('Süt');
+    await waitFor(() => expect(within(line).getByLabelText('Alış fiyatı')).toHaveValue('30,00'));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Alış fiyatları KDV hariç' }));
+    await retype(within(line).getByLabelText('Alış fiyatı'), '10');
+    await retype(within(line).getByLabelText('Miktar'), '3');
+    expect(within(line).getByText('Tutar: ₺36,00')).toBeInTheDocument();
+    await userEvent.click(within(line).getByRole('checkbox', { name: 'Bedelsiz' }));
+    expect(within(line).getByText('Tutar: ₺0,00')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('Mal kabul kaydedildi: 1 ürün, ₺0,00.'),
+    );
+    expect(await stockOf(data.db, product.id)).toBe(3000);
+    expect((await data.db.products.get(product.id))?.buyPrice).toBe(3000);
+  });
 });

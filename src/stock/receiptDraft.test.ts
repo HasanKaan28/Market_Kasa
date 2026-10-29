@@ -135,4 +135,40 @@ describe('receiptDraft', () => {
     );
     expect(read.lines).toEqual([{ productId: 'a', qtyMilli: 12000, buyPrice: 3000 }]);
   });
+
+  it('reads VAT-exclusive prices with each product\u2019s rate', () => {
+    const products = new Map([
+      ['tea', product('tea', { vatRate: 20 })],
+      ['cheese', product('cheese', { unit: 'kg', vatRate: 1 })],
+    ]);
+    const draft = {
+      note: '',
+      pricesExclusive: true,
+      lines: [
+        { productId: 'tea', name: 'tea', unit: 'piece' as const, qty: '2', buyPrice: '10' },
+        { productId: 'cheese', name: 'cheese', unit: 'kg' as const, qty: '1', buyPrice: '9,99' },
+      ],
+    };
+    expect(readDraftLines(draft, products).lines).toEqual([
+      { productId: 'tea', qtyMilli: 2000, buyPrice: 1200 },
+      { productId: 'cheese', qtyMilli: 1000, buyPrice: 1009 },
+    ]);
+    expect(draftLineCost(draft.lines[0]!, products.get('tea'), true)).toBe(2400);
+  });
+
+  it('takes free goods at no cost', () => {
+    const products = new Map([['tea', product('tea', { buyPrice: 3000 })]]);
+    const line = {
+      productId: 'tea',
+      name: 'tea',
+      unit: 'piece' as const,
+      qty: '6',
+      buyPrice: '30',
+      free: true,
+    };
+    expect(readDraftLines({ note: '', lines: [line] }, products).lines).toEqual([
+      { productId: 'tea', qtyMilli: 6000, free: true },
+    ]);
+    expect(draftLineCost(line, products.get('tea'))).toBe(0);
+  });
 });

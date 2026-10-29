@@ -20,6 +20,8 @@ export type PurchaseInput = {
     buyPrice?: Kurus;
     /** A new sell price, set together with the receipt. */
     sellPrice?: Kurus;
+    /** Came free: costs nothing and leaves the buy price as it is. */
+    free?: boolean;
   }[];
   /** Who delivered; needed when the delivery is owed (`on_account`). */
   supplierId?: string;
@@ -71,13 +73,13 @@ export async function recordPurchase(
         throw new RecordNotFoundError('Product', line.productId);
       }
       assertQuantity(line.qtyMilli, product.unit);
-      const buyPrice = line.buyPrice ?? product.buyPrice;
+      const buyPrice = line.free ? 0 : (line.buyPrice ?? product.buyPrice);
       assertPrice(buyPrice);
       if (line.sellPrice !== undefined) {
         assertPrice(line.sellPrice);
       }
       const patch: ProductPatch = {};
-      if (line.buyPrice !== undefined && line.buyPrice !== product.buyPrice) {
+      if (!line.free && line.buyPrice !== undefined && line.buyPrice !== product.buyPrice) {
         patch.buyPrice = line.buyPrice;
       }
       if (line.sellPrice !== undefined && line.sellPrice !== product.sellPrice) {
@@ -93,6 +95,7 @@ export async function recordPurchase(
           qtyMilli: line.qtyMilli,
           buyPrice,
           cost: lineTotal(line.qtyMilli, buyPrice),
+          ...(line.free ? { free: true } : {}),
         },
       });
     }

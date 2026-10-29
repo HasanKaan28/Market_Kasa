@@ -104,6 +104,8 @@ export type PurchaseLine = {
   qtyMilli: number;
   buyPrice: Kurus;
   cost: Kurus;
+  /** Came free: no cost, and the product keeps its buy price. */
+  free?: boolean;
 };
 
 /** How a delivery was paid: on the spot, or owed to the supplier (its ledger gets the invoice). */

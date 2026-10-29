@@ -1,7 +1,7 @@
 import type { PurchaseInput } from '@/data/purchases';
 import type { ProductRecord, ProductUnit, PurchasePayment } from '@/data/types';
 import { formatTRY, parseTRY } from '@/domain/money';
-import { lineTotal, MAX_UNIT_PRICE } from '@/domain/pricing';
+import { lineTotal, MAX_UNIT_PRICE, withVat } from '@/domain/pricing';
 import { formatPriceInput, formatQtyInput, parseQuantity } from '@/pos/format';
 
 type PriceField = 'buyPrice' | 'sellPrice';
@@ -19,11 +19,15 @@ export type DraftLine = {
   qty: string;
   buyPrice?: string;
   sellPrice?: string;
+  /** Came free: no cost, and the product keeps its buy price. */
+  free?: boolean;
 };
 
 export type ReceiptDraft = {
   lines: DraftLine[];
   note: string;
+  /** The typed buy prices leave out VAT; each product's rate is added to them. */
+  pricesExclusive?: boolean;
   supplierId?: string;
   invoiceNo?: string;
   payment?: PurchasePayment;
@@ -77,6 +81,7 @@ export function shownPrice(
 export function draftLineCost(
   line: DraftLine,
   product: ProductRecord | undefined,
+  pricesExclusive = false,
 ): number | undefined {
   if (!product) {
     return undefined;
@@ -86,7 +91,17 @@ export function draftLineCost(
   if (qtyMilli === null || typeof buyPrice === 'string') {
     return undefined;
   }
-  return lineTotal(qtyMilli, buyPrice ?? product.buyPrice);
+  if (line.free) {
+    return 0;
+  }
+  const paid =
+    buyPrice === undefined ? product.buyPrice : typedBuyPrice(buyPrice, product, pricesExclusive);
+  return lineTotal(qtyMilli, paid);
+}
+
+/** A typed buy price as paid: with the product's VAT added when the prices leave it out. */
+function typedBuyPrice(price: number, product: ProductRecord, pricesExclusive: boolean): number {
+  return pricesExclusive ? withVat(price, product.vatRate) : price;
 }
 
 /** The receipt being typed on this device; a draft that cannot be read is dropped. */
@@ -147,7 +162,11 @@ export function readDraftLines(
     lines.push({
       productId: line.productId,
       qtyMilli,
-      ...(typeof buyPrice === 'number' ? { buyPrice } : {}),
+      ...(line.free
+        ? { free: true }
+        : typeof buyPrice === 'number'
+          ? { buyPrice: typedBuyPrice(buyPrice, product, draft.pricesExclusive ?? false) }
+          : {}),
       ...(typeof sellPrice === 'number' ? { sellPrice } : {}),
     });
   }
@@ -178,6 +197,7 @@ function isDraft(value: unknown): value is ReceiptDraft {
     Array.isArray(lines) &&
     lines.every(isDraftLine) &&
     [supplierId, invoiceNo].every((field) => field === undefined || typeof field === 'string') &&
+    ['undefined', 'boolean'].includes(typeof (value as Record<string, unknown>).pricesExclusive) &&
     (payment === undefined || ['cash', 'card', 'on_account'].includes(payment as string))
   );
 }
@@ -192,6 +212,7 @@ function isDraftLine(line: unknown): boolean {
     ['buyPrice', 'sellPrice'].every(
       (key) => fields[key] === undefined || typeof fields[key] === 'string',
     ) &&
+    ['undefined', 'boolean'].includes(typeof fields.free) &&
     ['piece', 'kg'].includes(fields.unit as string)
   );
 }

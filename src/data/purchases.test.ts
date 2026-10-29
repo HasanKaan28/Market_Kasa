@@ -255,4 +255,20 @@ describe('recordPurchase', () => {
     expect(purchase).not.toHaveProperty('supplierId');
     expect(await db.supplierLedger.count()).toBe(0);
   });
+
+  it('takes free goods into stock at no cost and keeps the buy price', async () => {
+    const tea = await createProduct(
+      db,
+      { name: 'Çay', sellPrice: 9000, buyPrice: 7000, vatRate: 1 },
+      at,
+    );
+    const purchase = await recordPurchase(
+      db,
+      { deviceCode: 'K1', lines: [{ productId: tea.id, qtyMilli: 6000, free: true }] },
+      later,
+    );
+    expect(purchase).toMatchObject({ total: 0, lines: [{ free: true, buyPrice: 0, cost: 0 }] });
+    expect(await stockOf(db, tea.id)).toBe(6000);
+    expect((await db.products.get(tea.id))?.buyPrice).toBe(7000);
+  });
 });

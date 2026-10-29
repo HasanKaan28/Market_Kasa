@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  withVat,
   computeCart,
   distributeDiscount,
   lineTotal,
@@ -88,5 +89,13 @@ describe('line and VAT rules', () => {
     expect(() =>
       computeCart([{ qtyMilli: 1000, unitPrice: 500, vatRate: 1, lineDiscount: -100 }]),
     ).toThrow(RangeError);
+  });
+
+  it('turns a VAT-exclusive price into the price paid', () => {
+    expect([0, 1, 10, 20].map((rate) => withVat(1000, rate as 0 | 1 | 10 | 20))).toEqual([
+      1000, 1010, 1100, 1200,
+    ]);
+    // Half a kuruş and up rounds up: 9,99 + %1 = 10,0899.
+    expect(withVat(999, 1)).toBe(1009);
   });
 });

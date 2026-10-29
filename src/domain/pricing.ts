@@ -133,3 +133,8 @@ export function computeCart(lines: readonly CartLineInput[], cartDiscount: Kurus
 function sumOf(values: readonly number[]): number {
   return values.reduce((acc, value) => acc + value, 0);
 }
+
+/** A price written without VAT, as the price paid with it: kuruş rounded half up. */
+export function withVat(price: Kurus, rate: VatRate): Kurus {
+  return divRoundHalfUp(price * (100 + rate), 100);
+}

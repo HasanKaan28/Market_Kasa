@@ -119,6 +119,15 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     }
   }
 
+  function setFree(productId: string, free: boolean) {
+    setDraft((current) => ({
+      ...current,
+      lines: current.lines.map((line) =>
+        line.productId === productId ? { ...line, free: free || undefined } : line,
+      ),
+    }));
+  }
+
   function setLine(productId: string, field: LineField, value: string) {
     // A line being fixed loses the error it was saved with.
     setErrors((current) => {
@@ -194,7 +203,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     return {
       line,
       product,
-      cost: gone ? undefined : draftLineCost(line, product),
+      cost: gone ? undefined : draftLineCost(line, product, draft.pricesExclusive),
       error: errors.get(line.productId) ?? (gone ? DELETED_PRODUCT_LINE : undefined),
     };
   });
@@ -245,6 +254,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
                 cost={cost}
                 error={error}
                 onChange={(field, value) => setLine(line.productId, field, value)}
+                onFree={(free) => setFree(line.productId, free)}
                 onRemove={() => remove(line.productId)}
               />
             </li>
@@ -277,6 +287,20 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           }
         />
       </div>
+      <label className="flex min-h-11 cursor-pointer items-center gap-3">
+        <input
+          type="checkbox"
+          checked={draft.pricesExclusive ?? false}
+          onChange={(event) =>
+            setDraft((current) => ({
+              ...current,
+              pricesExclusive: event.target.checked || undefined,
+            }))
+          }
+          className="size-5 accent-accent"
+        />
+        Alış fiyatları KDV hariç
+      </label>
       <ChoiceGroup
         legend="Ödeme"
         name="receiptPayment"
@@ -332,6 +356,7 @@ function ReceiptLine({
   cost,
   error,
   onChange,
+  onFree,
   onRemove,
 }: {
   line: DraftLine;
@@ -341,6 +366,7 @@ function ReceiptLine({
   cost: number | undefined;
   error: string | undefined;
   onChange(field: LineField, value: string): void;
+  onFree(free: boolean): void;
   onRemove(): void;
 }): JSX.Element {
   const name = product?.name ?? line.name;
@@ -374,6 +400,7 @@ function ReceiptLine({
         <TextField
           label="Alış fiyatı"
           hint={unit === 'kg' ? 'Kilogram fiyatı' : undefined}
+          disabled={line.free}
           inputMode="decimal"
           autoComplete="off"
           value={shownPrice(line, product, 'buyPrice')}
@@ -390,6 +417,15 @@ function ReceiptLine({
           onChange={(event) => onChange('sellPrice', event.target.value)}
         />
       </div>
+      <label className="flex min-h-11 cursor-pointer items-center gap-3">
+        <input
+          type="checkbox"
+          checked={line.free ?? false}
+          onChange={(event) => onFree(event.target.checked)}
+          className="size-5 accent-accent"
+        />
+        Bedelsiz
+      </label>
       {error ? (
         <p role="alert" className="text-sm font-medium text-danger">
           {error}
