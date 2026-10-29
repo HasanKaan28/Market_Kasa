@@ -26,6 +26,21 @@ describe('createScanBuffer', () => {
 
   it('drops codes shorter than the minimum', () =>
     expect(feed(createScanBuffer(), [...'12', 'Enter'], 0, 5)).toBeNull());
+
+  it('reads capital letters a scanner sends with Shift', () => {
+    const brk = ['Shift', 'B', 'Shift', 'R', 'Shift', 'K', '-', ...'0042', 'Enter'];
+    expect(feed(createScanBuffer(), brk, 0, 5)).toBe('BRK-0042');
+    const mixed = ['Shift', 'A', 'Shift', 'B', '-', '1', '2', 'Shift', 'C', 'Enter'];
+    expect(feed(createScanBuffer(), mixed, 0, 5)).toBe('AB-12C');
+  });
+
+  it('notices an Enter that ends a fast burst too short to be a code', () => {
+    const buffer = createScanBuffer();
+    feed(buffer, [...'12', 'Enter'], 0, 5);
+    expect(buffer.endedBurst()).toBe(true);
+    feed(buffer, [...'12', 'Enter'], 1000, 200);
+    expect(buffer.endedBurst()).toBe(false);
+  });
 });
 
 describe('looksLikeBarcode', () => {
@@ -69,6 +84,18 @@ describe('useBarcodeScanner', () => {
     await userEvent.type(field, '8690000000017{Enter}');
     expect(onScan).toHaveBeenCalledExactlyOnceWith('8690000000017');
     expect(field).toHaveValue('sü');
+  });
+
+  it('swallows the Enter of a fast burst that is not a code', async () => {
+    const clock = fakeClock();
+    clock.gap = 5;
+    const onScan = vi.fn();
+    const onClick = vi.fn();
+    render(<Harness onScan={onScan} now={clock.now} onClick={onClick} />);
+    screen.getByRole('button', { name: 'Artır' }).focus();
+    await userEvent.keyboard('AB{Enter}');
+    expect(onScan).not.toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it('reads a scan while a button has focus without clicking it', async () => {
