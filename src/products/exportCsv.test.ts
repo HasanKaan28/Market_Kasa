@@ -49,7 +49,7 @@ const rows = buildProductRows(
   indexProducts(products),
   new Map([
     ['milk', 12000],
-    ['formula', 1500],
+    ['formula', -1500],
   ]),
   [dairy],
   { text: '', filter: 'all', category: 'any' },
@@ -62,7 +62,7 @@ describe('productsToCsv', () => {
     expect(csv.slice(1).split('\r\n')).toEqual([
       'Barkod;Ürün adı;Kategori;Birim;Satış fiyatı;Alış fiyatı;KDV;Kritik stok;Stok;Hızlı ürün',
       // A name that Excel would run as a formula is written with a leading apostrophe.
-      ";'=SUM(A1);;Kg;320,00;;1;;1,5;Hayır",
+      ";'=SUM(A1);;Kg;320,00;;1;;-1,5;Hayır",
       '="8690000000017";"Süt; 1 L";Süt ürünleri;Adet;42,50;30,00;1;5;12;Evet',
       '',
     ]);
@@ -77,7 +77,7 @@ describe('productsToCsv', () => {
         unit: 'kg',
         sellPrice: 32000,
         vatRate: 1,
-        stockMilli: 1500,
+        stockMilli: -1500,
         isQuick: false,
       },
       {

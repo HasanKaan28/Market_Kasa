@@ -1,9 +1,18 @@
-import { createCategory, listCategories } from '@/data/categories';
+import { createCategory, listCategories, MAX_CATEGORY_NAME_LENGTH } from '@/data/categories';
 import type { MarketDb } from '@/data/db';
 import { createProduct, restoreProduct, updateProduct, type ProductPatch } from '@/data/products';
 import { normalizeForSearch } from '@/data/text';
-import type { CategoryRecord, ProductRecord, ProductUnit } from '@/data/types';
-import { IMPORT_FIELD_LABELS, type ImportRow, type ImportValues } from './importRows';
+import type { CategoryRecord, ProductRecord } from '@/data/types';
+import { formatTRY } from '@/domain/money';
+import { formatQtyInput } from '@/pos/format';
+import {
+  IMPORT_FIELD_LABELS,
+  type ImportField,
+  type ImportRow,
+  type ImportValues,
+} from './importRows';
+
+const UNIT_NAMES = { piece: 'Adet', kg: 'Kg' } as const;
 
 export type ImportAction = 'create' | 'update' | 'unchanged' | 'error';
 
@@ -14,6 +23,8 @@ export type PlannedRow = {
   name: string;
   productId?: string;
   restore?: boolean;
+  /** The product has no barcode yet and takes the row's. */
+  giveBarcode?: boolean;
   /** The labels of the fields that change, e.g. "Satış fiyatı". */
   changes: string[];
   errors: string[];
@@ -49,27 +60,29 @@ export function planImport(
   categories: readonly CategoryRecord[],
 ): ImportPlan {
   const byBarcode = new Map<string, ProductRecord>();
-  const byName = new Map<string, ProductRecord[]>();
+  const liveByName = new Map<string, ProductRecord[]>();
   for (const product of products) {
     if (product.barcode) {
       byBarcode.set(product.barcode, product);
-    } else if (!product.deletedAt) {
+    }
+    if (!product.deletedAt) {
       const key = normalizeForSearch(product.name);
-      byName.set(key, [...(byName.get(key) ?? []), product]);
+      liveByName.set(key, [...(liveByName.get(key) ?? []), product]);
     }
   }
+  const liveCategories = categories.filter((category) => !category.deletedAt);
   const categoryIds = new Map(
-    categories
-      .filter((category) => !category.deletedAt)
-      .map((category) => [normalizeForSearch(category.name), category.id]),
+    liveCategories.map((category) => [normalizeForSearch(category.name), category.id]),
   );
+  const categoryNames = new Map(liveCategories.map((category) => [category.id, category.name]));
   const newCategories = new Map<string, string>();
   const firstRow = new Map<string, number>();
 
   const planned = rows.map((row): PlannedRow => {
     const { fields } = row;
-    const base = {
+    const base: PlannedRow = {
       rowNumber: row.rowNumber,
+      action: 'error',
       name: fields.name ?? '',
       changes: [],
       errors: [...row.errors],
@@ -77,7 +90,7 @@ export function planImport(
     };
     // A row that could not be read is reported as it is, without guessing what it meant.
     if (base.errors.length > 0) {
-      return { ...base, action: 'error' };
+      return base;
     }
     const identity = fields.barcode
       ? `barcode:${fields.barcode}`
@@ -92,46 +105,32 @@ export function planImport(
         firstRow.set(identity, row.rowNumber);
       }
     }
-    const matches = fields.barcode
-      ? [byBarcode.get(fields.barcode)].filter((product) => product !== undefined)
-      : fields.name
-        ? (byName.get(normalizeForSearch(fields.name)) ?? [])
-        : [];
-    if (matches.length > 1) {
-      base.errors.push('Aynı adlı birden çok ürün var.');
-    }
-    const product = matches.length === 1 ? matches[0] : undefined;
-    if (!product) {
-      if (!fields.name) {
-        base.errors.push('Yeni ürün için ürün adı gerekli.');
-      }
-      if (fields.sellPrice === undefined) {
-        base.errors.push('Yeni ürün için satış fiyatı gerekli.');
-      }
-    }
-    // An existing product's stock is never imported, so only a new product's stock is checked.
-    checkWholeQuantities(
-      product ? { ...fields, stockMilli: undefined } : fields,
-      fields.unit ?? product?.unit ?? 'piece',
-      base.errors,
-    );
+    const match = findProduct(fields, byBarcode, liveByName);
+    base.errors.push(...match.errors);
+    base.warnings.push(...match.warnings);
+    const { product } = match;
+    checkWritable(fields, product, base.errors);
     if (base.errors.length > 0) {
-      return { ...base, action: 'error' };
+      return base;
     }
     const category = fields.category?.trim();
     const categoryKey = category ? normalizeForSearch(category) : undefined;
-    if (
-      category &&
-      categoryKey &&
-      !categoryIds.has(categoryKey) &&
-      !newCategories.has(categoryKey)
-    ) {
-      newCategories.set(categoryKey, category);
+    if (category && categoryKey && !categoryIds.has(categoryKey)) {
+      newCategories.set(categoryKey, newCategories.get(categoryKey) ?? category);
     }
     if (!product) {
       return { ...base, action: 'create' };
     }
-    const changes = changedLabels(product, fields, categoryKey, categoryIds);
+    const changes = describeChanges(product, fields, match.giveBarcode);
+    if (category && categoryKey) {
+      const targetId = categoryIds.get(categoryKey);
+      // A category that does not exist yet is always a change: it is created for this product.
+      if (targetId === undefined || targetId !== product.categoryId) {
+        const before = product.categoryId ? categoryNames.get(product.categoryId) : undefined;
+        const after = targetId ? (categoryNames.get(targetId) ?? category) : category;
+        changes.push(`${IMPORT_FIELD_LABELS.category}: ${before ?? 'yok'} → ${after}`);
+      }
+    }
     const restore = Boolean(product.deletedAt);
     return {
       ...base,
@@ -139,6 +138,7 @@ export function planImport(
       productId: product.id,
       changes,
       ...(restore ? { restore } : {}),
+      ...(match.giveBarcode ? { giveBarcode: true } : {}),
       action: changes.length > 0 || restore ? 'update' : 'unchanged',
     };
   });
@@ -148,6 +148,77 @@ export function planImport(
     counts[row.action] += 1;
   }
   return { rows: planned, newCategories: [...newCategories.values()], counts };
+}
+
+type Match = {
+  product?: ProductRecord;
+  giveBarcode: boolean;
+  errors: string[];
+  warnings: string[];
+};
+
+/**
+ * The product a row means. A barcode finds its product, deleted ones too; an unknown barcode
+ * goes to the one live barcodeless product of the row's name, which then gets it. A row without
+ * a barcode finds the one live product of its name, with or without a barcode.
+ */
+function findProduct(
+  fields: Partial<ImportValues>,
+  byBarcode: ReadonlyMap<string, ProductRecord>,
+  liveByName: ReadonlyMap<string, readonly ProductRecord[]>,
+): Match {
+  const named = fields.name ? (liveByName.get(normalizeForSearch(fields.name)) ?? []) : [];
+  if (fields.barcode) {
+    const product = byBarcode.get(fields.barcode);
+    if (product) {
+      return { product, giveBarcode: false, errors: [], warnings: [] };
+    }
+    const barcodeless = named.filter((candidate) => !candidate.barcode);
+    if (barcodeless.length === 1) {
+      return { product: barcodeless[0], giveBarcode: true, errors: [], warnings: [] };
+    }
+    const warnings =
+      named.length > 0 ? ['Bu adla başka bir ürün var; bu satır yeni ürün olarak eklenir.'] : [];
+    return { giveBarcode: false, errors: [], warnings };
+  }
+  if (named.length > 1) {
+    return { giveBarcode: false, errors: ['Aynı adlı birden çok ürün var.'], warnings: [] };
+  }
+  return { product: named[0], giveBarcode: false, errors: [], warnings: [] };
+}
+
+/** What the writes would refuse, found now so the preview names the row instead of failing later. */
+function checkWritable(
+  fields: Partial<ImportValues>,
+  product: ProductRecord | undefined,
+  errors: string[],
+): void {
+  if (!product) {
+    if (!fields.name) {
+      errors.push('Yeni ürün için ürün adı gerekli.');
+    }
+    if (fields.sellPrice === undefined) {
+      errors.push('Yeni ürün için satış fiyatı gerekli.');
+    }
+    if ((fields.stockMilli ?? 0) < 0) {
+      errors.push('Stok eksi olamaz.');
+    }
+  }
+  // A piece product counts whole pieces. An existing product's stock is never imported, so its
+  // check is the critical level it ends up with, from the file or as stored.
+  const unit = fields.unit ?? product?.unit ?? 'piece';
+  const quantities = product
+    ? fields.unit !== undefined || fields.criticalLevelMilli !== undefined
+      ? [fields.criticalLevelMilli ?? product.criticalLevelMilli]
+      : []
+    : [fields.stockMilli, fields.criticalLevelMilli];
+  if (unit === 'piece' && quantities.some((milli) => milli !== undefined && milli % 1000 !== 0)) {
+    errors.push('Adet için tam sayı girin.');
+  }
+  const category = fields.category?.trim();
+  if (category && Array.from(category).length > MAX_CATEGORY_NAME_LENGTH) {
+    errors.push(`Kategori adı en fazla ${MAX_CATEGORY_NAME_LENGTH} karakter olabilir.`);
+  }
 }
 
 /**
@@ -207,7 +278,11 @@ export async function applyImport(
           await updateProduct(
             db,
             planned.productId,
-            { ...productFields(fields), ...(categoryId ? { categoryId } : {}) },
+            {
+              ...productFields(fields),
+              ...(categoryId ? { categoryId } : {}),
+              ...(planned.giveBarcode ? { barcode: fields.barcode } : {}),
+            },
             at,
           );
         }
@@ -230,34 +305,40 @@ function productFields(fields: Partial<ImportValues>): ProductPatch {
   return patch as ProductPatch;
 }
 
-function changedLabels(
+/** "Satış fiyatı: ₺42,50 → ₺45,00" for each field the row changes, so a wrong column shows. */
+function describeChanges(
   product: ProductRecord,
   fields: Partial<ImportValues>,
-  categoryKey: string | undefined,
-  categoryIds: ReadonlyMap<string, string>,
+  giveBarcode: boolean,
 ): string[] {
-  const patch = productFields(fields) as Record<string, unknown>;
-  const labels = COMPARED.filter(
-    ([productField]) =>
-      patch[productField] !== undefined &&
-      patch[productField] !== product[productField as keyof ProductRecord],
-  ).map(([, importField]) => IMPORT_FIELD_LABELS[importField]);
-  if (categoryKey !== undefined && categoryIds.get(categoryKey) !== product.categoryId) {
-    labels.push(IMPORT_FIELD_LABELS.category);
+  const changes: string[] = [];
+  const add = (field: ImportField, before: string, after: string) => {
+    changes.push(`${IMPORT_FIELD_LABELS[field]}: ${before} → ${after}`);
+  };
+  if (giveBarcode && fields.barcode) {
+    add('barcode', 'yok', fields.barcode);
   }
-  return labels;
-}
-
-/** A piece product counts whole pieces, for its stock and its critical level alike. */
-function checkWholeQuantities(
-  fields: Partial<ImportValues>,
-  unit: ProductUnit,
-  errors: string[],
-): void {
-  const fractional = [fields.stockMilli, fields.criticalLevelMilli].some(
-    (milli) => milli !== undefined && milli % 1000 !== 0,
-  );
-  if (unit === 'piece' && fractional) {
-    errors.push('Adet için tam sayı girin.');
+  if (fields.name !== undefined && fields.name !== product.name) {
+    add('name', product.name, fields.name);
   }
+  if (fields.unit !== undefined && fields.unit !== product.unit) {
+    add('unit', UNIT_NAMES[product.unit], UNIT_NAMES[fields.unit]);
+  }
+  for (const field of ['sellPrice', 'buyPrice'] as const) {
+    const value = fields[field];
+    if (value !== undefined && value !== product[field]) {
+      add(field, formatTRY(product[field]), formatTRY(value));
+    }
+  }
+  if (fields.vatRate !== undefined && fields.vatRate !== product.vatRate) {
+    add('vatRate', `%${product.vatRate}`, `%${fields.vatRate}`);
+  }
+  const critical = fields.criticalLevelMilli;
+  if (critical !== undefined && critical !== product.criticalLevelMilli) {
+    add('criticalLevel', formatQtyInput(product.criticalLevelMilli), formatQtyInput(critical));
+  }
+  if (fields.isQuick !== undefined && fields.isQuick !== product.isQuick) {
+    add('isQuick', product.isQuick ? 'Evet' : 'Hayır', fields.isQuick ? 'Evet' : 'Hayır');
+  }
+  return changes;
 }

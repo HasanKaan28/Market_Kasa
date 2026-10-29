@@ -27,6 +27,26 @@ describe('BulkPriceDialog', () => {
     expect((await data.db.products.get(milk.id))?.sellPrice).toBe(4700);
   });
 
+  it('refuses a change that makes a price free', async () => {
+    const data = createTestData();
+    const lighter = await createProduct(
+      data.db,
+      { name: 'Çakmak', sellPrice: 300, vatRate: 20 },
+      at,
+    );
+    await renderWithData(
+      <BulkPriceDialog open products={[lighter]} onClose={vi.fn()} onDone={vi.fn()} />,
+      data,
+    );
+    await userEvent.click(screen.getByRole('radio', { name: 'Azalt' }));
+    await userEvent.click(screen.getByRole('radio', { name: '₺' }));
+    await userEvent.type(screen.getByLabelText('Miktar'), '5');
+    expect(
+      screen.getByText('Bu değişiklik Çakmak ürününün fiyatını ₺0 yapar.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /fiyatını değiştir/ })).toBeDisabled();
+  });
+
   it('decreases by an amount and refuses what it cannot read', async () => {
     const data = createTestData();
     const milk = await createProduct(

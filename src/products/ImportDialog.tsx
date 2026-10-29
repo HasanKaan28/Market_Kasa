@@ -56,6 +56,8 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
 
   async function chooseFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    // Cleared at once: choosing the same file again, corrected in Excel, must be read again.
+    event.target.value = '';
     if (!file) {
       return;
     }

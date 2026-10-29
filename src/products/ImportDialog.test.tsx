@@ -72,6 +72,15 @@ describe('ImportDialog', () => {
     );
   });
 
+  it('reads the same file again after it changes', async () => {
+    await renderWithData(<ImportDialog open onClose={vi.fn()} onDone={vi.fn()} />);
+    const input = screen.getByLabelText('Dosya seç');
+    await userEvent.upload(input, csvFile('Ürün adı;Satış fiyatı\nSimit;15\n', 'liste.csv'));
+    await screen.findByRole('button', { name: 'Devam' });
+    // Cleared, so choosing the corrected file again is a change the browser reports.
+    expect(input).toHaveValue('');
+  });
+
   it('says when a file cannot be read', async () => {
     await renderWithData(<ImportDialog open onClose={vi.fn()} onDone={vi.fn()} />);
     const input = screen.getByLabelText('Dosya seç');

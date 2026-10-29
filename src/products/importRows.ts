@@ -99,6 +99,7 @@ const NO = new Set(['hayir', 'h', 'no', 'false', '0']);
 const WRAPPED = /^="(.*)"$/;
 const SCIENTIFIC = /^\d+(?:[.,]\d+)?e\+?\d+$/i;
 const QUANTITY = /^-?\d+(?:[.,]\d{1,3})?$/;
+const LONG_FRACTION = /^(\d+),(\d{2})(\d+)$/;
 
 /** The column of each field whose header names it; each column is used once. */
 export function guessMapping(headers: readonly string[]): ColumnMapping {
@@ -209,7 +210,7 @@ function readBarcode(text: string, row: ImportRow): void {
 function readPrice(text: string, field: 'sellPrice' | 'buyPrice', row: ImportRow): void {
   let price: number;
   try {
-    price = parseTRY(text);
+    price = parseImportPrice(text);
   } catch {
     row.errors.push(`${IMPORT_FIELD_LABELS[field]} okunamadı: "${text}".`);
     return;
@@ -219,6 +220,23 @@ function readPrice(text: string, field: 'sellPrice' | 'buyPrice', row: ImportRow
     return;
   }
   row.fields[field] = price;
+}
+
+/**
+ * An amount as `parseTRY` reads it, or with more than two decimals after a comma rounded half up
+ * to the kuruş: a markup formula leaves "4,875" in a cell that Excel shows as 4,88.
+ */
+function parseImportPrice(text: string): number {
+  try {
+    return parseTRY(text);
+  } catch (error) {
+    const match = text.replace(/₺|tl/gi, '').replace(/\s+/g, '').match(LONG_FRACTION);
+    if (!match) {
+      throw error;
+    }
+    const [, whole = '0', cents = '00', rest = '0'] = match;
+    return Number(whole) * 100 + Number(cents) + (Number(rest.charAt(0)) >= 5 ? 1 : 0);
+  }
 }
 
 /** A quantity with up to three decimals ("1,5", "12.250"), whichever unit it is for. */
@@ -236,10 +254,11 @@ function readQuantity(
   const milli = Number(whole) * 1000 + Number(fraction.padEnd(3, '0'));
   if (!Number.isSafeInteger(milli)) {
     row.errors.push(`${label} okunamadı: "${text}".`);
-  } else if (text.startsWith('-') && milli > 0) {
+  } else if (text.startsWith('-') && field === 'criticalLevelMilli') {
     row.errors.push(`${label} eksi olamaz.`);
   } else {
-    row.fields[field] = milli;
+    // A stock below zero is read: only a new product refuses it, an existing one ignores it.
+    row.fields[field] = text.startsWith('-') ? -milli : milli;
   }
 }
 

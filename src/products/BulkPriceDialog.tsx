@@ -183,13 +183,19 @@ function workOut(
   };
   const prices: { product: ProductRecord; next: number }[] = [];
   for (const product of products) {
+    let next: number;
     try {
-      prices.push({ product, next: changedPrice(product[form.target], change) });
+      next = changedPrice(product[form.target], change);
     } catch {
       return {
         error: `Fiyat en fazla ${formatTRY(MAX_UNIT_PRICE)} olabilir: ${product.name}.`,
       };
     }
+    // Rounding or a large decrease could leave a priced product free at the register.
+    if (next === 0 && product[form.target] > 0) {
+      return { error: `Bu değişiklik ${product.name} ürününün fiyatını ₺0 yapar.` };
+    }
+    prices.push({ product, next });
   }
   return { change, prices };
 }

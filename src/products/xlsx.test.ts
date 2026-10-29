@@ -10,9 +10,17 @@ const table = [
 
 describe('readXlsx', () => {
   it('reads shared and inline strings and numbers from the first sheet', () => {
-    expect(readXlsx(makeXlsx(table))).toEqual(table);
-    expect(readXlsx(makeXlsx(table, { sharedStrings: false }))).toEqual(table);
-    expect(readXlsx(makeXlsx(table, { secondSheet: [['başka', 'sayfa']] }))).toEqual(table);
+    // The price is a number cell, which comes out with a decimal comma.
+    const read = [table[0], ['8690000000017', 'Süt & <Yoğurt>', '42,5']];
+    expect(readXlsx(makeXlsx(table))).toEqual(read);
+    expect(readXlsx(makeXlsx(table, { sharedStrings: false }))).toEqual(read);
+    expect(readXlsx(makeXlsx(table, { secondSheet: [['başka', 'sayfa']] }))).toEqual(read);
+  });
+
+  it('writes number cells with a decimal comma, without float noise', () => {
+    expect(readXlsx(makeXlsx([['4.875', '5.3950000000000005', '1250', '0.01']]))).toEqual([
+      ['4,875', '5,395', '1250', '0,01'],
+    ]);
   });
 
   it('keeps the column of a cell when cells are missing', () => {

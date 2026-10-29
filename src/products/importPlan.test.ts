@@ -8,7 +8,7 @@ import { stockOf } from '@/data/stock';
 import type { ProductRecord } from '@/data/types';
 import { makeTestDb } from '@/test/db';
 import { applyImport, planImport } from './importPlan';
-import type { ImportRow, ImportValues } from './importRows';
+import { guessMapping, readImportRows, type ImportRow, type ImportValues } from './importRows';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -68,7 +68,7 @@ describe('planImport', () => {
     expect(plan.rows[0]).toMatchObject({
       productId: 'milk',
       name: 'Süt',
-      changes: ['Satış fiyatı'],
+      changes: ['Satış fiyatı: ₺42,50 → ₺45,00'],
     });
     expect(plan.rows[3]?.errors).toEqual(['Yeni ürün için satış fiyatı gerekli.']);
     expect(plan.rows[4]?.errors).toEqual(['KDV 0, 1, 10 ya da 20 olmalı.']);
@@ -112,6 +112,45 @@ describe('planImport', () => {
     ]);
   });
 
+  it('refuses a stock below zero only for a new product', () => {
+    const milk = product('milk', { barcode: '8690000000017', name: 'Süt', sellPrice: 4250 });
+    const plan = planImport(
+      [
+        row(2, { barcode: '8690000000017', sellPrice: 4500, stockMilli: -3000 }),
+        row(3, { name: 'Kaşar', sellPrice: 12000, stockMilli: -1000 }),
+      ],
+      [milk],
+      [],
+    );
+    expect(plan.rows.map((planned) => [planned.action, planned.errors])).toEqual([
+      ['update', []],
+      ['error', ['Stok eksi olamaz.']],
+    ]);
+  });
+
+  it('refuses in the plan what the import could not write', () => {
+    const cheese = product('cheese', { name: 'Peynir', unit: 'kg', criticalLevelMilli: 1500 });
+    const plan = planImport(
+      [
+        row(2, { name: 'Peynir', unit: 'piece' }),
+        row(3, { name: 'Lokum', sellPrice: 5000, category: 'x'.repeat(41) }),
+      ],
+      [cheese],
+      [],
+    );
+    expect(plan.rows.map((planned) => planned.errors)).toEqual([
+      ['Adet için tam sayı girin.'],
+      ['Kategori adı en fazla 40 karakter olabilir.'],
+    ]);
+    expect(plan.newCategories).toEqual([]);
+  });
+
+  it('matches a list without barcodes to products that have them', () => {
+    const milk = product('milk', { barcode: '8690000000017', name: 'Süt', sellPrice: 4250 });
+    const plan = planImport([row(2, { name: 'SÜT', sellPrice: 4500 })], [milk], []);
+    expect(plan.rows[0]).toMatchObject({ action: 'update', productId: 'milk' });
+  });
+
   it('plans five thousand rows', () => {
     const products = Array.from({ length: 2000 }, (_, i) =>
       product(`p${i}`, { barcode: `86900${String(i).padStart(8, '0')}` }),
@@ -129,6 +168,71 @@ describe('planImport', () => {
 });
 
 describe('applyImport', () => {
+  it('assigns a new category to a product without one', async () => {
+    const simit = await createProduct(db, { name: 'Simit', sellPrice: 1500, vatRate: 1 }, at);
+    const rows = [row(2, { name: 'Simit', category: 'Fırın' })];
+    const plan = planImport(rows, await db.products.toArray(), []);
+    expect(plan.rows[0]).toMatchObject({ action: 'update', changes: ['Kategori: yok → Fırın'] });
+    await applyImport(db, plan, rows, at);
+    const [bakery] = await listCategories(db);
+    expect((await db.products.get(simit.id))?.categoryId).toBe(bakery?.id);
+  });
+
+  it('gives a barcodeless product the barcode the file names', async () => {
+    const simit = await createProduct(db, { name: 'Simit', sellPrice: 1500, vatRate: 1 }, at);
+    const rows = [row(2, { barcode: '2000000000015', name: 'Simit', sellPrice: 1500 })];
+    const plan = planImport(rows, await db.products.toArray(), []);
+    expect(plan.rows[0]).toMatchObject({
+      action: 'update',
+      changes: ['Barkod: yok → 2000000000015'],
+    });
+    await applyImport(db, plan, rows, at);
+    expect(await db.products.count()).toBe(1);
+    expect((await db.products.get(simit.id))?.barcode).toBe('2000000000015');
+  });
+
+  it('matches barcodes in any letter case', async () => {
+    const pen = await createProduct(
+      db,
+      { barcode: 'BRK-0042', name: 'Kalem', sellPrice: 1500, vatRate: 20 },
+      at,
+    );
+    const table = [
+      ['Barkod', 'Fiyat'],
+      ['brk-0042', '17,50'],
+    ];
+    const rows = readImportRows(table, guessMapping(['Barkod', 'Fiyat']), true);
+    await applyImport(db, planImport(rows, await db.products.toArray(), []), rows, at);
+    expect(await db.products.count()).toBe(1);
+    expect((await db.products.get(pen.id))?.sellPrice).toBe(1750);
+  });
+
+  it('restores a deleted product and applies its changes', async () => {
+    const old = await createProduct(
+      db,
+      { barcode: '8690000000031', name: 'Gazoz', sellPrice: 1000, vatRate: 1 },
+      at,
+    );
+    await deleteProduct(db, old.id, at);
+    const rows = [row(2, { barcode: '8690000000031', sellPrice: 1250 })];
+    await applyImport(db, planImport(rows, await db.products.toArray(), []), rows, at);
+    expect(await db.products.get(old.id)).toMatchObject({ sellPrice: 1250 });
+    expect((await db.products.get(old.id))?.deletedAt).toBeUndefined();
+  });
+
+  it('applies five thousand rows', async () => {
+    const rows = Array.from({ length: 5000 }, (_, i) =>
+      row(i + 2, {
+        barcode: `86900${String(i).padStart(8, '0')}`,
+        name: `Ürün ${i}`,
+        sellPrice: 100,
+      }),
+    );
+    const plan = planImport(rows, [], []);
+    expect(await applyImport(db, plan, rows, at)).toEqual({ created: 5000, updated: 0 });
+    expect(await db.products.count()).toBe(5000);
+  });
+
   it('restores a deleted product that the file names', async () => {
     const old = await createProduct(
       db,
@@ -169,11 +273,11 @@ describe('applyImport', () => {
       { openingStockMilli: 5000 },
     );
     const rows = [
-      row(2, { barcode: '8690000000017', stockMilli: 12000 }),
+      row(2, { barcode: '8690000000017', sellPrice: 4500, stockMilli: 12000 }),
       row(3, { name: 'Kaşar', sellPrice: 12000, unit: 'kg', stockMilli: 2500 }),
     ];
     const plan = planImport(rows, await db.products.toArray(), []);
-    expect(plan.rows[0]?.action).toBe('unchanged');
+    expect(plan.rows[0]?.action).toBe('update');
     await applyImport(db, plan, rows, at);
     expect(await stockOf(db, milk.id)).toBe(5000);
     const cheese = (await db.products.toArray()).find((p) => p.name === 'Kaşar');

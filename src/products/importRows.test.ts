@@ -92,6 +92,18 @@ describe('readImportRows', () => {
     ]);
   });
 
+  it('rounds a price with more decimals to the kuruş, half up', () => {
+    // A markup formula such as =B2*1,3 leaves 4,875 in the cell while Excel shows 4,88.
+    expect(readOne(['4,875', '0,125'], ['Satış fiyatı', 'Alış fiyatı'])?.fields).toEqual({
+      sellPrice: 488,
+      buyPrice: 13,
+    });
+  });
+
+  it('reads a stock below zero, which only a new product refuses', () => {
+    expect(readOne(['-3'], ['Stok'])).toMatchObject({ fields: { stockMilli: -3000 }, errors: [] });
+  });
+
   it('refuses a barcode in scientific notation', () => {
     for (const shown of ['8,69E+12', '8.69e12']) {
       expect(readOne([shown, 'Süt'], ['Barkod', 'Ürün adı'])?.errors).toEqual([

@@ -12,7 +12,7 @@ export class XlsxReadError extends Error {
 
 /**
  * The cells of a workbook's first sheet as text, row by row. Shared, inline and formula strings
- * are read as text and numbers as Excel stores them ("12.5"); a missing cell is "" so every value
+ * are read as text, numbers with a decimal comma ("12,5"); a missing cell is "" so every value
  * stays in its column. Rows with nothing in them are dropped, as `parseCsv` drops blank lines.
  */
 export function readXlsx(bytes: Uint8Array): string[][] {
@@ -82,9 +82,26 @@ function cellText(cell: Element, sharedStrings: readonly string[]): string {
       return richText(elements(cell, 'is')[0]);
     case 'b':
       return value === '1' ? 'TRUE' : 'FALSE';
+    case null:
+    case 'n':
+      return numberText(value);
     default:
       return value;
   }
+}
+
+/**
+ * A number cell as it would be typed here: a decimal comma and no grouping ("4,875"), so a
+ * text reader never takes "4.875" for four thousand. Fifteen significant digits, as Excel shows,
+ * drop the noise of binary fractions ("5.3950000000000005" → "5,395").
+ */
+function numberText(value: string): string {
+  const number = Number(value);
+  if (value.trim() === '' || !Number.isFinite(number)) {
+    return value;
+  }
+  const clean = Number(number.toPrecision(15));
+  return Number.isInteger(clean) ? String(clean) : String(clean).replace('.', ',');
 }
 
 /** The text of a string item: its runs joined, without the phonetic guides some files carry. */
