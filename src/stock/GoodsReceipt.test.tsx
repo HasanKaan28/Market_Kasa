@@ -64,10 +64,13 @@ describe('GoodsReceipt', () => {
     await retype(within(line).getByLabelText('Satış fiyatı'), '45');
     expect(screen.getByText('Toplam: ₺360,00')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Not'), 'İrsaliye 1234');
+    // Paid in cash, but not from the register's drawer.
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Kasadan ödendi' }));
     await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
     await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith('Mal kabul kaydedildi: 1 ürün, ₺360,00.'),
     );
+    expect(await data.db.cashMovements.count()).toBe(0);
     expect(await stockOf(data.db, product.id)).toBe(12000);
     expect((await data.db.products.get(product.id))?.sellPrice).toBe(4500);
     expect(await data.db.purchases.toArray()).toMatchObject([

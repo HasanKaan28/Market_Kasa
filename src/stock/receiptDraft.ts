@@ -31,6 +31,8 @@ export type ReceiptDraft = {
   supplierId?: string;
   invoiceNo?: string;
   payment?: PurchasePayment;
+  /** Paid in cash from elsewhere than the drawer. */
+  fromDrawer?: boolean;
 };
 
 export const EMPTY_DRAFT: ReceiptDraft = { lines: [], note: '' };
@@ -207,6 +209,7 @@ function isDraft(value: unknown): value is ReceiptDraft {
     lines.every(isDraftLine) &&
     [supplierId, invoiceNo].every((field) => field === undefined || typeof field === 'string') &&
     ['undefined', 'boolean'].includes(typeof (value as Record<string, unknown>).pricesExclusive) &&
+    ['undefined', 'boolean'].includes(typeof (value as Record<string, unknown>).fromDrawer) &&
     (payment === undefined || ['cash', 'card', 'on_account'].includes(payment as string))
   );
 }

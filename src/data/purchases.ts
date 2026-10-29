@@ -34,6 +34,8 @@ export type PurchaseInput = {
   invoiceNo?: string;
   /** Cash when not said. */
   payment?: PurchasePayment;
+  /** A cash payment came out of the register's drawer; false when paid from elsewhere. */
+  fromDrawer?: boolean;
   note?: string;
   staffId?: string;
   cutoffMinutes?: number;
@@ -140,7 +142,7 @@ export async function recordPurchase(
       });
     }
     // Paid in cash, it comes out of the register's drawer; free goods alone take nothing out.
-    if (payment === 'cash' && record.total > 0) {
+    if (payment === 'cash' && record.total > 0 && input.fromDrawer !== false) {
       await addCashMovement(
         db,
         {

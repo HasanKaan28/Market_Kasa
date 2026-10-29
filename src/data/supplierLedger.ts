@@ -15,6 +15,8 @@ export type SupplierPaymentInput = {
   /** What was paid, above zero; written on the ledger as a negative amount. */
   amount: Kurus;
   method: SupplierPaymentMethod;
+  /** A cash payment came out of the register's drawer; false when paid from elsewhere. */
+  fromDrawer?: boolean;
   note?: string;
   staffId?: string;
   cutoffMinutes?: number;
@@ -65,7 +67,7 @@ export async function recordSupplierPayment(
       at,
       input.cutoffMinutes,
     );
-    if (input.method === 'cash') {
+    if (input.method === 'cash' && input.fromDrawer !== false) {
       await addCashMovement(
         db,
         {

@@ -95,6 +95,32 @@ describe('SupplierDialog', () => {
     expect(within(statement).getByText('Fatura F-77')).toBeInTheDocument();
   });
 
+  it('offers to pay from outside the drawer', async () => {
+    const data = createTestData();
+    const eti = await createSupplier(data.db, { name: 'Eti' }, at);
+    await addSupplierInvoice(data.db, { supplierId: eti.id, amount: 30000, purchaseId: 'p1' }, at);
+    const onDone = vi.fn();
+    await renderWithData(
+      <SupplierDialog open supplierId={eti.id} onClose={vi.fn()} onDone={onDone} />,
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Eti' });
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Ödeme yap' }));
+    const fromDrawer = within(dialog).getByRole('checkbox', { name: 'Kasadan ödendi' });
+    expect(fromDrawer).toBeChecked();
+    await userEvent.click(fromDrawer);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ödemeyi kaydet' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Ödeme kaydedildi: ₺300,00.'));
+    expect(await supplierBalance(data.db, eti.id)).toBe(0);
+    expect(await data.db.cashMovements.count()).toBe(0);
+    // Paid by bank, the drawer is not in question at all.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ödeme yap' }));
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Banka' }));
+    expect(
+      within(dialog).queryByRole('checkbox', { name: 'Kasadan ödendi' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('says an overpayment is one, and keeps an overpaid supplier from being archived', async () => {
     const data = createTestData();
     const eti = await createSupplier(data.db, { name: 'Eti' }, at);

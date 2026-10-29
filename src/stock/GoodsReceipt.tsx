@@ -77,6 +77,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
       ? (draft.supplierId ?? '')
       : '';
   const payment = draft.payment ?? 'cash';
+  const fromDrawer = draft.fromDrawer ?? true;
 
   useEffect(() => {
     saveDraft(draft);
@@ -190,6 +191,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           ...(supplierId !== '' ? { supplierId } : {}),
           invoiceNo: draft.invoiceNo,
           payment,
+          ...(payment === 'cash' ? { fromDrawer } : {}),
         },
         new Date(),
       );
@@ -314,6 +316,19 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         value={payment}
         onChange={(next) => setDraft((current) => ({ ...current, payment: next }))}
       />
+      {payment === 'cash' ? (
+        <label className="flex min-h-11 cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={fromDrawer}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, fromDrawer: event.target.checked }))
+            }
+            className="size-5 accent-accent"
+          />
+          Kasadan ödendi
+        </label>
+      ) : null}
       <TextField
         label="Not"
         hint="İrsaliye numarası ya da başka bir not."

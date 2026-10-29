@@ -33,6 +33,7 @@ export function SupplierPaymentForm({
   const { cutoffMinutes } = useMarketSettings();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<SupplierPaymentMethod>('cash');
+  const [fromDrawer, setFromDrawer] = useState(true);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
@@ -66,6 +67,7 @@ export function SupplierPaymentForm({
           supplierId,
           amount: kurus,
           method,
+          ...(method === 'cash' ? { fromDrawer } : {}),
           note,
         },
         new Date(),
@@ -105,6 +107,17 @@ export function SupplierPaymentForm({
         value={method}
         onChange={(next) => setMethod(next)}
       />
+      {method === 'cash' ? (
+        <label className="flex min-h-11 cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={fromDrawer}
+            onChange={(event) => setFromDrawer(event.target.checked)}
+            className="size-5 accent-accent"
+          />
+          Kasadan ödendi
+        </label>
+      ) : null}
       <TextField
         label="Not"
         hint="Dekont, çek numarası ya da başka bir not."

@@ -349,3 +349,36 @@ describe('cash movements', () => {
     expect((await pendingOps(db)).filter((op) => op.table === 'cashMovements')).toHaveLength(3);
   });
 });
+describe('cash from outside the drawer', () => {
+  it('pays a supplier in cash from elsewhere', async () => {
+    const supplier = await createSupplier(db, { name: 'Eti' }, later(-60));
+    const paid = await recordSupplierPayment(
+      db,
+      {
+        deviceCode: 'K1',
+        supplierId: supplier.id,
+        amount: 1500,
+        method: 'cash',
+        fromDrawer: false,
+      },
+      later(1),
+    );
+    expect(paid).toMatchObject({ kind: 'payment', amount: -1500, method: 'cash' });
+    expect(await db.cashMovements.count()).toBe(0);
+  });
+
+  it('receives goods paid in cash from elsewhere', async () => {
+    const product = await tea();
+    await recordPurchase(
+      db,
+      {
+        deviceCode: 'K1',
+        lines: [{ productId: product.id, qtyMilli: 2000 }],
+        payment: 'cash',
+        fromDrawer: false,
+      },
+      later(1),
+    );
+    expect(await db.cashMovements.count()).toBe(0);
+  });
+});
