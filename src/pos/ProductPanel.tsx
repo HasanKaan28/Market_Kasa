@@ -16,6 +16,8 @@ import { looksLikeBarcode } from './keyboard';
 
 /** The group of the quick products, which comes before the categories. */
 const QUICK = 'quick';
+// Search results keep showing while the next query runs: the heading stays the same.
+const SEARCH = 'search';
 
 export type ProductPanelProps = {
   onAdd(product: ProductRecord): void;
@@ -33,12 +35,18 @@ export function ProductPanel({ onAdd, onNewProduct, searchRef }: ProductPanelPro
   // A category deleted here or on another register falls back to the quick products.
   const category = categories?.find((item) => item.id === group);
   const groupId = category?.id ?? QUICK;
-  const products = useLiveQuery(() => {
+  // The answer carries the list it was asked for: until the new group's products arrive, the old
+  // group's tiles must not sit under the new heading, where a quick tap would sell the wrong one.
+  const listKey = term === '' ? groupId : SEARCH;
+  const answer = useLiveQuery(async () => {
     if (term !== '') {
-      return searchProducts(db, term);
+      return { key: SEARCH, products: await searchProducts(db, term) };
     }
-    return groupId === QUICK ? listQuickProducts(db) : listProductsInCategory(db, groupId);
+    const products =
+      groupId === QUICK ? await listQuickProducts(db) : await listProductsInCategory(db, groupId);
+    return { key: groupId, products };
   }, [db, term, groupId]);
+  const products = answer?.key === listKey ? answer.products : undefined;
 
   function choose(product: ProductRecord) {
     onAdd(product);

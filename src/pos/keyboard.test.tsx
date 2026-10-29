@@ -72,7 +72,33 @@ function Harness(props: {
   );
 }
 
+/** Presses a key whose event says when it happened, however late the handler runs. */
+function pressAt(key: string, timeStamp: number) {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+  window.dispatchEvent(event);
+}
+
+function DefaultClock(props: { onScan(code: string): void }): null {
+  useBarcodeScanner(props.onScan);
+  return null;
+}
+
 describe('useBarcodeScanner', () => {
+  it('times keys by when they were pressed, not by when the handler runs', () => {
+    const onScan = vi.fn();
+    render(<DefaultClock onScan={onScan} />);
+    // A busy page runs each handler 60 ms after the last, though the keys came 10 ms apart.
+    let late = 0;
+    const handlerClock = vi.spyOn(performance, 'now').mockImplementation(() => (late += 60));
+    try {
+      [...'8690000012345', 'Enter'].forEach((key, index) => pressAt(key, 1000 + index * 10));
+    } finally {
+      handlerClock.mockRestore();
+    }
+    expect(onScan).toHaveBeenCalledWith('8690000012345');
+  });
+
   it('keeps a scan apart from letters typed slowly before it', async () => {
     const clock = fakeClock();
     const onScan = vi.fn();

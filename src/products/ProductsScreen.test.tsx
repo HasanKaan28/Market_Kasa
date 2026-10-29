@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
-import { createCategory } from '@/data/categories';
+import { describe, expect, it, vi } from 'vitest';
+import { createCategory, deleteCategory } from '@/data/categories';
 import { createProduct, deleteProduct } from '@/data/products';
 import { recordStockMovement } from '@/data/stock';
 import type { ProductRecord } from '@/data/types';
@@ -127,6 +127,47 @@ describe('ProductsScreen', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole('button', { name: 'Simit' })).toHaveFocus());
+  });
+
+  it('opens the product scanned into the search box while the page is busy', async () => {
+    const data = createTestData();
+    await createProduct(
+      data.db,
+      { name: 'Süt', barcode: '8690000012345', sellPrice: 4250, vatRate: 1 },
+      at,
+    );
+    await renderWithData(<ProductsScreen />, data);
+    await screen.findByRole('button', { name: 'Süt' });
+    await userEvent.click(screen.getByLabelText('Ürün ara'));
+    // Filtering a large catalogue on every key makes each handler run late (C1).
+    let late = 0;
+    const handlerClock = vi.spyOn(performance, 'now').mockImplementation(() => (late += 60));
+    try {
+      await scan('8690000012345');
+    } finally {
+      handlerClock.mockRestore();
+    }
+    expect(await screen.findByRole('dialog', { name: 'Ürünü düzenle' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Ürün adı')).toHaveValue('Süt');
+    expect(screen.getByLabelText('Ürün ara')).toHaveValue('');
+  });
+
+  it('lists every product again when the chosen category is deleted', async () => {
+    const data = createTestData();
+    const bread = await createCategory(data.db, 'Ekmek', at);
+    await createProduct(
+      data.db,
+      { name: 'Simit', sellPrice: 1500, vatRate: 1, categoryId: bread.id },
+      at,
+    );
+    await createProduct(data.db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    await renderWithData(<ProductsScreen />, data);
+    await screen.findByRole('button', { name: 'Süt' });
+    await userEvent.selectOptions(screen.getByLabelText('Kategori'), 'Ekmek');
+    expect(shownNames()).toEqual(['Simit']);
+    await deleteCategory(data.db, bread.id, at);
+    await waitFor(() => expect(shownNames()).toEqual(['Simit', 'Süt']));
+    expect(screen.getByLabelText('Kategori')).toHaveDisplayValue('Tüm kategoriler');
   });
 
   it('starts a new product with an unknown scanned barcode', async () => {

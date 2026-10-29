@@ -1,4 +1,4 @@
-import { canonicalBarcode, type NewProduct } from '@/data/products';
+import { canonicalBarcode, type NewProduct, type ProductPatch } from '@/data/products';
 import type { ProductRecord, ProductUnit } from '@/data/types';
 import type { ChoiceOption } from '@/design';
 import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
@@ -29,6 +29,42 @@ export type ReadDraft =
       openingStockMilli: number;
     }
   | { errors: DraftErrors };
+
+type ReadFields = Extract<ReadDraft, { fields: unknown }>['fields'];
+
+// Each box of the form and the product field it sets; the opening stock is for new products.
+const FIELD_OF: Record<Exclude<keyof ProductDraft, 'openingStock'>, keyof ReadFields> = {
+  barcode: 'barcode',
+  name: 'name',
+  categoryId: 'categoryId',
+  unit: 'unit',
+  sellPrice: 'sellPrice',
+  buyPrice: 'buyPrice',
+  vatRate: 'vatRate',
+  criticalLevel: 'criticalLevelMilli',
+  isQuick: 'isQuick',
+};
+
+/**
+ * The fields whose boxes the user changed since the form opened. A save sends only these, so a
+ * price another register changed meanwhile is not written back over (DESIGN §7).
+ */
+export function editedFields(
+  opened: ProductDraft,
+  draft: ProductDraft,
+  fields: ReadFields,
+): ProductPatch {
+  const patch: Record<string, unknown> = {};
+  for (const [box, field] of Object.entries(FIELD_OF) as [
+    keyof typeof FIELD_OF,
+    keyof ReadFields,
+  ][]) {
+    if (draft[box] !== opened[box]) {
+      patch[field] = fields[field];
+    }
+  }
+  return patch as ProductPatch;
+}
 
 export const UNIT_OPTIONS: readonly ChoiceOption<ProductUnit>[] = [
   { value: 'piece', label: 'Adet' },

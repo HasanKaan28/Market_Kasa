@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createCategory, deleteCategory } from '@/data/categories';
 import { pendingOps } from '@/data/outbox';
-import { createProduct } from '@/data/products';
+import { createProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
@@ -75,6 +75,32 @@ describe('ProductFormDialog', () => {
     // Before the stock is read nothing is shown, never a made-up "Stok: 0 kg".
     expect(screen.queryByText(/^Stok: /)).not.toBeInTheDocument();
     expect(await screen.findByText('Stok: 1,5 kg')).toBeInTheDocument();
+  });
+
+  it('keeps a change made elsewhere to a field the user did not touch', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, milk, at);
+    const onSaved = vi.fn();
+    await renderWithData(
+      <ProductFormDialog open product={product} onClose={vi.fn()} onSaved={onSaved} />,
+      data,
+    );
+    // Another register raises the price while this form is open; the pull lands here.
+    await updateProduct(data.db, product.id, { sellPrice: 5000 }, at);
+    const name = screen.getByLabelText('Ürün adı');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Süt 1 L');
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Ürün kaydedildi.'));
+    expect(await data.db.products.get(product.id)).toMatchObject({
+      name: 'Süt 1 L',
+      sellPrice: 5000,
+    });
+    const last = (await pendingOps(data.db)).at(-1);
+    expect(last?.kind === 'patch' && last.patch).toEqual({
+      name: 'Süt 1 L',
+      updatedAt: expect.any(String),
+    });
   });
 
   it('refuses a barcode another product holds and names it', async () => {

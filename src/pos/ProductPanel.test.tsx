@@ -64,9 +64,9 @@ describe('ProductPanel', () => {
     expect(within(groups).getAllByRole('radio')).toHaveLength(3);
 
     await userEvent.click(within(groups).getByRole('radio', { name: 'Ekmek' }));
-    expect(await screen.findByRole('heading', { name: 'Ekmek' })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /Simit/ }));
+    expect(screen.getByRole('heading', { name: 'Ekmek' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Süt/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Simit/ }));
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Simit' }));
   });
 

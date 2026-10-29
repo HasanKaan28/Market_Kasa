@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CategoryRecord, ProductRecord } from '@/data/types';
-import { buildProductRows, criticalCount, type ProductListQuery } from './productList';
+import {
+  buildProductRows,
+  criticalCount,
+  indexProducts,
+  type ProductListQuery,
+} from './productList';
 
 const stamp = '2026-10-29T09:00:00.000Z';
 
@@ -34,7 +39,7 @@ function ids(
   query: Partial<ProductListQuery> = {},
   levels: ReadonlyMap<string, number> = new Map(),
 ): string[] {
-  return buildProductRows(products, levels, [bread, gone], {
+  return buildProductRows(indexProducts(products), levels, [bread, gone], {
     text: '',
     filter: 'all',
     category: 'any',
@@ -67,7 +72,7 @@ describe('buildProductRows', () => {
     ];
     expect(ids(products, { category: 'none' })).toEqual(['b', 'c', 'd']);
     expect(ids(products, { category: 'c-bread' })).toEqual(['a']);
-    const rows = buildProductRows(products, new Map(), [bread, gone], {
+    const rows = buildProductRows(indexProducts(products), new Map(), [bread, gone], {
       text: '',
       filter: 'all',
       category: 'any',
@@ -90,7 +95,7 @@ describe('buildProductRows', () => {
       ['deleted', 0],
     ]);
     expect(ids(products, { filter: 'critical' }, levels)).toEqual(['empty', 'low']);
-    const rows = buildProductRows(products, levels, [], {
+    const rows = buildProductRows(indexProducts(products), levels, [], {
       text: '',
       filter: 'all',
       category: 'any',

@@ -67,10 +67,16 @@ export function looksLikeBarcode(text: string): boolean {
 /**
  * Listens for scanner bursts wherever focus is. The scan's Enter is swallowed so it cannot click
  * a focused button or submit a field, and a scan typed into a text field is taken back out of it.
+ * Keys are timed by their events: a page busy redrawing runs the handlers late, and timing them
+ * there would split one scan into pieces.
  */
 export function useBarcodeScanner(
   onScan: (code: string) => void,
-  { now = defaultNow, maxGapMs, minLength }: ScanOptions & { now?: () => number } = {},
+  {
+    now = pressedAt,
+    maxGapMs,
+    minLength,
+  }: ScanOptions & { now?: (event: KeyboardEvent) => number } = {},
 ): void {
   // Updated during the commit, so a key that arrives before passive effects run still reaches
   // the callback of the latest render.
@@ -85,7 +91,7 @@ export function useBarcodeScanner(
       if (event.ctrlKey || event.altKey || event.metaKey) {
         return;
       }
-      const code = buffer.push(event.key, now());
+      const code = buffer.push(event.key, now(event));
       if (code === null && !(event.key === 'Enter' && buffer.endedBurst())) {
         return;
       }
@@ -128,8 +134,9 @@ export function useShortcuts(
   }, []);
 }
 
-function defaultNow(): number {
-  return performance.now();
+/** When the key was pressed, which the browser stamps on the event as it arrives. */
+function pressedAt(event: KeyboardEvent): number {
+  return event.timeStamp;
 }
 
 function isShortcutKey(key: string): key is ShortcutKey {

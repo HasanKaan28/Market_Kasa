@@ -11,6 +11,7 @@ import { formatStock, UNIT_LABELS, VAT_OPTIONS } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
 import {
   draftOf,
+  editedFields,
   profitHint,
   readDraft,
   UNIT_OPTIONS,
@@ -40,7 +41,8 @@ export function ProductFormDialog({
   onSaved,
 }: ProductFormDialogProps): JSX.Element {
   const { db } = useData();
-  const [draft, setDraft] = useState(() => draftOf(product, barcode));
+  const [opened] = useState(() => draftOf(product, barcode));
+  const [draft, setDraft] = useState(opened);
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -93,7 +95,11 @@ export function ProductFormDialog({
     setErrors({});
     void run(async () => {
       if (product) {
-        await updateProduct(db, product.id, read.fields, new Date());
+        const patch = editedFields(opened, draft, read.fields);
+        if (Object.keys(patch).length === 0) {
+          return 'Değişiklik yok.';
+        }
+        await updateProduct(db, product.id, patch, new Date());
         return 'Ürün kaydedildi.';
       }
       await createProduct(db, read.fields, new Date(), {

@@ -15,6 +15,7 @@ import { ProductFormDialog } from './ProductFormDialog';
 import {
   buildProductRows,
   criticalCount,
+  indexProducts,
   type CategoryChoice,
   type ProductFilter,
   type ProductRow,
@@ -43,19 +44,36 @@ export function ProductsScreen(): JSX.Element {
       listCategories(db),
     ]);
     const stock = new Map(levels.map((level) => [level.productId, level.qtyMilli]));
-    return { products, stock, categories };
+    return {
+      products,
+      stock,
+      categories,
+      // Worked out once per change to the catalogue, so typing (or a scan) stays quick.
+      index: indexProducts(products),
+      liveCount: products.filter((product) => !product.deletedAt).length,
+      critical: criticalCount(products, stock),
+    };
   }, [db]);
+
+  // A category deleted here or on another register no longer narrows the list.
+  const categoryChoice =
+    category === 'any' ||
+    category === 'none' ||
+    !catalogue ||
+    catalogue.categories.some((item) => item.id === category)
+      ? category
+      : 'any';
 
   const rows = useMemo(
     () =>
       catalogue
-        ? buildProductRows(catalogue.products, catalogue.stock, catalogue.categories, {
+        ? buildProductRows(catalogue.index, catalogue.stock, catalogue.categories, {
             text,
             filter,
-            category,
+            category: categoryChoice,
           })
         : [],
-    [catalogue, text, filter, category],
+    [catalogue, text, filter, categoryChoice],
   );
 
   async function openByBarcode(code: string) {
@@ -83,8 +101,8 @@ export function ProductsScreen(): JSX.Element {
   }
 
   const close = () => setDialog(null);
-  const liveCount = catalogue?.products.filter((product) => !product.deletedAt).length ?? 0;
-  const critical = catalogue ? criticalCount(catalogue.products, catalogue.stock) : 0;
+  const liveCount = catalogue?.liveCount ?? 0;
+  const critical = catalogue?.critical ?? 0;
   const categoryOptions = [
     { value: 'any', label: 'Tüm kategoriler' },
     { value: 'none', label: 'Kategorisiz' },
@@ -136,7 +154,7 @@ export function ProductsScreen(): JSX.Element {
           <div className="min-w-0 flex-[1_1_200px]">
             <SelectField
               label="Kategori"
-              value={category}
+              value={categoryChoice}
               options={categoryOptions}
               onChange={(event) => search(() => setCategory(event.target.value))}
             />

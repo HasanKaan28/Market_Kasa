@@ -1,7 +1,13 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@/design';
 
-type ErrorBoundaryProps = { children: ReactNode; onReset(): void };
+type ErrorBoundaryProps = {
+  children: ReactNode;
+  onReset(): void;
+  /** What the way out does; the register's wording when left out. */
+  message?: string;
+  resetLabel?: string;
+};
 
 type ErrorBoundaryState = { failed: boolean };
 
@@ -28,10 +34,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       >
         <h1 className="text-xl font-semibold">Bir hata oluştu</h1>
         <p className="text-text-2">
-          Kaydedilen satışlar güvende. Sepeti temizleyip kasayı yeniden başlatabilirsiniz.
+          {this.props.message ??
+            'Kaydedilen satışlar güvende. Sepeti temizleyip kasayı yeniden başlatabilirsiniz.'}
         </p>
         <Button variant="primary" size="lg" onClick={this.props.onReset}>
-          Sepeti temizle ve yeniden başlat
+          {this.props.resetLabel ?? 'Sepeti temizle ve yeniden başlat'}
         </Button>
       </main>
     );

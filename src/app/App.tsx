@@ -19,7 +19,7 @@ export function App(): JSX.Element {
   }, [data]);
 
   return (
-    <ErrorBoundary onReset={resetRegister}>
+    <ErrorBoundary {...(route === 'pos' ? { onReset: resetRegister } : LEAVE_SCREEN)}>
       <DataProvider value={data}>
         {route === 'products' ? <ProductsScreen /> : <PosScreen />}
       </DataProvider>
@@ -32,3 +32,14 @@ function resetRegister(): void {
   clearStoredCarts();
   window.location.reload();
 }
+
+// A crash on another screen has nothing to do with the carts: keep them and go back to the
+// register, which a reload of the crashed screen would never reach.
+const LEAVE_SCREEN = {
+  message: 'Kaydedilen satışlar ve ürünler güvende. Kasaya dönüp devam edebilirsiniz.',
+  resetLabel: 'Kasaya dön',
+  onReset: () => {
+    window.location.hash = '#/pos';
+    window.location.reload();
+  },
+};
