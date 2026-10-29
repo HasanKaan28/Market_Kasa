@@ -83,24 +83,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 
 ## M3 · Ürün ve stok
 
-M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c mal kabulü, stok düzeltmesini, hareket geçmişini ve kritik stok listesini getirir. M3'ün kalan alt planı:
-
-- **M3d · Sayım:** sayım farkı hareket olarak yazılır (DESIGN §10); sayım sürerken başka cihazda yapılan satışlar hesaba katılır.
-
-Ertelenmiş maddeler:
-
-- **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15).
-- **M3d:** Hareket geçmişi ürünün bütün hareketlerini okuyor (`[productId+occurredAt]` indeksi yok) ve stoğu ayrı okuyor. (M3c)
-- **M3d:** Stok düzeltmesi "Ekle" ve "Fire" ile açılıyor; dokunulmadan kaydedilen ekleme "Fire" yazılıyor. `adjustStock`'ta gün dönümü seçeneği yok. (M3c)
-- **M3d:** Uzun mal kabulde satır hataları alan düzeltilince kalkmıyor; görünmeyen satırı artıran tekrar okutma bir şey söylemiyor. Tartılı satırda "Alış fiyatı" kilogram fiyatı olduğunu söylemiyor. (M3c)
-- **M3d:** Mal kabulde silinmiş ürünün barkodu okutulunca "Yeni ürün" açılıyor; Ürünler ekranındaki gibi "Geri getir" önerilmeli. Formdan yeni ürün kaydedilince mal kabul onu açıldığı barkodla arıyor; formda barkod değişirse ürün satıra eklenmiyor. (M3c)
-- **M3d:** Kritik stok kuralı `CriticalStock` ve `productList`'te iki kez yazılı. (M3c)
-- **M3d:** Test: mal kabulde harfli kod okutma; fiyat üst sınırı mesajı. (M3c)
-- **M3d:** İçe aktarma önizlemesinde 50. satırdan sonrası görünmüyor (uyarı, geri getirme, hata nedeni). Satır numaraları boş satırları atlıyor, Excel'inkilerle uyuşmuyor. (M3b)
-- **M3d:** Binlik ayraçlı miktar ("1.000") ondalık okunuyor. (M3b)
-- **M3d:** Gerçek dosyalarda karışıklık. UTF-16 "Unicode Metin" .txt, `sep=;` ilk satırı ve ikili .xls okunamıyor. DOĞRU/YANLIŞ ve "AD" gibi birimler reddediliyor. 12E45 gibi harfli kodlar bilimsel sayı sanılıyor. Sayfa seçimi, gizli ilk sayfa, Strict OOXML ve Mac Roman/cp857 CSV desteklenmiyor. Excel dışa aktarılan dosyayı açınca tarih gibi görünen adları tarihe çeviriyor. (M3b)
-- **M3d:** Sonradan hatalı çıkan ilk satır, aynı barkodlu sonraki satırı da engelliyor. (M3b)
-- **M3d:** Toplu "Alış +₺" bilinmeyen (₺0) alış fiyatına değer veriyor. İçe aktarma formun 10.000 birim sınırını aşan miktarı kabul ediyor. Zip denetimi 2 bayta bakıyor. Uzun içe aktarmada "İçe aktarılıyor…" yok. Eşlenmiş KDV sütunundaki boş hücre sessizce %1 oluyor. (M3b) M2a planı bunu M2b'ye bırakmıştı, M2b almadı. Kasada, Ürünler ekranında, mal kabulde ve sayımda kullanılacak. (M2a)
+M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c mal kabulü, stok düzeltmesini, hareket geçmişini ve kritik stok listesini getirir. M3d (sayım ve kamera) planı yazıldı ve bu bölümün bütün maddelerini aldı: sayım, kamera ile okutma, M3b'den kalan içe aktarma maddeleri, M3c'den kalan stok ve mal kabul maddeleri.
 
 ## M4 · Cari hesaplar
 
