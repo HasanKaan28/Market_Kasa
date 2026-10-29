@@ -6,10 +6,10 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 
 ### Okutma, arama ve klavye
 
-- Okuyucu zamanı işleyicide `performance.now()` ile ölçülüyor; 50 ms'yi aşan bir donma taramayı bölebilir. (M2a)
 - İmleç metnin ortasındayken okutulan kod alanda kalıyor. (M2a)
 - "5lt", "cola1L" gibi aramalar barkod sanılıyor; Enter yeni ürün penceresini açıyor. (M2a)
 - F1 için ekranda ipucu yok; pencere açıkken F1 Chrome yardımını açıyor. (M2a)
+- Odak bir açılır listedeyken (`select`) harfli bir okutma seçimi değiştirebilir (doğrulanmadı). (M3a)
 
 ### Sepet ve ödeme
 
@@ -54,6 +54,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Pencereler açıkken okutma ve kısayollar; arayüzden veresiye iptali ve iadesi. (M2b)
 - Boş sepette Bölünmüş ve İndirim; ekrandan veresiyeli bölünmüş satış ve limit hatası; eski biçimli bekleyen sepet. (M2c)
 - İadeden sonra otomatik yazdırma olmaması; gerçek bir iadenin fişe "İADESİ VAR" yazması. (M2d)
+- Kasada silinmiş ürünün barkodunu okutup yeni ürün kaydetmek; kasada küçük harfli okutma. (M3a)
 
 ## M0b · Sunucu ve eşitleme
 
@@ -64,12 +65,13 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Satışın alt kayıtları satıştan önce kuyruğa giriyor; sunucu çocukları ebeveynden önce kabul etmeli. (M1a)
 - Değişiklik olmayan güncelleme yine de `{updatedAt}` yaması gönderiyor. (M1a)
 - Bilinmeyen ödeme yöntemi ve veresiyesiz satıştaki `customerId` çalışma anında denetlenmiyor. (M1a)
-- Sunucudan gelen satış, iptal ve iade satırları şekil denetiminden geçmiyor; bozuk bir satış fiş görünümünü düşürüyor. (M2b, M2d)
+- Sunucudan gelen satış, iptal, iade ve kategori satırları şekil denetiminden geçmiyor: bozuk bir satış fiş görünümünü, adsız bir kategori kasayı ve Ürünler ekranını düşürüyor. (M2b, M2d, M3a)
 - Fişteki satır tutarları ve ara toplam satıştan okunmuyor, yeniden hesaplanıyor. (M2d)
 - Yeniden basılan fiş, satışı yapan kasanın değil bu cihazın adını yazıyor. (M2d)
 - Eşitleme rozeti ilk turdan önce "0 işlem bekliyor" gösteriyor; çevrimdışıyken bekleyen işlem sayısını göstermiyor (§15). (M2a)
 - Test: satıştan önce gelen iptal ve iade; yakınsama testinde iptal ve iade. (M2b)
 - Sunucu barkodu büyük harfe çevirmeli ve market içinde benzersiz tutmalı; silinmiş ürünün barkodu bırakması istemcideki kuralla aynı olmalı. (M3a)
+- Geri getirilen ürünün barkodu bu arada başka cihazda başka ürüne verilmişse kullanıcıya bir şey söylenmiyor. (M3a)
 
 ## M3 · Ürün ve stok
 
@@ -83,6 +85,10 @@ Ertelenmiş maddeler:
 
 - **M3c:** Tartılı satırlar birimini kaybedebiliyor (eski kayıt, `refresh`); sepet satırında, iade adımında ve fişte "kg" yok, çünkü satış satırı birim taşımıyor. (M2b, M2c, M2d)
 - **M3c:** Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor (sepet satırları birleştirdiği için şimdilik oluşmuyor). (M2b)
+- **M3b:** Silinmiş ürünün formu kaydediyor ve "Ürün kaydedildi." diyor; ürün Silinenler'de kalıyor. (M3a)
+- **M3b:** Kategori silme onayı, kategorisiz kalacak ürün sayısı yüklenmeden yanıtlanabiliyor. (M3a)
+- **M3b:** Adetli üründe tam sayı kuralı yalnız formda; `createProduct` ve `updateProduct` kesirli miktarı kabul ediyor. İçe aktarma veri katmanını doğrudan çağıracak. (M3a)
+- **M3c:** Kg'dan adede çevrilen ürünün stoğu "1,5 adet" görünüyor. (M3a)
 - **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15). M2a planı bunu M2b'ye bırakmıştı, M2b almadı. Kasada, Ürünler ekranında, mal kabulde ve sayımda kullanılacak. (M2a)
 
 ## M4 · Cari hesaplar
@@ -110,7 +116,9 @@ Ertelenmiş maddeler:
 - Fiş logosu ayarı (§12). (M2d)
 - `viewport-fit=cover` var, güvenli alan boşluğu yok. (M0)
 - `version.test.ts` sürüm metnini sabit yazıyor. (M0)
+- v5 yükseltmesi büyük/küçük harf çakışmasında silinmiş eski ürünü canlı ürüne tercih ediyor; yalnız v4 deneme verisini etkiler. (M3a)
+- Geri tuşu (Android'inki de) kasada açık bir pencere varken ekranı değiştiriyor; sepet saklı olduğu için kayıp yok. (M3a)
 
 ## Kapananlar
 
-Ertelendikten sonra başka bir planda kapanan maddeler: `isQuick` indeksi (M1b, şema sürüm 2); iade yöntemi seçeneklerinin klavye odağı (M2c'de seçim kalktı); iade bildiriminin paranın nasıl döndüğünü söylememesi (M2c).
+Ertelendikten sonra başka bir planda kapanan maddeler: `isQuick` indeksi (M1b, şema sürüm 2); iade yöntemi seçeneklerinin klavye odağı (M2c'de seçim kalktı); iade bildiriminin paranın nasıl döndüğünü söylememesi (M2c); okuyucu zamanının işleyicide ölçülmesi (M2a; M3a'da tuşun kendi zaman damgasına geçti).

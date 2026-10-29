@@ -376,3 +376,26 @@ Başka aşamalara kalanlar:
   - `it('falls back to quick products when the chosen category is deleted')`.
 - [ ] **Step 2–4:** Run: `npm test -- src/pos/ProductPanel src/data/products && npm run lint && npm run typecheck` · önce FAIL, sonra PASS. Ardından `npm test`.
 - [ ] **Step 5: Commit** — `git commit -m "feat(pos): pick products by category at the register"`
+
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `c109f1f`…`ad35b7e` (8 görev), inceleme düzeltmeleri `a189d3d`. Son durumda 377 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): 1 kritik, 3 önemli, 6 küçük bulgu. Kritik ve önemlilerin hepsi önce başarısız olan bir testle düzeltildi. Küçük bulgulardan biri, çökme sonrası sıfırlama, önemliye yükseltilip düzeltildi; 5'i ertelendi.
+  - **C1:** Büyük katalogda arama alanına okutulan kod bölünüyor, "Yeni ürün" yanlış barkodla açılıyordu. Tuş zamanı işleyicide ölçülüyor, liste her tuşta yeniden sıralanıyordu. Okuyucu artık tuşun kendi zaman damgasını kullanıyor. Liste katalog değiştikçe bir kez dizinleniyor: 20.000 üründe dizin 36 ms, tuş başına 1,4–6,2 ms (önce 44–46 ms).
+  - **I1:** Düzenleme formu dokunulmayan alanları da yazıyor, başka kasanın değiştirdiği fiyatı geri alıyordu. Artık yalnız değiştirilen alanlar gidiyor (§7).
+  - **I2:** Kasada yeni grubun başlığı altında bir an eski grubun ürünleri görünebiliyordu. Sonuç istendiği grupla eşleşmedikçe gösterilmiyor.
+  - **I3:** Ürünler ekranının süzgeci silinen kategoride takılı kalıyordu.
+  - **Çökme:** Ürünler ekranında çökmeden sonra "sıfırla" bekleyen sepetleri siliyor ve kasaya dönüş yolu bırakmıyordu. Artık "Kasaya dön" sepetlere dokunmadan kasaya götürüyor.
+- **Kararlar:**
+  - Barkodlar büyük harfle saklanır. v5 yükseltmesi outbox'a yama yazmaz; sunucu gelen barkodu M0b'de kendisi çevirir.
+  - Kategori adı 40 karakteri aşarsa reddedilir, sessizce kesilmez.
+  - Tasarım sistemine `SelectField` ve `ChoiceGroup` (`wrap`) eklendi. Uyarı renkleri de eklendi (5,8:1).
+  - `Dialog` kapanınca odağı onu açan öğeye geri verir; bu kasadaki pencereler için de geçerli.
+  - Arama sonuçları yeni sorgunun cevabı gelene kadar görünür kalır. Grup değişince eski grubun ürünleri gizlenir.
+- **Doğrulama:** Production build Chromium'da denendi.
+  - 1280 ve 375 px'te yatay kaydırma yok, en küçük yazı 14 px.
+  - Tab sırası menü, üst düğmeler, arama, kategori, süzgeç ve satırlar şeklinde ilerliyor.
+  - Enter kaydediyor, Escape kapatıyor, odak satıra dönüyor.
+
+  Odak düzeltmesinden sonraki ilk tarayıcı denemesi eski derlemede çalıştı, çünkü aynı yola yalnız hash değiştirilerek gidilmişti. Deneme gerçek bir yeniden yüklemeyle tekrarlandı. C1'in 20.000 ürünlü tarayıcı denemesi tekrarlanmadı; yerine geç çalışan işleyici saatini taklit eden iki test ve bir hız ölçümü kondu.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M2e, M3b, M3c, M0b ve M8 bölümlerinde.
