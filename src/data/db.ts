@@ -12,6 +12,7 @@ import type {
   ReturnRecord,
   SaleRecord,
   SaleVoidRecord,
+  StaffRecord,
   StockCountRecord,
   StockLevelRecord,
   StockMovementRecord,
@@ -39,6 +40,7 @@ export class MarketDb extends Dexie {
   declare supplierLedger: Table<SupplierLedgerRecord, string>;
   declare cashSessions: Table<CashSessionRecord, string>;
   declare cashMovements: Table<CashMovementRecord, string>;
+  declare staff: Table<StaffRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -93,6 +95,8 @@ export class MarketDb extends Dexie {
       cashSessions: 'id, [deviceCode+closedAt], closedAt',
       cashMovements: 'id, [deviceCode+occurredAt], occurredAt',
     });
+    // v11: the people who work the registers (M6a).
+    this.version(11).stores({ staff: 'id, name, updatedAt' });
   }
 }
 

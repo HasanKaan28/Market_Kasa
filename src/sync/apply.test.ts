@@ -192,6 +192,21 @@ describe('applyServerRows', () => {
     expect(await db.supplierLedger.toArray()).toEqual([entry]);
   });
 
+  it('applies pulled staff', async () => {
+    const row = {
+      id: 's1',
+      name: 'Ayşe',
+      role: 'cashier',
+      pinHash: 'aGFzaA==',
+      pinSalt: 'c2FsdA==',
+      pinIterations: 150000,
+      createdAt: at.toISOString(),
+      updatedAt: at.toISOString(),
+    };
+    await applyServerRows(db, [{ table: 'staff', id: 's1', serverSeq: 14, row }]);
+    expect(await db.staff.get('s1')).toEqual(row);
+  });
+
   it('applies pulled cash records once', async () => {
     const movement = {
       id: 'm1',

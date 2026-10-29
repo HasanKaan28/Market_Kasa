@@ -71,3 +71,11 @@ export class DuplicateSupplierError extends Error {
     this.name = 'DuplicateSupplierError';
   }
 }
+
+/** The market's last active owner cannot be archived or given another role. */
+export class LastOwnerError extends Error {
+  constructor() {
+    super('The last active owner must stay an active owner');
+    this.name = 'LastOwnerError';
+  }
+}

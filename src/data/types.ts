@@ -1,5 +1,6 @@
 import type { LedgerKind } from '@/domain/ledger';
 import type { Kurus } from '@/domain/money';
+import type { Permission, Role } from '@/domain/permissions';
 import type { VatRate } from '@/domain/pricing';
 import type { Summary } from '@/reports/summary';
 
@@ -166,6 +167,22 @@ export type SupplierRecord = {
   archivedAt?: string;
 };
 
+/** A person who works the register; the PIN is kept only as its PBKDF2 hash (DESIGN §8.3). */
+export type StaffRecord = {
+  id: string;
+  name: string;
+  role: Role;
+  /** Turned on or off for this person, over the role's defaults. */
+  permissions?: Partial<Record<Permission, boolean>>;
+  pinHash: string;
+  pinSalt: string;
+  pinIterations: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Set when the person no longer works here: they cannot sign in. */
+  archivedAt?: string;
+};
+
 export type SupplierPaymentMethod = 'cash' | 'bank' | 'card' | 'cheque';
 
 /** What the market owes a supplier: invoices positive, payments negative, adjustments either way. */
@@ -290,13 +307,14 @@ export type OutboxTable =
   | 'suppliers'
   | 'supplierLedger'
   | 'cashMovements'
-  | 'cashSessions';
+  | 'cashSessions'
+  | 'staff';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }
   | {
       kind: 'patch';
-      table: 'products' | 'customers' | 'categories' | 'suppliers';
+      table: 'products' | 'customers' | 'categories' | 'suppliers' | 'staff';
       recordId: string;
       patch: object;
     };
