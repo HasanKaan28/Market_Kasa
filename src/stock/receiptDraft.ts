@@ -87,21 +87,24 @@ export function draftLineCost(
     return undefined;
   }
   const qtyMilli = parseQuantity(line.qty, product.unit);
-  const buyPrice = readPrice(line.buyPrice);
-  if (qtyMilli === null || typeof buyPrice === 'string') {
+  if (qtyMilli === null) {
     return undefined;
   }
+  // A free line's price box is disabled: whatever it holds is not read.
   if (line.free) {
     return 0;
   }
-  const paid =
-    buyPrice === undefined ? product.buyPrice : typedBuyPrice(buyPrice, product, pricesExclusive);
-  return lineTotal(qtyMilli, paid);
-}
-
-/** A typed buy price as paid: with the product's VAT added when the prices leave it out. */
-function typedBuyPrice(price: number, product: ProductRecord, pricesExclusive: boolean): number {
-  return pricesExclusive ? withVat(price, product.vatRate) : price;
+  const buyPrice = readPrice(line.buyPrice);
+  if (typeof buyPrice === 'string') {
+    return undefined;
+  }
+  if (buyPrice === undefined) {
+    return lineTotal(qtyMilli, product.buyPrice);
+  }
+  // VAT goes on the line total, as the invoice works it out, not on the rounded unit price.
+  return pricesExclusive
+    ? withVat(lineTotal(qtyMilli, buyPrice), product.vatRate)
+    : lineTotal(qtyMilli, buyPrice);
 }
 
 /** The receipt being typed on this device; a draft that cannot be read is dropped. */
@@ -152,7 +155,8 @@ export function readDraftLines(
       );
       continue;
     }
-    const buyPrice = readPrice(line.buyPrice);
+    // A free line's price box is disabled: whatever it holds is not read.
+    const buyPrice = line.free ? undefined : readPrice(line.buyPrice);
     const sellPrice = readPrice(line.sellPrice);
     const priceError = [buyPrice, sellPrice].find((price) => typeof price === 'string');
     if (typeof priceError === 'string') {
@@ -165,7 +169,12 @@ export function readDraftLines(
       ...(line.free
         ? { free: true }
         : typeof buyPrice === 'number'
-          ? { buyPrice: typedBuyPrice(buyPrice, product, draft.pricesExclusive ?? false) }
+          ? draft.pricesExclusive
+            ? {
+                buyPrice: withVat(buyPrice, product.vatRate),
+                cost: withVat(lineTotal(qtyMilli, buyPrice), product.vatRate),
+              }
+            : { buyPrice }
           : {}),
       ...(typeof sellPrice === 'number' ? { sellPrice } : {}),
     });

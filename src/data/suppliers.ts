@@ -90,6 +90,12 @@ export async function archiveSupplier(db: MarketDb, id: string, at: Date): Promi
   });
 }
 
+/** Every live supplier, by name: the list a goods receipt picks from. */
+export async function listSuppliers(db: MarketDb): Promise<SupplierRecord[]> {
+  const live = await db.suppliers.filter((supplier) => !supplier.archivedAt).toArray();
+  return live.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+}
+
 /** Live suppliers whose name contains the query, by name. */
 export async function searchSuppliers(
   db: MarketDb,

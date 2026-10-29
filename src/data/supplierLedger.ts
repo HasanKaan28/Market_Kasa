@@ -27,7 +27,10 @@ export type SupplierInvoiceInput = {
 
 const METHODS: readonly SupplierPaymentMethod[] = ['cash', 'bank', 'card', 'cheque'];
 
-/** Pays a live supplier, in cash, by bank, by card or by cheque, in one transaction. */
+/**
+ * Pays a supplier, in cash, by bank, by card or by cheque, in one transaction. An archived
+ * supplier still owed money (another register's delivery on account) can be paid too.
+ */
 export async function recordSupplierPayment(
   db: MarketDb,
   input: SupplierPaymentInput,
@@ -41,7 +44,7 @@ export async function recordSupplierPayment(
     throw new RangeError(`Unknown payment method: ${String(input.method)}`);
   }
   return db.transaction('rw', db.suppliers, db.supplierLedger, db.outbox, async () => {
-    await requireActiveSupplier(db, input.supplierId);
+    await requireSupplier(db, input.supplierId, { active: false });
     return addEntry(
       db,
       {
@@ -71,7 +74,7 @@ export async function addSupplierInvoice(
     throw new RangeError(`An invoice must be above zero, got ${input.amount}`);
   }
   return db.transaction('rw', db.suppliers, db.supplierLedger, db.outbox, async () => {
-    await requireActiveSupplier(db, input.supplierId);
+    await requireSupplier(db, input.supplierId, { active: true });
     return addEntry(
       db,
       {
@@ -81,6 +84,43 @@ export async function addSupplierInvoice(
         purchaseId: input.purchaseId,
         note: input.note?.trim() || undefined,
       },
+      at,
+      input.cutoffMinutes,
+    );
+  });
+}
+
+export type SupplierAdjustmentInput = {
+  supplierId: string;
+  /** Signed: a positive amount adds to what the market owes, a negative one takes it off. */
+  amount: Kurus;
+  /** Why, always: an opening balance, a mistyped invoice, a payment recorded twice. */
+  note: string;
+  cutoffMinutes?: number;
+};
+
+/**
+ * Corrects what the market owes a supplier by a counter-entry (DESIGN §6.1), with its reason, in
+ * one transaction: an opening balance, a mistyped invoice, a payment recorded twice.
+ */
+export async function recordSupplierAdjustment(
+  db: MarketDb,
+  input: SupplierAdjustmentInput,
+  at: Date,
+): Promise<SupplierLedgerRecord> {
+  assertSafeInteger(input.amount, 'Supplier adjustment');
+  if (input.amount === 0) {
+    throw new RangeError('An adjustment cannot be zero');
+  }
+  const note = input.note.trim();
+  if (note === '') {
+    throw new RangeError('An adjustment needs a note');
+  }
+  return db.transaction('rw', db.suppliers, db.supplierLedger, db.outbox, async () => {
+    await requireSupplier(db, input.supplierId, { active: false });
+    return addEntry(
+      db,
+      { supplierId: input.supplierId, kind: 'adjustment', amount: input.amount, note },
       at,
       input.cutoffMinutes,
     );
@@ -108,9 +148,13 @@ async function addEntry(
   return record;
 }
 
-async function requireActiveSupplier(db: MarketDb, supplierId: string): Promise<void> {
+async function requireSupplier(
+  db: MarketDb,
+  supplierId: string,
+  { active }: { active: boolean },
+): Promise<void> {
   const supplier = await db.suppliers.get(supplierId);
-  if (!supplier || supplier.archivedAt) {
+  if (!supplier || (active && supplier.archivedAt)) {
     throw new RecordNotFoundError('Supplier', supplierId);
   }
 }

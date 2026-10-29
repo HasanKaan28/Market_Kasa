@@ -3,7 +3,11 @@ import { makeTestDb } from '@/test/db';
 import type { MarketDb } from './db';
 import { DuplicateSupplierError, RecordNotFoundError } from './errors';
 import { pendingOps } from './outbox';
-import { addSupplierInvoice, recordSupplierPayment } from './supplierLedger';
+import {
+  addSupplierInvoice,
+  recordSupplierAdjustment,
+  recordSupplierPayment,
+} from './supplierLedger';
 import {
   archiveSupplier,
   createSupplier,
@@ -106,19 +110,48 @@ describe('supplier ledger', () => {
     await expect(pay(supplier.id, 0.5)).rejects.toBeInstanceOf(RangeError);
     await expect(pay(supplier.id, 100, 'credit')).rejects.toBeInstanceOf(RangeError);
     await expect(pay('nobody', 100)).rejects.toBeInstanceOf(RecordNotFoundError);
-    await expect(pay(gone.id, 100)).rejects.toBeInstanceOf(RecordNotFoundError);
     for (const method of ['cash', 'bank', 'card', 'cheque']) {
       await pay(supplier.id, 100, method);
     }
     expect(await supplierBalance(db, supplier.id)).toBe(-400);
+    // An archived supplier still owed money (another register's delivery) can be paid.
+    await pay(gone.id, 100);
+    expect(await supplierBalance(db, gone.id)).toBe(-100);
   });
 
   it('refuses to archive a supplier with a balance', async () => {
     const supplier = await createSupplier(db, { name: 'Eti' }, at);
     await addSupplierInvoice(db, { supplierId: supplier.id, amount: 10000, purchaseId: 'p1' }, at);
     await expect(archiveSupplier(db, supplier.id, at)).rejects.toBeInstanceOf(RangeError);
-    await recordSupplierPayment(db, { supplierId: supplier.id, amount: 10000, method: 'bank' }, at);
+    // Overpaid is not settled either.
+    await recordSupplierPayment(db, { supplierId: supplier.id, amount: 10100, method: 'bank' }, at);
+    await expect(archiveSupplier(db, supplier.id, at)).rejects.toBeInstanceOf(RangeError);
+    await recordSupplierAdjustment(
+      db,
+      { supplierId: supplier.id, amount: 100, note: 'fazla ödeme mahsup' },
+      at,
+    );
     await archiveSupplier(db, supplier.id, at);
     expect((await db.suppliers.get(supplier.id))?.archivedAt).toBe(at.toISOString());
+  });
+
+  it('writes a supplier adjustment with its reason', async () => {
+    const supplier = await createSupplier(db, { name: 'Eti' }, at);
+    const entry = await recordSupplierAdjustment(
+      db,
+      { supplierId: supplier.id, amount: 30000, note: ' açılış borcu ' },
+      at,
+    );
+    expect(entry).toMatchObject({ kind: 'adjustment', amount: 30000, note: 'açılış borcu' });
+    expect(await supplierBalance(db, supplier.id)).toBe(30000);
+    await expect(
+      recordSupplierAdjustment(db, { supplierId: supplier.id, amount: 0, note: 'x' }, at),
+    ).rejects.toBeInstanceOf(RangeError);
+    await expect(
+      recordSupplierAdjustment(db, { supplierId: supplier.id, amount: 100, note: ' ' }, at),
+    ).rejects.toBeInstanceOf(RangeError);
+    await expect(
+      recordSupplierAdjustment(db, { supplierId: 'nobody', amount: 100, note: 'x' }, at),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
   });
 });

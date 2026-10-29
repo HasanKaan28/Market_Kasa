@@ -1,5 +1,6 @@
 import type { MarketDb } from '@/data/db';
 import type { SupplierLedgerRecord, SupplierPaymentMethod, SupplierRecord } from '@/data/types';
+import { formatBalance } from '@/customers/statement';
 import type { Kurus } from '@/domain/money';
 
 export type SupplierSummary = {
@@ -22,7 +23,15 @@ export const SUPPLIER_METHOD_LABELS: Record<SupplierPaymentMethod, string> = {
   cheque: 'çek',
 };
 
+/** An overpayment is credit the supplier owes back. */
+export const SUPPLIER_CREDIT_LABEL = 'Fazla ödeme';
+
 const byName = new Intl.Collator('tr');
+
+/** "₺300,00" owed to the supplier, "Fazla ödeme ₺50,00" when it was overpaid. */
+export function formatSupplierBalance(amount: Kurus): string {
+  return formatBalance(amount, SUPPLIER_CREDIT_LABEL);
+}
 
 /** Every supplier with what the market owes them, by name. */
 export async function supplierSummaries(db: MarketDb): Promise<SupplierSummary[]> {
@@ -56,6 +65,9 @@ export async function supplierStatement(
 
 /** "Fatura F-77" for a delivery on account, "Ödeme (banka): havale" for a payment. */
 function describe(entry: SupplierLedgerRecord): string {
+  if (entry.kind === 'adjustment') {
+    return entry.note ? `Düzeltme: ${entry.note}` : 'Düzeltme';
+  }
   if (entry.kind === 'invoice') {
     // A delivery on account carries its invoice number as the note.
     return entry.note ? `Fatura ${entry.note}` : 'Mal kabul';

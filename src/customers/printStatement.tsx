@@ -8,6 +8,8 @@ export type StatementModel = {
   title: string;
   /** Whose statement it is. */
   party: { name: string; phone?: string };
+  /** How a balance below zero is named: "Alacak" for a customer, "Fazla ödeme" for a supplier. */
+  creditLabel?: string;
   /** Oldest first, each entry followed by the balance it leaves. */
   lines: readonly {
     entry: { id: string; amount: Kurus; occurredAt: string };

@@ -1,6 +1,6 @@
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
-import { recordAdjustment, recordPayment } from '@/data/ledger';
+import { recordPayment } from '@/data/ledger';
 import type { LedgerMethod } from '@/data/types';
 import { Button, ChoiceGroup, TextField } from '@/design';
 import { formatTRY, parseTRY } from '@/domain/money';
@@ -103,9 +103,16 @@ export function PaymentForm({
   );
 }
 
-/** A hand-written change to the debt, up or down, always with its reason. */
-export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JSX.Element {
-  const { db } = useData();
+/** A hand-written change to the debt, up or down, always with its reason; `save` writes it. */
+export function AdjustmentForm({
+  save,
+  onSaved,
+  onCancel,
+}: {
+  save(amount: number, reason: string): Promise<unknown>;
+  onSaved(message: string): void;
+  onCancel(): void;
+}): JSX.Element {
   const [direction, setDirection] = useState<1 | -1>(1);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
@@ -113,7 +120,7 @@ export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JS
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  async function save() {
+  async function submit() {
     const kurus = readAmount(amount);
     const found = {
       ...(typeof kurus === 'string' ? { amount: kurus } : {}),
@@ -125,11 +132,7 @@ export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JS
     }
     setBusy(true);
     try {
-      await recordAdjustment(
-        db,
-        { customerId, amount: direction * kurus, note: reason },
-        new Date(),
-      );
+      await save(direction * kurus, reason);
       onSaved('Düzeltme kaydedildi.');
     } catch {
       setFailure('Düzeltme kaydedilemedi.');
@@ -145,7 +148,7 @@ export function AdjustmentForm({ customerId, onSaved, onCancel }: FormProps): JS
       className="flex flex-col gap-3 rounded-control border border-line p-3"
       onSubmit={(event) => {
         event.preventDefault();
-        void save();
+        void submit();
       }}
     >
       <ChoiceGroup

@@ -166,11 +166,11 @@ export type SupplierRecord = {
 
 export type SupplierPaymentMethod = 'cash' | 'bank' | 'card' | 'cheque';
 
-/** What the market owes a supplier: invoices positive, payments negative. */
+/** What the market owes a supplier: invoices positive, payments negative, adjustments either way. */
 export type SupplierLedgerRecord = {
   id: string;
   supplierId: string;
-  kind: 'invoice' | 'payment';
+  kind: 'invoice' | 'payment' | 'adjustment';
   amount: Kurus;
   /** How a payment was made. */
   method?: SupplierPaymentMethod;

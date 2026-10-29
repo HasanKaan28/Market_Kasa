@@ -32,10 +32,7 @@ export async function customerSummaries(
   today: string,
   opts: { cutoffMinutes?: number } = {},
 ): Promise<CustomerSummary[]> {
-  const [customers, ledger] = await Promise.all([
-    db.customers.toArray(),
-    db.ledger.toArray(),
-  ]);
+  const [customers, ledger] = await Promise.all([db.customers.toArray(), db.ledger.toArray()]);
   const byCustomer = new Map<string, LedgerRecord[]>();
   for (const entry of ledger) {
     byCustomer.set(entry.customerId, [...(byCustomer.get(entry.customerId) ?? []), entry]);
@@ -72,9 +69,12 @@ export async function customerStatement(
   });
 }
 
-/** "₺42,50" owed, "Alacak ₺20,00" when the market owes the customer. */
-export function formatBalance(amount: Kurus): string {
-  return amount < 0 ? `Alacak ${formatTRY(-amount)}` : formatTRY(amount);
+/**
+ * "₺42,50" owed, "Alacak ₺20,00" when the market owes the customer. The supplier side names
+ * its credit otherwise (`creditLabel`), as there it means the supplier owes the market.
+ */
+export function formatBalance(amount: Kurus, creditLabel = 'Alacak'): string {
+  return amount < 0 ? `${creditLabel} ${formatTRY(-amount)}` : formatTRY(amount);
 }
 
 function describe(entry: LedgerRecord, receipts: ReadonlyMap<string, string>): string {

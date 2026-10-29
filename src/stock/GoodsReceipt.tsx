@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
 import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
-import { searchSuppliers } from '@/data/suppliers';
+import { listSuppliers } from '@/data/suppliers';
 import { recordPurchase } from '@/data/purchases';
 import type { ProductRecord, PurchasePayment } from '@/data/types';
 import { Button, ChoiceGroup, SelectField, TextField } from '@/design';
@@ -65,7 +65,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   // The draft's products as they are now: their prices fill the boxes nobody typed in, and a
   // product deleted elsewhere is marked on its line before anyone tries to save.
   const live = useDraftProducts(draft.lines);
-  const suppliers = useLiveQuery(() => searchSuppliers(db, ''), [db]);
+  const suppliers = useLiveQuery(() => listSuppliers(db), [db]);
   // A supplier archived elsewhere is shown, and saved, as none; until the list loads, the
   // stored one stands.
   const supplierId =

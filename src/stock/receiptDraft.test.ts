@@ -150,8 +150,8 @@ describe('receiptDraft', () => {
       ],
     };
     expect(readDraftLines(draft, products).lines).toEqual([
-      { productId: 'tea', qtyMilli: 2000, buyPrice: 1200 },
-      { productId: 'cheese', qtyMilli: 1000, buyPrice: 1009 },
+      { productId: 'tea', qtyMilli: 2000, buyPrice: 1200, cost: 2400 },
+      { productId: 'cheese', qtyMilli: 1000, buyPrice: 1009, cost: 1009 },
     ]);
     expect(draftLineCost(draft.lines[0]!, products.get('tea'), true)).toBe(2400);
   });
@@ -170,5 +170,41 @@ describe('receiptDraft', () => {
       { productId: 'tea', qtyMilli: 6000, free: true },
     ]);
     expect(draftLineCost(line, products.get('tea'))).toBe(0);
+  });
+
+  it('adds VAT to the line, as the invoice does, not to the unit price', () => {
+    const products = new Map([['tea', product('tea', { vatRate: 20 })]]);
+    const line = {
+      productId: 'tea',
+      name: 'tea',
+      unit: 'piece' as const,
+      qty: '24',
+      buyPrice: '8,33',
+    };
+    expect(
+      readDraftLines({ note: '', pricesExclusive: true, lines: [line] }, products).lines,
+    ).toEqual([{ productId: 'tea', qtyMilli: 24000, buyPrice: 1000, cost: 23990 }]);
+    expect(draftLineCost(line, products.get('tea'), true)).toBe(23990);
+  });
+
+  it('reads a free line whatever its price box holds', () => {
+    const products = new Map([['tea', product('tea')]]);
+    const line = {
+      productId: 'tea',
+      name: 'tea',
+      unit: 'piece' as const,
+      qty: '2',
+      buyPrice: 'x',
+      free: true,
+    };
+    expect(readDraftLines({ note: '', lines: [line] }, products)).toEqual({
+      lines: [{ productId: 'tea', qtyMilli: 2000, free: true }],
+      errors: new Map(),
+    });
+  });
+
+  it('drops a stored draft with an unknown payment', () => {
+    const stored = JSON.stringify({ note: '', lines: [], payment: 'credit' });
+    expect(loadDraft({ getItem: () => stored })).toEqual(EMPTY_DRAFT);
   });
 });

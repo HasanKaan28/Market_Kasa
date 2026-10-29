@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, deleteProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
-import { createSupplier, supplierBalance } from '@/data/suppliers';
+import { archiveSupplier, createSupplier, supplierBalance } from '@/data/suppliers';
 import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
@@ -302,5 +302,29 @@ describe('GoodsReceipt', () => {
     );
     expect(await stockOf(data.db, product.id)).toBe(3000);
     expect((await data.db.products.get(product.id))?.buyPrice).toBe(3000);
+  });
+
+  it('lists every supplier and drops one archived elsewhere', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    for (let n = 1; n <= 51; n += 1) {
+      await createSupplier(data.db, { name: `Tedarikçi ${String(n).padStart(2, '0')}` }, at);
+    }
+    const onDone = vi.fn();
+    await renderWithData(<GoodsReceipt onDone={onDone} />, data);
+    const select = await screen.findByLabelText('Tedarikçi');
+    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(52));
+    await userEvent.selectOptions(select, 'Tedarikçi 51');
+    await scan('8690000000017');
+    await lineOf('Süt');
+    const last = await data.db.suppliers.where('name').equals('Tedarikçi 51').first();
+    await archiveSupplier(data.db, last!.id, later);
+    await waitFor(() => expect(select).toHaveDisplayValue('Tedarikçisiz'));
+    // Saved as a receipt with no supplier, not refused for the archived one.
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('Mal kabul kaydedildi: 1 ürün, ₺30,00.'),
+    );
+    expect((await data.db.purchases.toArray())[0]).not.toHaveProperty('supplierId');
   });
 });

@@ -37,12 +37,12 @@ export function StatementView({ model }: { model: StatementModel }): JSX.Element
               <td className="py-1 pr-2 text-right">
                 {entry.amount < 0 ? `−${formatTRY(-entry.amount)}` : formatTRY(entry.amount)}
               </td>
-              <td className="py-1 text-right">{formatBalance(balanceAfter)}</td>
+              <td className="py-1 text-right">{formatBalance(balanceAfter, model.creditLabel)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="text-right font-semibold">{`Bakiye: ${formatBalance(balance)}`}</p>
+      <p className="text-right font-semibold">{`Bakiye: ${formatBalance(balance, model.creditLabel)}`}</p>
     </article>
   );
 }

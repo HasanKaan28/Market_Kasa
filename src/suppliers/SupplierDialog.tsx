@@ -1,14 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { AdjustmentForm } from '@/customers/PaymentForm';
+import { recordSupplierAdjustment } from '@/data/supplierLedger';
 import { archiveSupplier } from '@/data/suppliers';
-import { formatBalance } from '@/customers/statement';
 import { printStatement } from '@/customers/printStatement';
 import { Button, Dialog } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { SupplierFormDialog } from './SupplierFormDialog';
 import { SupplierPaymentForm } from './SupplierPaymentForm';
-import { supplierStatement } from './statement';
+import { formatSupplierBalance, SUPPLIER_CREDIT_LABEL, supplierStatement } from './statement';
 
 export type SupplierDialogProps = {
   open: boolean;
@@ -31,7 +32,7 @@ export function SupplierDialog({
   onDone,
 }: SupplierDialogProps): JSX.Element {
   const { db, settings } = useData();
-  const [panel, setPanel] = useState<'payment' | 'edit' | null>(null);
+  const [panel, setPanel] = useState<'payment' | 'adjustment' | 'edit' | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
@@ -83,10 +84,13 @@ export function SupplierDialog({
     >
       {view ? (
         <div className="flex flex-col gap-4">
-          <p className="font-semibold">{`Bakiye: ${formatBalance(balance)}`}</p>
+          <p className="font-semibold">{`Bakiye: ${formatSupplierBalance(balance)}`}</p>
           <div className="flex flex-wrap gap-2">
             <Button aria-expanded={panel === 'payment'} onClick={() => setPanel('payment')}>
               Ödeme yap
+            </Button>
+            <Button aria-expanded={panel === 'adjustment'} onClick={() => setPanel('adjustment')}>
+              Düzeltme
             </Button>
             <Button onClick={() => setPanel('edit')}>Düzenle</Button>
             <Button
@@ -97,6 +101,7 @@ export function SupplierDialog({
                   marketName: settings.marketName,
                   title: 'Tedarikçi ekstresi',
                   party: supplier,
+                  creditLabel: SUPPLIER_CREDIT_LABEL,
                   lines,
                   printedAt: new Date(),
                 })
@@ -137,6 +142,15 @@ export function SupplierDialog({
               onCancel={() => setPanel(null)}
             />
           ) : null}
+          {panel === 'adjustment' ? (
+            <AdjustmentForm
+              save={(amount, note) =>
+                recordSupplierAdjustment(db, { supplierId, amount, note }, new Date())
+              }
+              onSaved={saved}
+              onCancel={() => setPanel(null)}
+            />
+          ) : null}
           {lines.length === 0 ? (
             <p className="text-text-2">Bu tedarikçinin hareketi yok.</p>
           ) : (
@@ -171,7 +185,7 @@ export function SupplierDialog({
                           ? `−${formatTRY(-entry.amount)}`
                           : formatTRY(entry.amount)}
                       </td>
-                      <td className="py-2 text-right">{formatBalance(balanceAfter)}</td>
+                      <td className="py-2 text-right">{formatSupplierBalance(balanceAfter)}</td>
                     </tr>
                   ))}
                 </tbody>

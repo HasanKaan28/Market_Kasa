@@ -7,7 +7,7 @@ import { pendingOps } from './outbox';
 import { createProduct, deleteProduct } from './products';
 import { recordPurchase } from './purchases';
 import { stockOf } from './stock';
-import { createSupplier, supplierBalance } from './suppliers';
+import { archiveSupplier, createSupplier, supplierBalance } from './suppliers';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -270,5 +270,80 @@ describe('recordPurchase', () => {
     expect(purchase).toMatchObject({ total: 0, lines: [{ free: true, buyPrice: 0, cost: 0 }] });
     expect(await stockOf(db, tea.id)).toBe(6000);
     expect((await db.products.get(tea.id))?.buyPrice).toBe(7000);
+  });
+
+  it('keeps the buy price for free goods and for a price typed as nothing', async () => {
+    const tea = await createProduct(
+      db,
+      { name: 'Çay', sellPrice: 9000, buyPrice: 7000, vatRate: 1 },
+      at,
+    );
+    const purchase = await recordPurchase(
+      db,
+      {
+        deviceCode: 'K1',
+        lines: [
+          { productId: tea.id, qtyMilli: 1000, free: true, buyPrice: 5000 },
+          { productId: tea.id, qtyMilli: 2000, buyPrice: 0 },
+        ],
+      },
+      later,
+    );
+    expect(purchase.lines.map((line) => [line.free, line.cost])).toEqual([
+      [true, 0],
+      [true, 0],
+    ]);
+    expect((await db.products.get(tea.id))?.buyPrice).toBe(7000);
+  });
+
+  it('records a line at the cost it was given', async () => {
+    const tea = await createProduct(db, { name: 'Çay', sellPrice: 1500, vatRate: 20 }, at);
+    // 24 × 8,33 without VAT is 199,92; with %20 the invoice says 239,90.
+    const purchase = await recordPurchase(
+      db,
+      {
+        deviceCode: 'K1',
+        lines: [{ productId: tea.id, qtyMilli: 24000, buyPrice: 1000, cost: 23990 }],
+      },
+      later,
+    );
+    expect(purchase).toMatchObject({ total: 23990, lines: [{ buyPrice: 1000, cost: 23990 }] });
+    await expect(
+      recordPurchase(
+        db,
+        { deviceCode: 'K1', lines: [{ productId: tea.id, qtyMilli: 1000, cost: -1 }] },
+        later,
+      ),
+    ).rejects.toBeInstanceOf(RangeError);
+  });
+
+  it('refuses an archived supplier and saves free goods on account without an invoice', async () => {
+    const tea = await createProduct(
+      db,
+      { name: 'Çay', sellPrice: 1500, buyPrice: 1000, vatRate: 1 },
+      at,
+    );
+    const gone = await createSupplier(db, { name: 'Pınar' }, at);
+    await archiveSupplier(db, gone.id, at);
+    await expect(
+      recordPurchase(
+        db,
+        { deviceCode: 'K1', lines: [{ productId: tea.id, qtyMilli: 1000 }], supplierId: gone.id },
+        later,
+      ),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    const eti = await createSupplier(db, { name: 'Eti' }, at);
+    const purchase = await recordPurchase(
+      db,
+      {
+        deviceCode: 'K1',
+        lines: [{ productId: tea.id, qtyMilli: 6000, free: true }],
+        supplierId: eti.id,
+        payment: 'on_account',
+      },
+      later,
+    );
+    expect(purchase.total).toBe(0);
+    expect(await db.supplierLedger.count()).toBe(0);
   });
 });

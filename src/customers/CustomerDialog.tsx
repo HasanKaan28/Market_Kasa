@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { archiveCustomer } from '@/data/customers';
+import { recordAdjustment } from '@/data/ledger';
 import { Button, Dialog } from '@/design';
 import { businessDate } from '@/domain/businessDate';
 import { debtAgeDays } from '@/domain/ledger';
@@ -173,7 +174,9 @@ export function CustomerDialog({
           ) : null}
           {panel === 'adjustment' ? (
             <AdjustmentForm
-              customerId={customerId}
+              save={(amount, note) =>
+                recordAdjustment(db, { customerId, amount, note }, new Date())
+              }
               onSaved={saved}
               onCancel={() => setPanel(null)}
             />

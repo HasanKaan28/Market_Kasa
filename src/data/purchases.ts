@@ -20,8 +20,13 @@ export type PurchaseInput = {
     buyPrice?: Kurus;
     /** A new sell price, set together with the receipt. */
     sellPrice?: Kurus;
-    /** Came free: costs nothing and leaves the buy price as it is. */
+    /** Came free: costs nothing and leaves the buy price as it is. A buy price of 0 is the same. */
     free?: boolean;
+    /**
+     * The line's cost when the invoice works it out otherwise than quantity × buy price: VAT
+     * added to the line total, as a VAT-exclusive invoice does.
+     */
+    cost?: Kurus;
   }[];
   /** Who delivered; needed when the delivery is owed (`on_account`). */
   supplierId?: string;
@@ -73,13 +78,15 @@ export async function recordPurchase(
         throw new RecordNotFoundError('Product', line.productId);
       }
       assertQuantity(line.qtyMilli, product.unit);
-      const buyPrice = line.free ? 0 : (line.buyPrice ?? product.buyPrice);
+      // A buy price typed as nothing is free goods: a receipt never sets a buy price to 0.
+      const free = line.free === true || line.buyPrice === 0;
+      const buyPrice = free ? 0 : (line.buyPrice ?? product.buyPrice);
       assertPrice(buyPrice);
       if (line.sellPrice !== undefined) {
         assertPrice(line.sellPrice);
       }
       const patch: ProductPatch = {};
-      if (!line.free && line.buyPrice !== undefined && line.buyPrice !== product.buyPrice) {
+      if (!free && line.buyPrice !== undefined && line.buyPrice !== product.buyPrice) {
         patch.buyPrice = line.buyPrice;
       }
       if (line.sellPrice !== undefined && line.sellPrice !== product.sellPrice) {
@@ -94,8 +101,8 @@ export async function recordPurchase(
           unit: product.unit,
           qtyMilli: line.qtyMilli,
           buyPrice,
-          cost: lineTotal(line.qtyMilli, buyPrice),
-          ...(line.free ? { free: true } : {}),
+          cost: free ? 0 : lineCost(line.cost, line.qtyMilli, buyPrice),
+          ...(free ? { free: true } : {}),
         },
       });
     }
@@ -144,6 +151,18 @@ export async function recordPurchase(
     }
     return record;
   });
+}
+
+/** The cost a line was given, checked, or quantity × buy price. */
+function lineCost(given: Kurus | undefined, qtyMilli: number, buyPrice: Kurus): Kurus {
+  if (given === undefined) {
+    return lineTotal(qtyMilli, buyPrice);
+  }
+  assertSafeInteger(given, 'Line cost');
+  if (given < 0) {
+    throw new RangeError(`A line cost cannot be below zero, got ${given}`);
+  }
+  return given;
 }
 
 /** More than nothing, and whole pieces for a piece product. */

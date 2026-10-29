@@ -3,12 +3,11 @@ import { Plus } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
-import { formatBalance } from '@/customers/statement';
 import { normalizeForSearch } from '@/data/text';
 import { Button, TextField, ToastRegion, useToast } from '@/design';
 import { SupplierDialog } from './SupplierDialog';
 import { SupplierFormDialog } from './SupplierFormDialog';
-import { supplierSummaries } from './statement';
+import { formatSupplierBalance, supplierSummaries } from './statement';
 
 /** The suppliers: who delivers, and what the market owes each of them. */
 export function SuppliersScreen(): JSX.Element {
@@ -100,7 +99,7 @@ export function SuppliersScreen(): JSX.Element {
                   <td className="hidden py-3 pr-3 text-text-2 sm:table-cell">
                     {supplier.phone ?? '—'}
                   </td>
-                  <td className="py-3 text-right">{formatBalance(balance)}</td>
+                  <td className="py-3 text-right">{formatSupplierBalance(balance)}</td>
                 </tr>
               ))}
             </tbody>
