@@ -13,6 +13,8 @@ import type {
   StockCountRecord,
   StockLevelRecord,
   StockMovementRecord,
+  SupplierLedgerRecord,
+  SupplierRecord,
 } from './types';
 
 export const MARKET_ID = /^[a-z0-9-]{1,64}$/;
@@ -31,6 +33,8 @@ export class MarketDb extends Dexie {
   declare categories: Table<CategoryRecord, string>;
   declare purchases: Table<PurchaseRecord, string>;
   declare stockCounts: Table<StockCountRecord, string>;
+  declare suppliers: Table<SupplierRecord, string>;
+  declare supplierLedger: Table<SupplierLedgerRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -70,6 +74,11 @@ export class MarketDb extends Dexie {
     this.version(8).stores({
       stockCounts: 'id, occurredAt',
       stockMovements: 'id, productId, [productId+occurredAt]',
+    });
+    // v9: suppliers and what is owed to them (M4b).
+    this.version(9).stores({
+      suppliers: 'id, name, updatedAt',
+      supplierLedger: 'id, supplierId, occurredAt',
     });
   }
 }

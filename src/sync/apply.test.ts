@@ -168,6 +168,30 @@ describe('applyServerRows', () => {
     expect(await db.stockCounts.toArray()).toEqual([count]);
   });
 
+  it('applies pulled suppliers and supplier ledger entries', async () => {
+    const supplier = {
+      id: 's1',
+      name: 'Eti',
+      createdAt: at.toISOString(),
+      updatedAt: at.toISOString(),
+    };
+    const entry = {
+      id: 'l1',
+      supplierId: 's1',
+      kind: 'invoice',
+      amount: 10000,
+      occurredAt: at.toISOString(),
+      businessDate: '2026-10-29',
+    };
+    const rows: ServerRow[] = [
+      { table: 'suppliers', id: 's1', serverSeq: 10, row: supplier },
+      { table: 'supplierLedger', id: 'l1', serverSeq: 11, row: entry },
+    ];
+    await applyServerRows(db, [...rows, ...rows]);
+    expect(await db.suppliers.toArray()).toEqual([supplier]);
+    expect(await db.supplierLedger.toArray()).toEqual([entry]);
+  });
+
   it('stores two sales that share a receipt number', async () => {
     const sale = (id: string, serverSeq: number): ServerRow => ({
       table: 'sales',
@@ -181,7 +205,7 @@ describe('applyServerRows', () => {
 
   it('sets aside rows it cannot apply and applies the rest', async () => {
     const rows: ServerRow[] = [
-      { table: 'suppliers' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
+      { table: 'invoices' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
       {
         table: 'stockMovements',
         id: 'm2',

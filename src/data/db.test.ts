@@ -32,6 +32,8 @@ describe('openMarketDb', () => {
       'stockCounts',
       'stockLevels',
       'stockMovements',
+      'supplierLedger',
+      'suppliers',
     ]);
   });
 

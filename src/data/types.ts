@@ -144,6 +144,35 @@ export type StockCountRecord = {
 /** How a customer paid: credit itself is never a way to pay credit. */
 export type LedgerMethod = 'cash' | 'card';
 
+export type SupplierRecord = {
+  id: string;
+  name: string;
+  phone?: string;
+  /** Digits only. */
+  taxNo?: string;
+  taxOffice?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+};
+
+export type SupplierPaymentMethod = 'cash' | 'bank' | 'card' | 'cheque';
+
+/** What the market owes a supplier: invoices positive, payments negative. */
+export type SupplierLedgerRecord = {
+  id: string;
+  supplierId: string;
+  kind: 'invoice' | 'payment';
+  amount: Kurus;
+  /** How a payment was made. */
+  method?: SupplierPaymentMethod;
+  /** The goods receipt an invoice is for. */
+  purchaseId?: string;
+  note?: string;
+  occurredAt: string;
+  businessDate: string;
+};
+
 export type LedgerRecord = {
   id: string;
   customerId: string;
@@ -201,13 +230,15 @@ export type OutboxTable =
   | 'saleVoids'
   | 'returns'
   | 'purchases'
-  | 'stockCounts';
+  | 'stockCounts'
+  | 'suppliers'
+  | 'supplierLedger';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }
   | {
       kind: 'patch';
-      table: 'products' | 'customers' | 'categories';
+      table: 'products' | 'customers' | 'categories' | 'suppliers';
       recordId: string;
       patch: object;
     };

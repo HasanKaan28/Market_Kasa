@@ -63,3 +63,11 @@ export class ReturnExceedsSaleError extends Error {
     this.name = 'ReturnExceedsSaleError';
   }
 }
+
+/** A live supplier already has this name, in some letter case. */
+export class DuplicateSupplierError extends Error {
+  constructor(readonly holderName: string) {
+    super(`A supplier is already called ${holderName}`);
+    this.name = 'DuplicateSupplierError';
+  }
+}

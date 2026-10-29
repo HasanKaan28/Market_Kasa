@@ -11,8 +11,14 @@ const EVENT_TABLES: ReadonlySet<SyncTable> = new Set([
   'returns',
   'purchases',
   'stockCounts',
+  'supplierLedger',
 ]);
-const ENTITY_TABLES: ReadonlySet<SyncTable> = new Set(['products', 'customers', 'categories']);
+const ENTITY_TABLES: ReadonlySet<SyncTable> = new Set([
+  'products',
+  'customers',
+  'categories',
+  'suppliers',
+]);
 
 /**
  * Applies pulled rows in order, safely more than once. Events are inserted only if missing.
@@ -37,6 +43,8 @@ export async function applyServerRows(db: MarketDb, rows: readonly ServerRow[]):
     db.returns,
     db.purchases,
     db.stockCounts,
+    db.suppliers,
+    db.supplierLedger,
     db.outbox,
     db.meta,
   ];
