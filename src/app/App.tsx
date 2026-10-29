@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react';
-import { CART_STORAGE_KEY } from '@/pos/cart';
+import { clearStoredCarts } from '@/pos/held';
 import { PosScreen } from '@/pos/PosScreen';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
@@ -26,10 +26,6 @@ export function App(): JSX.Element {
 
 /** The way out of a crash: a stored cart that cannot be shown is the usual cause. */
 function resetRegister(): void {
-  try {
-    localStorage.removeItem(CART_STORAGE_KEY);
-  } catch {
-    // Storage blocked: reloading is still the best we can do.
-  }
+  clearStoredCarts();
   window.location.reload();
 }

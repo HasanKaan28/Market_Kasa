@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ProductRecord } from '@/data/types';
 import { cartReducer, emptyCart, type Cart } from './cart';
-import { holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld, type HeldCart } from './held';
+import {
+  clearStoredCarts,
+  holdCart,
+  loadHeld,
+  MAX_HELD,
+  saveHeld,
+  takeHeld,
+  type HeldCart,
+} from './held';
 
 const milk: ProductRecord = {
   id: 'p',
@@ -54,7 +62,31 @@ describe('held carts', () => {
       }),
     ).toEqual([]);
     const [good] = holdCart([], cartWith('a'), at(1));
-    const stored = JSON.stringify([good, { cart: { id: 5 }, heldAt: 'x' }, { cart: cartWith('b') }]);
+    // One defect per broken item, so each rule is tested on its own.
+    const stored = JSON.stringify([
+      good,
+      { cart: { id: 5 }, heldAt: good?.heldAt },
+      { cart: cartWith('b'), heldAt: 'x' },
+      { cart: cartWith('c') },
+    ]);
     expect(loadHeld({ getItem: () => stored })).toEqual([good]);
+  });
+
+  it('keeps at most MAX_HELD stored carts', () => {
+    const many = Array.from({ length: MAX_HELD + 2 }, (_, index) => ({
+      cart: cartWith(`c${index}`),
+      heldAt: at(index).toISOString(),
+    }));
+    expect(loadHeld({ getItem: () => JSON.stringify(many) })).toHaveLength(MAX_HELD);
+  });
+
+  it('clears the stored cart and held carts', () => {
+    const store = new Map([
+      ['mk2.cart', '{}'],
+      ['mk2.held', '[]'],
+      ['mk2.device', '{}'],
+    ]);
+    clearStoredCarts({ removeItem: (key) => void store.delete(key) });
+    expect([...store.keys()]).toEqual(['mk2.device']);
   });
 });
