@@ -3,12 +3,12 @@ import { Minus, Plus } from 'lucide-react';
 import { useRef, useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { ReturnExceedsSaleError } from '@/data/errors';
-import { recordReturn, returnedQuantities } from '@/data/returns';
-import type { PaymentMethod, ReturnRecord, SaleRecord } from '@/data/types';
+import { planRefund, quantitiesOf, recordReturn, refundsOf } from '@/data/returns';
+import type { Payment, PaymentMethod, ReturnRecord, SaleRecord } from '@/data/types';
 import { Button, Dialog } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { refundShare } from '@/domain/returns';
-import { formatQty, PAYMENT_LABELS } from './format';
+import { formatQty } from './format';
 
 export type ReturnDialogProps = {
   open: boolean;
@@ -19,12 +19,29 @@ export type ReturnDialogProps = {
 
 const ONE = 1000;
 
+const REFUND_LABELS: Record<PaymentMethod, string> = {
+  credit: 'Veresiyeden düşülecek',
+  card: 'Kart iadesi',
+  cash: 'Nakit iadesi',
+};
+
+/** The refund split, or null when the methods cannot cover it (devices in conflict). */
+function safePlan(sale: SaleRecord, earlier: readonly Payment[], amount: number): Payment[] | null {
+  try {
+    return planRefund(sale.payments, earlier, amount);
+  } catch {
+    return null;
+  }
+}
+
 /** Takes goods back from one receipt: how many of each line, and how the money goes back. */
 export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogProps): JSX.Element {
   const { db, settings } = useData();
-  const returned = useLiveQuery(() => returnedQuantities(db, sale.id), [db, sale.id]);
-  const methods = [...new Set(sale.payments.map((payment) => payment.method))];
-  const [method, setMethod] = useState<PaymentMethod>(methods[0] ?? 'cash');
+  const earlier = useLiveQuery(
+    () => db.returns.where('saleId').equals(sale.id).toArray(),
+    [db, sale.id],
+  );
+  const returned = earlier ? quantitiesOf(earlier) : undefined;
   const [chosen, setChosen] = useState<Record<string, number>>({});
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -47,6 +64,8 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
       qtyMilli: quantityOf(line.productId, line.qtyMilli),
     }))
     .filter((line) => line.qtyMilli > 0);
+  // The money goes back the way the sale was paid: debt first, cash last.
+  const plan = refund > 0 && earlier ? safePlan(sale, refundsOf(earlier), refund) : [];
 
   function step(productId: string, soldMilli: number, delta: number) {
     const max = remaining(productId, soldMilli);
@@ -57,7 +76,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
   }
 
   async function save() {
-    if (busy.current || lines.length === 0) {
+    if (busy.current || lines.length === 0 || plan === null) {
       return;
     }
     busy.current = true;
@@ -66,7 +85,6 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
       const record = await recordReturn(db, {
         saleId: sale.id,
         lines,
-        refundMethod: method,
         deviceCode: settings.deviceCode,
         at: new Date(),
       });
@@ -119,32 +137,25 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
           );
         })}
       </ul>
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="mb-1.5 text-sm font-medium">İade yöntemi</legend>
-        <div className="flex flex-wrap gap-2">
-          {methods.map((option) => (
-            <label
-              key={option}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-control border border-line-strong px-3 has-checked:border-accent has-checked:bg-accent has-checked:text-white"
-            >
-              <input
-                type="radio"
-                name="refundMethod"
-                checked={method === option}
-                onChange={() => setMethod(option)}
-                className="sr-only"
-              />
-              {PAYMENT_LABELS[option]}
-            </label>
-          ))}
-        </div>
-      </fieldset>
       <div className="flex items-baseline justify-between">
         <span className="font-medium">İade tutarı</span>
         <span data-testid="refund" className="font-mono text-[22px] font-semibold">
           {formatTRY(refund)}
         </span>
       </div>
+      <dl data-testid="refund-plan" className="flex flex-col gap-1 text-text-2">
+        {(plan ?? []).map((part) => (
+          <div key={part.method} className="flex justify-between">
+            <dt>{REFUND_LABELS[part.method]}</dt>
+            <dd className="font-mono">{formatTRY(part.amount)}</dd>
+          </div>
+        ))}
+      </dl>
+      {plan === null ? (
+        <p role="alert" className="font-medium text-danger">
+          Bu fişte geri verilecek ödeme kalmamış; yöneticiye danışın.
+        </p>
+      ) : null}
       {error ? (
         <p role="alert" className="font-medium text-danger">
           {error}
@@ -153,7 +164,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
       <Button
         variant="primary"
         size="lg"
-        disabled={lines.length === 0 || saving}
+        disabled={lines.length === 0 || saving || plan === null}
         onClick={() => void save()}
       >
         İadeyi kaydet

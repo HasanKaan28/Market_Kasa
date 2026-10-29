@@ -76,7 +76,6 @@ describe('syncOnce', () => {
     await recordReturn(a, {
       saleId: second.id,
       lines: [{ productId: milk.id, qtyMilli: 1000 }],
-      refundMethod: 'cash',
       deviceCode: 'K1',
       at,
     });
@@ -124,7 +123,6 @@ describe('syncOnce', () => {
       await recordReturn(db, {
         saleId: sale.id,
         lines: [{ productId: milk.id, qtyMilli: 1000 }],
-        refundMethod: 'cash',
         deviceCode: 'K1',
         at,
       });

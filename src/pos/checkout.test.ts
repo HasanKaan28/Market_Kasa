@@ -153,7 +153,6 @@ describe('checkout with discounts and several payments', () => {
     const back = await recordReturn(db, {
       saleId: sale.id,
       lines: [{ productId: bread.id, qtyMilli: 1000 }],
-      refundMethod: 'cash',
       deviceCode: 'K1',
       at,
     });

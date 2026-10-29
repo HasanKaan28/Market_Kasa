@@ -112,13 +112,16 @@ export type ReturnLine = {
   vat: Kurus;
 };
 
-/** Goods taken back against a receipt; `amount` and `vat` are the line shares added up. */
+/**
+ * Goods taken back against a receipt; `amount` and `vat` are the line shares added up, and
+ * `refunds` says how that amount went back (the way the sale was paid, debt first).
+ */
 export type ReturnRecord = {
   id: string;
   saleId: string;
   deviceCode: string;
   lines: ReturnLine[];
-  refundMethod: PaymentMethod;
+  refunds: Payment[];
   amount: Kurus;
   vat: Kurus;
   occurredAt: string;

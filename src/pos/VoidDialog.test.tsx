@@ -54,7 +54,6 @@ describe('VoidDialog', () => {
     await recordReturn(data.db, {
       saleId: sale.id,
       lines: [{ productId: milk.id, qtyMilli: 1000 }],
-      refundMethod: 'cash',
       deviceCode: 'K1',
       at,
     });

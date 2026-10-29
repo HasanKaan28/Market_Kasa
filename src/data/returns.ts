@@ -1,5 +1,5 @@
 import { businessDate } from '@/domain/businessDate';
-import { assertSafeInteger } from '@/domain/money';
+import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { refundShare } from '@/domain/returns';
 import type { MarketDb } from './db';
 import { RecordNotFoundError, ReturnExceedsSaleError, SaleVoidedError } from './errors';
@@ -7,25 +7,72 @@ import { newId } from './ids';
 import { addLedgerEntry } from './ledger';
 import { appendOutbox } from './outbox';
 import { recordStockMovement } from './stock';
-import type { PaymentMethod, ReturnLine, ReturnRecord, SaleRecord } from './types';
+import type { Payment, PaymentMethod, ReturnLine, ReturnRecord, SaleRecord } from './types';
 import { isVoided } from './voids';
 
 export type ReturnInput = {
   saleId: string;
   lines: { productId: string; qtyMilli: number }[];
-  refundMethod: PaymentMethod;
   deviceCode: string;
   at: Date;
   cutoffMinutes?: number;
 };
+
+// Debt is cleared first, then the card, and cash leaves the drawer last.
+const REFUND_ORDER: readonly PaymentMethod[] = ['credit', 'card', 'cash'];
+
+/**
+ * How a refund goes back: the way the sale was paid, each method at most what it brought in
+ * minus what earlier returns already gave back that way. Throws when the methods cannot cover it.
+ */
+export function planRefund(
+  payments: readonly Payment[],
+  earlierRefunds: readonly Payment[],
+  amount: Kurus,
+): Payment[] {
+  const total = (list: readonly Payment[], method: PaymentMethod) =>
+    list.filter((payment) => payment.method === method).reduce((sum, p) => sum + p.amount, 0);
+  let rest = amount;
+  const plan: Payment[] = [];
+  for (const method of REFUND_ORDER) {
+    const share = Math.min(
+      rest,
+      Math.max(0, total(payments, method) - total(earlierRefunds, method)),
+    );
+    if (share > 0) {
+      plan.push({ method, amount: share });
+      rest -= share;
+    }
+  }
+  if (rest > 0) {
+    throw new RangeError(`Cannot refund ${amount}: only ${amount - rest} is left to give back`);
+  }
+  return plan;
+}
+
+/** The refunds of earlier returns; returns stored before refunds were split carry one method. */
+export function refundsOf(records: readonly ReturnRecord[]): Payment[] {
+  return records.flatMap((record) => {
+    if (Array.isArray(record.refunds)) {
+      return record.refunds;
+    }
+    const legacy = (record as { refundMethod?: PaymentMethod }).refundMethod;
+    return legacy ? [{ method: legacy, amount: record.amount }] : [];
+  });
+}
 
 /** What has been returned from a sale so far, per product, in thousandths of a unit. */
 export async function returnedQuantities(
   db: MarketDb,
   saleId: string,
 ): Promise<Map<string, number>> {
+  return quantitiesOf(await db.returns.where('saleId').equals(saleId).toArray());
+}
+
+/** Per product, what the given returns took back, in thousandths of a unit. */
+export function quantitiesOf(records: readonly ReturnRecord[]): Map<string, number> {
   const totals = new Map<string, number>();
-  for (const record of await db.returns.where('saleId').equals(saleId).toArray()) {
+  for (const record of records) {
     for (const line of record.lines) {
       totals.set(line.productId, (totals.get(line.productId) ?? 0) + line.qtyMilli);
     }
@@ -88,17 +135,17 @@ export async function recordReturn(db: MarketDb, input: ReturnInput): Promise<Re
     if (await isVoided(db, sale.id)) {
       throw new SaleVoidedError(sale.receiptNo);
     }
-    if (!sale.payments.some((payment) => payment.method === input.refundMethod)) {
-      throw new RangeError(`Sale ${sale.receiptNo} was not paid by ${input.refundMethod}`);
-    }
-    const lines = returnLines(sale, input.lines, await returnedQuantities(db, sale.id));
+    const earlier = await db.returns.where('saleId').equals(sale.id).toArray();
+    const lines = returnLines(sale, input.lines, quantitiesOf(earlier));
+    const amount = lines.reduce((sum, line) => sum + line.net, 0);
+    const refunds = planRefund(sale.payments, refundsOf(earlier), amount);
     const record: ReturnRecord = {
       id: newId(input.at.getTime()),
       saleId: sale.id,
       deviceCode: input.deviceCode,
       lines,
-      refundMethod: input.refundMethod,
-      amount: lines.reduce((sum, line) => sum + line.net, 0),
+      refunds,
+      amount,
       vat: lines.reduce((sum, line) => sum + line.vat, 0),
       occurredAt: input.at.toISOString(),
       businessDate: businessDate(input.at, { cutoffMinutes: input.cutoffMinutes }),
@@ -119,13 +166,14 @@ export async function recordReturn(db: MarketDb, input: ReturnInput): Promise<Re
         cutoffMinutes: input.cutoffMinutes,
       });
     }
-    if (input.refundMethod === 'credit' && sale.customerId && record.amount > 0) {
+    const credit = refunds.find((refund) => refund.method === 'credit')?.amount ?? 0;
+    if (credit > 0 && sale.customerId) {
       await addLedgerEntry(
         db,
         {
           customerId: sale.customerId,
           kind: 'adjustment',
-          amount: -record.amount,
+          amount: -credit,
           saleId: sale.id,
           note: 'İade',
           cutoffMinutes: input.cutoffMinutes,

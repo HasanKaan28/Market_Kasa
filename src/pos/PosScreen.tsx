@@ -17,6 +17,7 @@ import { useBarcodeScanner, useShortcuts } from './keyboard';
 import { LineDialog } from './LineDialog';
 import { NewProductDialog } from './NewProductDialog';
 import { PaymentDialog } from './PaymentDialog';
+import { PAYMENT_LABELS } from './format';
 import { ProductPanel } from './ProductPanel';
 import { ReceiptsDialog } from './ReceiptsDialog';
 import { ReturnDialog } from './ReturnDialog';
@@ -296,7 +297,13 @@ export function PosScreen(): JSX.Element {
           open
           sale={dialog.sale}
           onClose={() => setDialog({ kind: 'receipts' })}
-          onReturned={(record) => finish(`İade kaydedildi · ${formatTRY(record.amount)}`)}
+          onReturned={(record) =>
+            finish(
+              `İade kaydedildi · ${formatTRY(record.amount)} · ${record.refunds
+                .map((refund) => `${PAYMENT_LABELS[refund.method]} ${formatTRY(refund.amount)}`)
+                .join(' + ')}`,
+            )
+          }
         />
       ) : null}
       <ToastRegion message={toast.message} />

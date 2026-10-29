@@ -78,7 +78,7 @@ describe('voidSale', () => {
       saleId: sale.id,
       deviceCode: 'K1',
       lines: [],
-      refundMethod: 'credit',
+      refunds: [],
       amount: 0,
       vat: 0,
       occurredAt: later.toISOString(),

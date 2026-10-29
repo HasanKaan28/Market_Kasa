@@ -107,7 +107,7 @@ describe('ReceiptsDialog', () => {
           vat: 42,
         },
       ],
-      refundMethod: 'cash',
+      refunds: [{ method: 'cash', amount: 4250 }],
       amount: 4250,
       vat: 42,
       ...stamp,

@@ -39,15 +39,16 @@ describe('ReturnDialog', () => {
     expect(await data.db.returns.count()).toBe(1);
   });
 
-  it('offers only the methods the sale used', async () => {
+  it('shows how the money goes back', async () => {
     const data = createTestData();
     const { sale } = await sold(data.db, 'Ekmek', 1500, 1);
     await renderWithData(
       <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />,
       data,
     );
-    expect(screen.getByRole('radio', { name: 'Nakit' })).toBeChecked();
-    expect(screen.queryByRole('radio', { name: 'Veresiye' })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Artır · Ekmek' }));
+    expect(screen.getByTestId('refund-plan')).toHaveTextContent('Nakit iadesi₺15,00');
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
   it('caps each line at what is left to return', async () => {
@@ -56,7 +57,6 @@ describe('ReturnDialog', () => {
     await recordReturn(data.db, {
       saleId: sale.id,
       lines: [{ productId: product.id, qtyMilli: 1000 }],
-      refundMethod: 'cash',
       deviceCode: 'K1',
       at,
     });
@@ -94,7 +94,6 @@ describe('ReturnDialog', () => {
     await recordReturn(data.db, {
       saleId: sale.id,
       lines: [{ productId: product.id, qtyMilli: 1000 }],
-      refundMethod: 'cash',
       deviceCode: 'K1',
       at,
     });

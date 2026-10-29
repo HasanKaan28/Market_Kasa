@@ -187,7 +187,9 @@ describe('PosScreen', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'İade al' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Artır · Süt' }));
     await userEvent.click(screen.getByRole('button', { name: 'İadeyi kaydet' }));
-    expect(await screen.findByText('İade kaydedildi · ₺42,50')).toBeInTheDocument();
+    expect(
+      await screen.findByText('İade kaydedildi · ₺42,50 · Nakit ₺42,50'),
+    ).toBeInTheDocument();
     expect(await stockOf(data.db, created.id)).toBe(0);
   });
 
