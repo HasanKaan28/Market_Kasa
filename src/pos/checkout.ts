@@ -1,5 +1,5 @@
 import type { MarketDb } from '@/data/db';
-import { CreditLimitError, PaymentMismatchError } from '@/data/errors';
+import { CreditLimitError, PaymentMismatchError, RecordNotFoundError } from '@/data/errors';
 import { recordSale } from '@/data/sales';
 import type { Payment, PaymentMethod, SaleRecord } from '@/data/types';
 import type { Kurus } from '@/domain/money';
@@ -66,6 +66,10 @@ export async function checkout(
 export function checkoutErrorMessage(error: unknown): string {
   if (error instanceof CreditLimitError) {
     return 'Müşterinin veresiye limiti aşılıyor.';
+  }
+  // Archived or gone, on this register or by another one meanwhile.
+  if (error instanceof RecordNotFoundError && error.what === 'Customer') {
+    return 'Bu müşteri veresiye alamaz.';
   }
   if (error instanceof PaymentMismatchError) {
     return 'Tutar değişti, toplamı kontrol edip yeniden deneyin.';

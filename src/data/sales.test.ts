@@ -119,6 +119,18 @@ describe('recordSale', () => {
     expect(await customerBalance(db, c.id)).toBe(56640);
   });
 
+  it('dates a credit sale by the cutoff', async () => {
+    const c = await createCustomer(db, { name: 'Ahmet' }, setupAt);
+    // 02:30 in Istanbul on the 29th, with the day turning at 04:00.
+    await recordSale(db, {
+      ...cashSale('2026-10-28T23:30:00Z'),
+      cutoffMinutes: 240,
+      payments: [{ method: 'credit', amount: 56640 }],
+      customerId: c.id,
+    });
+    expect(await db.ledger.toArray()).toMatchObject([{ businessDate: '2026-10-28' }]);
+  });
+
   it('requires an active customer for credit', async () => {
     const credit = {
       ...cashSale('2026-10-28T09:00:00Z'),

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createCustomer, customerBalance } from '@/data/customers';
+import { archiveCustomer, createCustomer, customerBalance } from '@/data/customers';
 import type { MarketDb } from '@/data/db';
-import { CreditLimitError, PaymentMismatchError } from '@/data/errors';
+import { CreditLimitError, PaymentMismatchError, RecordNotFoundError } from '@/data/errors';
 import { createProduct, updateProduct } from '@/data/products';
 import type { ProductRecord } from '@/data/types';
 import { recordReturn } from '@/data/returns';
@@ -85,6 +85,31 @@ describe('checkout', () => {
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(CreditLimitError);
     expect(checkoutErrorMessage(error)).toBe('Müşterinin veresiye limiti aşılıyor.');
+  });
+
+  it('refuses credit to an archived customer', async () => {
+    const customer = await createCustomer(db, { name: 'Ahmet' }, at);
+    await archiveCustomer(db, customer.id, at);
+    const error = await checkout(db, {
+      cart,
+      deviceCode: 'K1',
+      payments: singlePayment(cart, 'credit'),
+      customerId: customer.id,
+      at,
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RecordNotFoundError);
+    expect(checkoutErrorMessage(error)).toBe('Bu müşteri veresiye alamaz.');
+  });
+
+  it('refuses credit to an unknown customer', async () => {
+    const error = await checkout(db, {
+      cart,
+      deviceCode: 'K1',
+      payments: singlePayment(cart, 'credit'),
+      customerId: 'nobody',
+      at,
+    }).catch((e: unknown) => e);
+    expect(checkoutErrorMessage(error)).toBe('Bu müşteri veresiye alamaz.');
   });
 
   it('explains a total that changed under the cart', async () => {
