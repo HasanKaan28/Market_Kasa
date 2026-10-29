@@ -94,7 +94,7 @@ M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün fo
 
 ## M4 · Cari hesaplar
 
-M4a (veresiye) planı yazıldı ve bu bölümün M4a maddelerini aldı: iptal ve iadeden sonra borç yaşı, `debtAgeDays`'in gün dönümü ve saat dilimi, `addLedgerEntry`'nin transaction'ı, arşivli ya da bilinmeyen veresiye müşterisi testleri. M4b'nin planı yazılmadı:
+M4a (veresiye) planı yazıldı ve bu bölümün M4a maddelerini aldı: iptal ve iadeden sonra borç yaşı, `debtAgeDays`'in gün dönümü ve saat dilimi, `addLedgerEntry`'nin transaction'ı, arşivli ya da bilinmeyen veresiye müşterisi testleri. M4b'nin planı taslak olarak yazıldı ([2026-10-29-m4b-tedarikciler.md](plans/2026-10-29-m4b-tedarikciler.md)) ve aşağıdaki maddeleri alır:
 
 - **M4b:** Tedarikçiler, tedarikçi cari ve ödemeleri (nakit, banka, kart, çek), alış faturasının tedarikçiye bağlanması (DESIGN §6.2, §6.3, §10).
 - **M4b:** Bedelsiz gelen mal ve KDV hariç fatura fiyatı (tedarikçi faturası). (M3c)
