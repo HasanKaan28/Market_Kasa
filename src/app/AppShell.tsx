@@ -1,8 +1,9 @@
 import type { JSX, ReactNode } from 'react';
 import type { SyncState } from '@/sync/runner';
+import type { Route } from './route';
 import { APP_VERSION } from './version';
 
-export type NavKey = 'pos' | 'products' | 'stock' | 'customers' | 'reports';
+export type NavKey = Route;
 
 export type AppShellProps = {
   marketName: string;
@@ -12,15 +13,14 @@ export type AppShellProps = {
   pendingCount?: number;
   activeNav: NavKey;
   children?: ReactNode;
+  /** The register's cart; screens without one get the full width. */
   cart?: ReactNode;
 };
 
+// Only screens that exist are listed; each later milestone adds its own.
 const NAV_ITEMS: readonly { key: NavKey; label: string }[] = [
   { key: 'pos', label: 'Kasa' },
   { key: 'products', label: 'Ürünler' },
-  { key: 'stock', label: 'Stok' },
-  { key: 'customers', label: 'Veresiye' },
-  { key: 'reports', label: 'Raporlar' },
 ];
 
 export function AppShell({
@@ -63,12 +63,14 @@ export function AppShell({
 
       <div className="flex flex-1 flex-wrap gap-4 px-5 py-4">
         <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-3.5">{children}</main>
-        <aside
-          aria-label="Sepet"
-          className="flex max-w-[460px] flex-[1_1_380px] flex-col rounded-control border border-line bg-surface"
-        >
-          {cart ?? <EmptyCart />}
-        </aside>
+        {cart ? (
+          <aside
+            aria-label="Sepet"
+            className="flex max-w-[460px] flex-[1_1_380px] flex-col rounded-control border border-line bg-surface"
+          >
+            {cart}
+          </aside>
+        ) : null}
       </div>
 
       <footer className="px-5 pb-3 text-sm text-muted">{`v${APP_VERSION}`}</footer>
@@ -126,14 +128,5 @@ function SyncBadge({
       <span aria-hidden="true" className={`size-2 rounded-full ${style.dot}`} />
       {label}
     </span>
-  );
-}
-
-function EmptyCart(): JSX.Element {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-9 text-center text-text-2">
-      <p className="font-semibold text-text">Sepet boş</p>
-      <p>Barkod okutun ya da soldan ürün seçin.</p>
-    </div>
   );
 }

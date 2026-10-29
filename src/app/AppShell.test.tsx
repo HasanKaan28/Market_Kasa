@@ -11,15 +11,19 @@ const base = {
 } as const;
 
 describe('AppShell', () => {
-  it('lists the five sections and marks the active one', () => {
+  it('lists the built sections and marks the active one', () => {
     render(<AppShell {...base} syncState="online" />);
     const nav = screen.getByRole('navigation', { name: 'Ana menü' });
     expect(
       within(nav)
         .getAllByRole('link')
         .map((l) => l.textContent),
-    ).toEqual(['Kasa', 'Ürünler', 'Stok', 'Veresiye', 'Raporlar']);
+    ).toEqual(['Kasa', 'Ürünler']);
     expect(within(nav).getByRole('link', { name: 'Kasa' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'Ürünler' })).toHaveAttribute(
+      'href',
+      '#/products',
+    );
   });
 
   it.each([
@@ -32,10 +36,20 @@ describe('AppShell', () => {
     expect(screen.getByRole('status')).toHaveTextContent(label);
   });
 
-  it('shows an empty cart and the app version', () => {
-    render(<AppShell {...base} syncState="online" />);
+  it('shows the cart panel it is given and the app version', () => {
+    render(<AppShell {...base} syncState="online" cart={<p>Sepet boş</p>} />);
     expect(screen.getByRole('complementary', { name: 'Sepet' })).toHaveTextContent('Sepet boş');
     expect(screen.getByText(`v${APP_VERSION}`)).toBeInTheDocument();
+  });
+
+  it('leaves out the cart panel when a screen has none', () => {
+    render(
+      <AppShell {...base} activeNav="products" syncState="online">
+        <h1>Ürünler</h1>
+      </AppShell>,
+    );
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveTextContent('Ürünler');
   });
 
   it('hides the staff name when there is none', () => {

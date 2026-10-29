@@ -1,13 +1,16 @@
 import { useEffect, useState, type JSX } from 'react';
 import { clearStoredCarts } from '@/pos/held';
 import { PosScreen } from '@/pos/PosScreen';
+import { ProductsScreen } from '@/products/ProductsScreen';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
 import { loadDeviceSettings } from './device';
+import { useRoute } from './route';
 
 export function App(): JSX.Element {
   const [data] = useState(() => createAppData(loadDeviceSettings()));
+  const route = useRoute();
 
   useEffect(() => {
     void data.runner.run();
@@ -18,7 +21,7 @@ export function App(): JSX.Element {
   return (
     <ErrorBoundary onReset={resetRegister}>
       <DataProvider value={data}>
-        <PosScreen />
+        {route === 'products' ? <ProductsScreen /> : <PosScreen />}
       </DataProvider>
     </ErrorBoundary>
   );
