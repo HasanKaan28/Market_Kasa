@@ -1,6 +1,7 @@
 import { useEffect, useState, type JSX } from 'react';
 import { clearStoredCarts } from '@/pos/held';
 import { PosScreen } from '@/pos/PosScreen';
+import { CustomersScreen } from '@/customers/CustomersScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
 import { StockScreen } from '@/stock/StockScreen';
 import { createAppData } from './appData';
@@ -26,6 +27,8 @@ export function App(): JSX.Element {
           <ProductsScreen />
         ) : route === 'stock' ? (
           <StockScreen />
+        ) : route === 'customers' ? (
+          <CustomersScreen />
         ) : (
           <PosScreen />
         )}
