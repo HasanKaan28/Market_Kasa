@@ -3,7 +3,8 @@ type FetchLike = (
   init?: { signal?: AbortSignal },
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
-export type NameSuggestion = { name: string } | { error: 'not-found' | 'offline' | 'timeout' };
+export type NameSuggestion =
+  { name: string } | { error: 'not-found' | 'offline' | 'timeout' | 'unavailable' };
 
 const PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product/';
 const FIELDS = 'product_name_tr,product_name,brands,quantity';
@@ -27,8 +28,9 @@ export async function suggestProductName(
     if (response.status === 404) {
       return { error: 'not-found' };
     }
+    // The service answered with an error (busy, down): the device itself is online.
     if (!response.ok) {
-      return { error: 'offline' };
+      return { error: 'unavailable' };
     }
     const name = nameFrom(await response.json());
     return name ? { name } : { error: 'not-found' };

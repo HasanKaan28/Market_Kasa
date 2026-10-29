@@ -12,6 +12,21 @@ import { ProductFormDialog } from './ProductFormDialog';
 const at = new Date('2026-10-29T09:00:00Z');
 const milk = { barcode: '8690000000017', name: 'Süt', sellPrice: 4250, vatRate: 1 } as const;
 
+/** A lookup that answers only when the test says so; it stands in for fetch. */
+function waitingLookup() {
+  const pending = { answer: (() => undefined) as (body: unknown) => void };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      () =>
+        new Promise((resolve) => {
+          pending.answer = (body) => resolve({ ok: true, status: 200, json: async () => body });
+        }),
+    ),
+  );
+  return pending;
+}
+
 async function fillNew(name: string, price: string) {
   await userEvent.type(screen.getByLabelText('Ürün adı'), name);
   await userEvent.type(screen.getByLabelText('Satış fiyatı'), price);
@@ -134,6 +149,43 @@ describe('ProductFormDialog', () => {
       expect(screen.getByLabelText('Ürün adı')).toHaveValue('Gofret');
       await userEvent.click(screen.getByRole('button', { name: 'Kullan' }));
       expect(screen.getByLabelText('Ürün adı')).toHaveValue('Ülker Çikolatalı Gofret 36 g');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not overwrite a name typed while waiting', async () => {
+    const pending = waitingLookup();
+    try {
+      await renderWithData(
+        <ProductFormDialog open barcode="8690504000014" onClose={vi.fn()} onSaved={vi.fn()} />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'İnternetten ad öner' }));
+      expect(screen.getByText('Aranıyor…')).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText('Ürün adı'), 'Gofret');
+      pending.answer({ status: 1, product: { product_name_tr: 'Çikolatalı Gofret' } });
+      expect(await screen.findByText('Öneri: Çikolatalı Gofret')).toBeInTheDocument();
+      expect(screen.getByLabelText('Ürün adı')).toHaveValue('Gofret');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('drops the answer for a barcode that changed', async () => {
+    const pending = waitingLookup();
+    try {
+      await renderWithData(
+        <ProductFormDialog open barcode="8690504000014" onClose={vi.fn()} onSaved={vi.fn()} />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'İnternetten ad öner' }));
+      const barcode = screen.getByLabelText('Barkod');
+      await userEvent.clear(barcode);
+      await userEvent.type(barcode, '8690504000021');
+      pending.answer({ status: 1, product: { product_name_tr: 'Çikolatalı Gofret' } });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.getByLabelText('Ürün adı')).toHaveValue('');
+      expect(screen.queryByText(/^Öneri:/)).not.toBeInTheDocument();
+      expect(screen.queryByText('Aranıyor…')).not.toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();
     }

@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useState, type FormEvent, type JSX } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { listCategories } from '@/data/categories';
 import { DuplicateBarcodeError } from '@/data/errors';
@@ -42,6 +42,7 @@ const LOOKUP_FAILURES = {
   'not-found': 'Bu barkod için ad bulunamadı.',
   offline: 'İnternet bağlantısı yok.',
   timeout: 'Yanıt gecikti, sonra yeniden deneyin.',
+  unavailable: 'Ürün veritabanına şu an ulaşılamıyor.',
 } as const;
 
 /** Adds or edits a product with every field the catalogue keeps; also deletes and restores. */
@@ -187,8 +188,9 @@ export function ProductFormDialog({
           />
           {LOOKUP_BARCODE.test(draft.barcode.trim()) ? (
             <NameSuggestion
+              key={draft.barcode.trim()}
               barcode={draft.barcode.trim()}
-              hasName={draft.name.trim() !== ''}
+              name={draft.name}
               onUse={(name) => set('name', name)}
             />
           ) : null}
@@ -338,25 +340,41 @@ type Lookup =
 
 /**
  * Asks Open Food Facts for the barcode's product name, only when the button is pressed. An empty
- * name box takes the answer at once; a typed name stays until the user picks "Kullan".
+ * name box takes the answer at once; a name typed before or during the wait stays until the user
+ * picks "Kullan". It is keyed by barcode, so a changed barcode drops a pending answer.
  */
 function NameSuggestion({
   barcode,
-  hasName,
+  name,
   onUse,
 }: {
   barcode: string;
-  hasName: boolean;
+  name: string;
   onUse(name: string): void;
 }): JSX.Element {
   const [lookup, setLookup] = useState<Lookup>({ kind: 'idle' });
+  // The name as it is when the answer comes back, and whether this barcode is still the one asked.
+  const latestName = useRef(name);
+  const current = useRef(true);
+  useLayoutEffect(() => {
+    latestName.current = name;
+  });
+  useEffect(() => {
+    current.current = true;
+    return () => {
+      current.current = false;
+    };
+  }, []);
 
   async function ask() {
     setLookup({ kind: 'asking' });
     const result = await suggestProductName(barcode);
+    if (!current.current) {
+      return;
+    }
     if ('error' in result) {
       setLookup({ kind: 'failed', message: LOOKUP_FAILURES[result.error] });
-    } else if (hasName) {
+    } else if (latestName.current.trim() !== '') {
       setLookup({ kind: 'offer', name: result.name });
     } else {
       onUse(result.name);
@@ -383,7 +401,7 @@ function NameSuggestion({
         </div>
       ) : null}
       <p role="status" className="text-sm text-text-2">
-        {lookup.kind === 'failed' ? lookup.message : ''}
+        {lookup.kind === 'failed' ? lookup.message : lookup.kind === 'asking' ? 'Aranıyor…' : ''}
       </p>
     </div>
   );

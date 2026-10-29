@@ -32,6 +32,14 @@ describe('suggestProductName', () => {
     });
   });
 
+  it('tells a server error from being offline', async () => {
+    for (const status of [503, 429]) {
+      expect(await suggestProductName('8690000000000', { fetch: answer(status, {}) })).toEqual({
+        error: 'unavailable',
+      });
+    }
+  });
+
   it('says when the product is unknown, the device is offline or the answer is late', async () => {
     expect(
       await suggestProductName('8690000000000', { fetch: answer(404, { status: 0 }) }),
