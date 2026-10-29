@@ -87,10 +87,9 @@ M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün fo
 
 ## M4 · Cari hesaplar
 
-- İptal ya da iadeden sonra borç yaşı en eski borçtan düşülüyor, ilgili satışın borcundan değil. (M2b)
-- `debtAgeDays` gün dönümü ayarını ve saat dilimini dikkate almıyor; `cutoffMinutes` için sınır yok. (M0)
-- `addLedgerEntry` kendi transaction'ını açmıyor (bugün her çağıran açıyor). (M2b)
-- Test: arşivli ya da bilinmeyen veresiye müşterisi, `cutoffMinutes`. (M1a)
+M4a (veresiye) planı yazıldı ve bu bölümün M4a maddelerini aldı: iptal ve iadeden sonra borç yaşı, `debtAgeDays`'in gün dönümü ve saat dilimi, `addLedgerEntry`'nin transaction'ı, arşivli ya da bilinmeyen veresiye müşterisi testleri. M4b'nin planı yazılmadı:
+
+- **M4b:** Tedarikçiler, tedarikçi cari ve ödemeleri (nakit, banka, kart, çek), alış faturasının tedarikçiye bağlanması (DESIGN §6.2, §6.3, §10).
 - **M4b:** Bedelsiz gelen mal ve KDV hariç fatura fiyatı (tedarikçi faturası). (M3c)
 
 ## M6 · Yönetim
