@@ -5,7 +5,7 @@ import { lineTotal } from '@/domain/pricing';
 import type { CartAction, CartLine } from './cart';
 import { DiscountField } from './DiscountField';
 import { readDiscount, type DiscountMode } from './discountInput';
-import { formatQty, parseQuantity } from './format';
+import { formatQtyInput, parseQuantity } from './format';
 
 export type LineDialogProps = {
   open: boolean;
@@ -18,7 +18,7 @@ type Errors = { quantity?: string; discount?: string };
 
 /** Changes one cart line: its quantity (kilograms for weighed goods), its discount, or removes it. */
 export function LineDialog({ open, line, onClose, dispatch }: LineDialogProps): JSX.Element {
-  const [quantity, setQuantity] = useState(formatQty(line.qtyMilli));
+  const [quantity, setQuantity] = useState(formatQtyInput(line.qtyMilli));
   const [mode, setMode] = useState<DiscountMode>('amount');
   const [discount, setDiscount] = useState(
     line.lineDiscount > 0 ? formatTRY(line.lineDiscount).replace('₺', '') : '',

@@ -187,9 +187,7 @@ describe('PosScreen', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'İade al' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Artır · Süt' }));
     await userEvent.click(screen.getByRole('button', { name: 'İadeyi kaydet' }));
-    expect(
-      await screen.findByText('İade kaydedildi · ₺42,50 · Nakit ₺42,50'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('İade kaydedildi · ₺42,50 · Nakit ₺42,50')).toBeInTheDocument();
     expect(await stockOf(data.db, created.id)).toBe(0);
   });
 
@@ -244,5 +242,20 @@ describe('PosScreen', () => {
       { method: 'cash', amount: 2000 },
       { method: 'card', amount: 2250 },
     ]);
+  });
+
+  it('lets go of the line editor when its line disappears', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    await userEvent.click(screen.getByRole('button', { name: 'Düzenle · Süt' }));
+    await screen.findByLabelText('Miktar');
+    // Another tab empties the cart while the editor is open.
+    localStorage.setItem('mk2.cart', JSON.stringify(emptyCart()));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mk2.cart' }));
+    await screen.findByText('Sepet boş');
+    fireEvent.keyDown(window, { key: 'F9' });
+    expect(await screen.findByRole('dialog', { name: 'Son fişler' })).toBeInTheDocument();
   });
 });

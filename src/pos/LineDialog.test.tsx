@@ -73,4 +73,9 @@ describe('LineDialog', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'remove', productId: 'e' });
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('prefills a large quantity in a form it reads back the same', () => {
+    setup(line({ unit: 'kg', qtyMilli: 1_000_000 }));
+    expect(screen.getByLabelText('Miktar (kg)')).toHaveValue('1000');
+  });
 });

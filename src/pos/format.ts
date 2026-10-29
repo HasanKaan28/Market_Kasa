@@ -30,6 +30,14 @@ export function formatTime(iso: string): string {
   return TIME_FORMAT.format(new Date(iso));
 }
 
+/** A quantity for an input field: no thousands grouping, so `parseQuantity` reads it back. */
+export function formatQtyInput(qtyMilli: number): string {
+  return (qtyMilli / 1000).toLocaleString('tr-TR', {
+    maximumFractionDigits: 3,
+    useGrouping: false,
+  });
+}
+
 /** A quantity in thousandths as the cashier reads it: "2", "1,5". */
 export function formatQty(qtyMilli: number): string {
   return (qtyMilli / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 3 });

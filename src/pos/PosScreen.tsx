@@ -47,6 +47,13 @@ export function PosScreen(): JSX.Element {
   const toast = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   const hasItems = cart.lines.length > 0;
+  const editedLine =
+    dialog?.kind === 'line'
+      ? cart.lines.find((line) => line.productId === dialog.productId)
+      : undefined;
+  // A line editor whose line vanished (another tab, a refresh) counts as closed, so scans and
+  // shortcuts keep working.
+  const openDialog = dialog?.kind === 'line' && !editedLine ? null : dialog;
 
   useEffect(() => {
     saveCart(cart);
@@ -87,7 +94,7 @@ export function PosScreen(): JSX.Element {
   }
 
   async function handleScan(code: string) {
-    if (dialog !== null) {
+    if (openDialog !== null) {
       toast.show('Önce açık pencereyi kapatın.');
       return;
     }
@@ -174,14 +181,10 @@ export function PosScreen(): JSX.Element {
       },
       F9: () => setDialog({ kind: 'receipts' }),
     },
-    dialog === null,
+    openDialog === null,
   );
 
   const close = () => setDialog(null);
-  const editedLine =
-    dialog?.kind === 'line'
-      ? cart.lines.find((line) => line.productId === dialog.productId)
-      : undefined;
   const paymentMethod = dialog?.kind === 'cash' || dialog?.kind === 'card' ? dialog.kind : null;
 
   return (
