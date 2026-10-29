@@ -72,10 +72,12 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Test: satıştan önce gelen iptal ve iade; yakınsama testinde iptal ve iade. (M2b)
 - Sunucu barkodu büyük harfe çevirmeli ve market içinde benzersiz tutmalı; silinmiş ürünün barkodu bırakması istemcideki kuralla aynı olmalı. (M3a)
 - Geri getirilen ürünün barkodu bu arada başka cihazda başka ürüne verilmişse kullanıcıya bir şey söylenmiyor. (M3a)
+- İki kasanın alan bazında birleşmesi, kritik seviyesi kesirli bir adetli ürün üretebilir; form sonra kaydetmeyi reddeder. (M3b)
+- Fiyat değişiklikleri için iz kaydı (§2.3). (M3b)
 
 ## M3 · Ürün ve stok
 
-M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b (içe/dışa aktarma ve toplu fiyat) planı yazıldı. M3'ün kalan alt planları:
+M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3'ün kalan alt planları:
 
 - **M3c · Mal kabul ve stok hareketleri:** Stok ekranı, mal kabul (alış ve satış fiyatını güncelleyerek), ürün bazında hareket geçmişi, elle stok düzeltme, kritik stok listesi. (DESIGN §10)
 - **M3d · Sayım:** sayım farkı hareket olarak yazılır (DESIGN §10); sayım sürerken başka cihazda yapılan satışlar hesaba katılır.
@@ -85,7 +87,13 @@ Ertelenmiş maddeler:
 - **M3c:** Tartılı satırlar birimini kaybedebiliyor (eski kayıt, `refresh`); sepet satırında, iade adımında ve fişte "kg" yok, çünkü satış satırı birim taşımıyor. (M2b, M2c, M2d)
 - **M3c:** Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor (sepet satırları birleştirdiği için şimdilik oluşmuyor). (M2b)
 - **M3c:** Kg'dan adede çevrilen ürünün stoğu "1,5 adet" görünüyor. (M3a)
-- **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15). M2a planı bunu M2b'ye bırakmıştı, M2b almadı. Kasada, Ürünler ekranında, mal kabulde ve sayımda kullanılacak. (M2a)
+- **M3c:** Ad önerisinde yarışlar: beklerken yazılan ad eziliyor, istek sürerken barkod değişirse eski barkodun adı yazılıyor, öneri barkod değişince kalıyor. Sunucu hatasında "İnternet bağlantısı yok." yazıyor; beklerken "Aranıyor…" yok. (M3b)
+- **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15).
+- **M3d:** İçe aktarma önizlemesinde 50. satırdan sonrası görünmüyor (uyarı, geri getirme, hata nedeni). Satır numaraları boş satırları atlıyor, Excel'inkilerle uyuşmuyor. (M3b)
+- **M3d:** Binlik ayraçlı miktar ("1.000") ondalık okunuyor. (M3b)
+- **M3d:** Gerçek dosyalarda karışıklık. UTF-16 "Unicode Metin" .txt, `sep=;` ilk satırı ve ikili .xls okunamıyor. DOĞRU/YANLIŞ ve "AD" gibi birimler reddediliyor. 12E45 gibi harfli kodlar bilimsel sayı sanılıyor. Sayfa seçimi, gizli ilk sayfa, Strict OOXML ve Mac Roman/cp857 CSV desteklenmiyor. Excel dışa aktarılan dosyayı açınca tarih gibi görünen adları tarihe çeviriyor. (M3b)
+- **M3d:** Sonradan hatalı çıkan ilk satır, aynı barkodlu sonraki satırı da engelliyor. (M3b)
+- **M3d:** Toplu "Alış +₺" bilinmeyen (₺0) alış fiyatına değer veriyor. İçe aktarma formun 10.000 birim sınırını aşan miktarı kabul ediyor. Zip denetimi 2 bayta bakıyor. Uzun içe aktarmada "İçe aktarılıyor…" yok. Eşlenmiş KDV sütunundaki boş hücre sessizce %1 oluyor. (M3b) M2a planı bunu M2b'ye bırakmıştı, M2b almadı. Kasada, Ürünler ekranında, mal kabulde ve sayımda kullanılacak. (M2a)
 
 ## M4 · Cari hesaplar
 
@@ -98,6 +106,7 @@ Ertelenmiş maddeler:
 
 - Fiş ayarlarını her kasiyer değiştirebiliyor (roller). (M2d)
 - Ürünleri ve kategorileri her kasiyer ekleyip silebiliyor (roller); yönetim ekranları için yan menü (§13). (M3a)
+- İçe aktarma, dışa aktarma ve toplu fiyatı her kasiyer yapabiliyor; §8.5'e göre dışa aktarma yalnız sahibe açık olmalı. (M3b)
 
 ## M7 · e-Arşiv
 
@@ -114,6 +123,8 @@ Ertelenmiş maddeler:
 - `version.test.ts` sürüm metnini sabit yazıyor. (M0)
 - v5 yükseltmesi büyük/küçük harf çakışmasında silinmiş eski ürünü canlı ürüne tercih ediyor; yalnız v4 deneme verisini etkiler. (M3a)
 - Geri tuşu (Android'inki de) kasada açık bir pencere varken ekranı değiştiriyor; sepet saklı olduğu için kayıp yok. (M3a)
+- Electron ve Android'de dışa aktarılan dosyanın indirilmesi ve paylaşılması. İleride bir CSP gelirse `world.openfoodfacts.org`'a izin vermeli, yoksa ad önerisi "çevrimdışı" der. (M3b)
+- Pilotta denenecek: okuyucu UPC-A'yı 12 mi 13 hane mi gönderiyor (12 haneli kodda düşmüş 0 sağlama toplamıyla anlaşılamıyor); Safari/iOS'ta 5.000 satırlık içe aktarmanın hızı. (M3b)
 
 ## Kapananlar
 

@@ -318,3 +318,29 @@
 - [ ] **Step 2–4:** Run: `npm test -- src/products/ProductFormDialog src/products/CategoriesDialog && npm run typecheck` · önce FAIL, sonra PASS; ardından `npm test && npm run lint`.
 - [ ] **Step 5: Commit** — `git commit -m "fix(products): restore-only form for deleted products; delete confirmation waits for its count"`
 
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `6d3f076`…`67e4b84` (9 görev), inceleme düzeltmeleri `d0a1f08`. Son durumda 431 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): 1 kritik, 7 önemli, 10 küçük bulgu. Kritik ve önemlilerin hepsi düzeltildi. Küçük bulgulardan biri (aynı dosyanın yeniden seçilmesi) önemliye yükseltilip düzeltildi; kalanlar ertelendi.
+  - **C1:** XLSX'te üç ondalıklı fiyat (`=B2*1,3` gibi bir formülün sonucu, "4.875") binlik ayraç sanılıp ×1000 okunuyordu. Sayı hücreleri artık ondalık virgülle ve kayan nokta gürültüsü temizlenerek okunuyor. İki ondalıktan uzun fiyat kuruşa yarım yukarı yuvarlanıyor ("4,875" → ₺4,88).
+  - **I1:** Yeni kategori, kategorisi olmayan ürüne verilmiyordu.
+  - **I2:** Eksi stoklu ürün dışa aktarılıp geri okununca satır reddediliyordu. Var olan ürünün stoğu zaten okunmuyor; eksi stok yalnız yeni üründe hata.
+  - **I3:** Uygulama anında reddedilecek değerler önizlemede görünmüyordu: 40 karakterden uzun kategori, kesirli kritik seviyeli ürünü adede çevirmek. Artık önizlemede satırıyla görünüyorlar.
+  - **I4:** Önizleme yalnız alan adını söylüyordu. Artık "Satış fiyatı: ₺42,50 → ₺45,00" diyor.
+  - **I5:** Barkodsuz bir liste barkodlu ürünlerin kopyasını açıyordu. Barkodsuz satır artık adı tek bir canlı ürünle eşleşince onu günceller. Bilinmeyen barkodlu satır, adı tek bir barkodsuz ürünle eşleşince o ürüne barkodunu verir.
+  - **I6:** Toplu fiyat, yuvarlama ya da büyük bir azaltmayla ürünü ₺0'a düşürebiliyordu; artık reddediyor.
+  - **I7:** Kısıt testleri gerçek yazma yolundan geçiyor.
+  - **M5 (önemliye yükseltildi):** Aynı dosya Excel'de düzeltilip yeniden seçilince eski içerik içe aktarılıyordu.
+- **Kararlar:**
+  - XLSX `fflate` ile ve kendi okuyucumuzla okunur.
+  - Baştaki 0'ı düşmüş görünen barkod reddedilmez, uyarı verilir.
+  - Yeni üründe KDV sütunu yoksa %1 kullanılır ve pencere bunu söyler.
+  - Dışa aktarmada formül gibi başlayan metne kesme işareti eklenir, içe aktarma onu geri alır.
+  - Toplu fiyat ₺0'a düşürmeyi reddeder.
+- **Doğrulama:** Production build Chromium'da denendi.
+  - İçe aktarma v1 başlıklarını tanıdı.
+  - Önizleme 1 yeni, 1 güncellenecek, 1 hatalı gösterdi; hatalı satır bilimsel gösterimdeki barkod, nedeni doğru yazıldı.
+  - Var olan ürünün stoğu değişmedi.
+  - 375 px'te düğmeler alt satıra kaydı, pencereler sığdı.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M3c, M3d, M0b, M6 ve M8 bölümlerinde.
+
