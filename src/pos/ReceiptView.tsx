@@ -1,7 +1,8 @@
 import type { JSX } from 'react';
+import { PRINTABLE_WIDTH } from './printPage';
 import type { ReceiptModel, ReceiptRow } from './receipt';
 
-/** A receipt laid out for paper of the given width; the same layout is printed. */
+/** A receipt as wide as the printer prints on the given paper; the same layout is printed. */
 export function ReceiptView({
   model,
   paperWidth,
@@ -12,7 +13,7 @@ export function ReceiptView({
   return (
     <article
       aria-label={`Fiş ${model.receiptNo}`}
-      style={{ width: `${paperWidth}mm` }}
+      style={{ width: `${PRINTABLE_WIDTH[paperWidth]}mm` }}
       className="mx-auto flex max-w-full flex-col gap-2 bg-white px-2 py-3 text-[13px] leading-snug text-black"
     >
       <header className="text-center">
