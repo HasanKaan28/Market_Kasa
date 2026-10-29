@@ -145,6 +145,12 @@ export async function searchProducts(
   return matches.sort((a, b) => a.name.localeCompare(b.name, 'tr')).slice(0, limit);
 }
 
+/** Products marked for the quick grid, by name; deleted ones excluded. */
+export async function listQuickProducts(db: MarketDb): Promise<ProductRecord[]> {
+  const quick = await db.products.filter((product) => product.isQuick && !product.deletedAt).toArray();
+  return quick.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+}
+
 /** Validates and normalises whichever fields are present; absent fields stay absent. */
 function validateFields(input: ProductPatch): Partial<ProductFields> {
   const fields: Partial<ProductFields> = {};

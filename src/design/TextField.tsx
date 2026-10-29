@@ -1,6 +1,7 @@
-import { useId, type InputHTMLAttributes, type JSX } from 'react';
+import { useId, type ComponentProps, type JSX } from 'react';
 
-export type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
+/** Every input attribute, `ref` included (React 19 passes it as a prop). */
+export type TextFieldProps = ComponentProps<'input'> & {
   label: string;
   hint?: string;
   error?: string;

@@ -8,6 +8,7 @@ import {
   createProduct,
   deleteProduct,
   findProductByBarcode,
+  listQuickProducts,
   searchProducts,
   updateProduct,
 } from './products';
@@ -137,5 +138,17 @@ describe('products', () => {
       createProduct(db, { barcode: 'abc def', name: 'X', sellPrice: 100, vatRate: 1 }, at),
     ).rejects.toThrow(RangeError);
     expect(await pendingOps(db)).toEqual([]);
+  });
+
+  it('lists quick products by name, without deleted ones', async () => {
+    await createProduct(db, { name: 'Simit', sellPrice: 1500, vatRate: 1, isQuick: true }, at);
+    const ayran = await createProduct(
+      db,
+      { name: 'Ayran', sellPrice: 2250, vatRate: 1, isQuick: true },
+      at,
+    );
+    await createProduct(db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    await deleteProduct(db, ayran.id, later);
+    expect((await listQuickProducts(db)).map((p) => p.name)).toEqual(['Simit']);
   });
 });
