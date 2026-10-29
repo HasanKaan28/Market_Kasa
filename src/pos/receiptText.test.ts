@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ReceiptModel } from './receipt';
-import { receiptText, whatsappLink } from './receiptText';
+import { receiptText, whatsappLink, whatsappText } from './receiptText';
 
 const model: ReceiptModel = {
   header: ['Kurşunlu Market'],
@@ -82,6 +82,12 @@ describe('receiptText', () => {
     expect(row).toContain('…');
     expect(lines).toContain('Müşteri: Ahmet Yılmaz');
     expect(lines).toContain('*** İPTAL EDİLDİ ***');
+  });
+});
+
+describe('whatsappText', () => {
+  it('lays the receipt out for a phone, in a monospaced block', () => {
+    expect(whatsappText(model)).toBe(['```', receiptText(model, 32), '```'].join('\n'));
   });
 });
 

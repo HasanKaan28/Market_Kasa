@@ -203,7 +203,13 @@ describe('ReceiptsDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'WhatsApp' }));
     const url = String(open.mock.calls[0]?.[0]);
     expect(url.startsWith('https://wa.me/?text=')).toBe(true);
-    expect(decodeURIComponent(url)).toContain('K1-20261029-0001');
+    const text = decodeURIComponent(url.slice('https://wa.me/?text='.length));
+    expect(text).toContain('K1-20261029-0001');
+    // Laid out for a phone even with 80 mm paper (the default), in a monospaced block.
+    expect(text.startsWith('```\n')).toBe(true);
+    for (const line of text.split('\n')) {
+      expect(line.length).toBeLessThanOrEqual(32);
+    }
     open.mockRestore();
   });
 

@@ -10,7 +10,7 @@ import { formatTRY } from '@/domain/money';
 import { formatDateTime, PAYMENT_LABELS } from './format';
 import { buildReceipt } from './receipt';
 import type { ReceiptSettings } from './receiptSettings';
-import { receiptText, whatsappLink } from './receiptText';
+import { whatsappLink, whatsappText } from './receiptText';
 import { ReceiptView } from './ReceiptView';
 
 export type ReceiptsDialogProps = {
@@ -148,8 +148,7 @@ function ReceiptDetail({
   });
 
   function share() {
-    const text = receiptText(model, settings.paperWidth === 58 ? 32 : 48);
-    window.open(whatsappLink(text, customer?.phone), '_blank', 'noopener');
+    window.open(whatsappLink(whatsappText(model), customer?.phone), '_blank', 'noopener');
   }
 
   return (

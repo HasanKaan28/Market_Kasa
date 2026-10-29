@@ -4,7 +4,7 @@ export type ReceiptColumns = 32 | 48;
 
 /**
  * A receipt as monospaced text, at most `columns` characters per line (32 for 58 mm paper,
- * 48 for 80 mm): for WhatsApp now, and for a receipt printer later. An amount is never cut;
+ * 48 for 80 mm): for a receipt printer later, and at 32 for WhatsApp. An amount is never cut;
  * a name that does not fit beside it is shortened with "…".
  */
 export function receiptText(model: ReceiptModel, columns: ReceiptColumns): string {
@@ -31,6 +31,14 @@ export function receiptText(model: ReceiptModel, columns: ReceiptColumns): strin
     ...model.footer.flatMap((line) => centered(line, columns)),
   ];
   return lines.join('\n');
+}
+
+/**
+ * The receipt for a WhatsApp message, whatever the paper: 32 columns fit a phone, and the ```
+ * block shows them in a monospaced font and keeps `*` or `_` in names from becoming formatting.
+ */
+export function whatsappText(model: ReceiptModel): string {
+  return ['```', receiptText(model, 32), '```'].join('\n');
 }
 
 /** A wa.me link with the text; Turkish mobile numbers get the 90 country code. */
