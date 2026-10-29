@@ -10,7 +10,7 @@ import type {
   StockMovementRecord,
 } from './types';
 
-const MARKET_ID = /^[a-z0-9-]{1,64}$/;
+export const MARKET_ID = /^[a-z0-9-]{1,64}$/;
 
 export class MarketDb extends Dexie {
   declare products: Table<ProductRecord, string>;
