@@ -1,12 +1,16 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type FormEvent, type JSX, type ReactNode } from 'react';
 import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { saveDeviceSettings } from '@/app/device';
+import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
 import { saveMarketSettings } from '@/data/settings';
 import { Button, SelectField, TextField } from '@/design';
+import { licenseState } from '@/domain/license';
 import { ReceiptSettingsDialog } from '@/pos/ReceiptSettingsDialog';
 import { loadReceiptSettings, saveReceiptSettings } from '@/pos/receiptSettings';
+import { formatPeriod } from '@/reports/reportFormat';
 
 // The day may turn on the hour from midnight to noon (DESIGN §9).
 const CUTOFF_OPTIONS = Array.from({ length: 13 }, (_, hour) => ({
@@ -180,6 +184,30 @@ export function ReceiptSection({ onDone }: { onDone(message: string): void }): J
           }}
         />
       ) : null}
+    </SettingsSection>
+  );
+}
+
+/** The licence's last day as last heard from the server, and where it stands. */
+export function LicenseSection(): JSX.Element {
+  const { db } = useData();
+  const expiresAt = useLiveQuery(() => loadLicense(db), [db]);
+  const state = expiresAt === undefined ? null : licenseState(expiresAt, new Date());
+  const text =
+    expiresAt === undefined
+      ? null
+      : expiresAt === null || state?.kind === 'unknown'
+        ? 'Bilinmiyor: lisans tarihi sunucu bağlantısıyla gelir.'
+        : `Son gün ${formatPeriod(expiresAt, expiresAt)}${
+            state?.kind === 'readOnly' ? ' · süresi doldu, satış kapalı' : ''
+          }`;
+  return (
+    <SettingsSection
+      id="license-heading"
+      title="Lisans"
+      description="Bitişe 7 gün kala uyarı çıkar; bitişten sonra 3 gün daha satış yapılır, sonra satış kapanır."
+    >
+      {text ? <p>{text}</p> : null}
     </SettingsSection>
   );
 }

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
 import { createStaff } from '@/data/staff';
 import { saveMarketSettings } from '@/data/settings';
+import { saveLicense } from '@/app/license';
 import { recentSales, recordSale } from '@/data/sales';
 import { stockOf } from '@/data/stock';
 import { isVoided } from '@/data/voids';
@@ -37,6 +38,33 @@ describe('PosScreen', () => {
     expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Satış tamamlandı');
     expect(await recentSales(data.db)).toHaveLength(1);
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
+  });
+
+  it('closes the register when the grace is over', async () => {
+    const data = createTestData();
+    await saveLicense(data.db, '2026-01-01');
+    await renderWithData(<PosScreen />, data);
+    expect(
+      await screen.findByText(
+        'Lisans süresi doldu. Satış kapalı; veriler okunabilir ve dışa aktarılabilir.',
+      ),
+    ).toBeInTheDocument();
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(await screen.findByText('Lisans süresi doldu; satış yapılamaz.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Alınan tutar')).not.toBeInTheDocument();
+  });
+
+  it('keeps everything open without licence information', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(await screen.findByLabelText('Alınan tutar')).toBeInTheDocument();
+    expect(screen.queryByText(/Lisans/)).not.toBeInTheDocument();
   });
 
   it('counts a sale after midnight on the day before', async () => {

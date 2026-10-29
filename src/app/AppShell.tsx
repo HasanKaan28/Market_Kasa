@@ -2,6 +2,7 @@ import { Lock } from 'lucide-react';
 import type { JSX, ReactNode } from 'react';
 import { Button } from '@/design';
 import type { SyncState } from '@/sync/runner';
+import { LicenseBanner } from './LicenseBanner';
 import { ROUTE_PERMISSIONS, type Route } from './route';
 import { useSession } from './session';
 import { APP_VERSION } from './version';
@@ -82,6 +83,7 @@ export function AppShell({
           ) : null}
         </div>
       </header>
+      <LicenseBanner />
 
       <div className="flex flex-1 flex-wrap gap-4 px-5 py-4">
         <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-3.5">{children}</main>

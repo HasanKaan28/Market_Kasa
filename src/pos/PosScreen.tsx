@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
 import { useActor } from '@/app/actor';
 import { ApprovalDialog } from '@/app/ApprovalDialog';
+import { useLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useData, useSyncStatus } from '@/app/appData';
 import { useSession } from '@/app/session';
@@ -63,6 +64,7 @@ export function PosScreen(): JSX.Element {
   const session = useSession();
   const { staff } = session;
   const actor = useActor();
+  const license = useLicense();
   const { cutoffMinutes } = useMarketSettings();
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
@@ -117,6 +119,15 @@ export function PosScreen(): JSX.Element {
 
   function add(product: ProductRecord) {
     dispatch({ type: 'add', product });
+  }
+
+  // Once the licence has run out, nothing more is sold (DESIGN §8.6); the rest stays readable.
+  function selling(permission: Permission, next: () => void) {
+    if (license.kind === 'readOnly') {
+      toast.show('Lisans süresi doldu; satış yapılamaz.');
+      return;
+    }
+    guarded(permission, next);
   }
 
   // What the person may do opens at once; anything else waits for a permitted person's PIN.
@@ -243,10 +254,10 @@ export function PosScreen(): JSX.Element {
     {
       F1: () => searchRef.current?.focus(),
       F2: () => {
-        if (hasItems) guarded('sell', () => setDialog({ kind: 'cash' }));
+        if (hasItems) selling('sell', () => setDialog({ kind: 'cash' }));
       },
       F4: () => {
-        if (hasItems) guarded('sell', () => setDialog({ kind: 'card' }));
+        if (hasItems) selling('sell', () => setDialog({ kind: 'card' }));
       },
       F8: () => {
         if (hasItems) hold();
@@ -274,7 +285,7 @@ export function PosScreen(): JSX.Element {
             cart={cart}
             dispatch={dispatch}
             onPay={(method) =>
-              guarded(method === 'credit' ? 'creditSale' : 'sell', () =>
+              selling(method === 'credit' ? 'creditSale' : 'sell', () =>
                 setDialog({ kind: method }),
               )
             }
