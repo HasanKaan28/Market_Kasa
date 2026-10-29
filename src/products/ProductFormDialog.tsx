@@ -28,6 +28,11 @@ export type ProductFormDialogProps = {
   product?: ProductRecord;
   /** A scanned barcode for a new product. */
   barcode?: string;
+  /**
+   * Whether a new product is asked for the stock on the shelf; a goods receipt says no, as its
+   * own line brings the delivered stock in and asking would count it twice.
+   */
+  askOpeningStock?: boolean;
   onClose(): void;
   /** Called with the message to show once the change is saved. */
   onSaved(message: string): void;
@@ -50,6 +55,7 @@ export function ProductFormDialog({
   open,
   product,
   barcode,
+  askOpeningStock = true,
   onClose,
   onSaved,
 }: ProductFormDialogProps): JSX.Element {
@@ -256,7 +262,7 @@ export function ProductFormDialog({
                 </div>
               )}
             </div>
-          ) : (
+          ) : askOpeningStock ? (
             <TextField
               label="Başlangıç stoğu"
               hint={`Rafta şu an kaç ${UNIT_LABELS[draft.unit]} var?`}
@@ -266,7 +272,7 @@ export function ProductFormDialog({
               error={errors.openingStock}
               onChange={(event) => set('openingStock', event.target.value)}
             />
-          )}
+          ) : null}
           <label className="flex min-h-11 cursor-pointer items-center gap-3">
             <input
               type="checkbox"

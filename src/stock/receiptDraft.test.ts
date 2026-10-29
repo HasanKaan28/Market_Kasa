@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ProductRecord } from '@/data/types';
-import { addProduct, EMPTY_DRAFT, loadDraft, readDraftLines, saveDraft } from './receiptDraft';
+import {
+  addProduct,
+  draftLineCost,
+  EMPTY_DRAFT,
+  loadDraft,
+  readDraftLines,
+  saveDraft,
+  shownPrice,
+} from './receiptDraft';
 
 const stamp = '2026-10-29T09:00:00.000Z';
 
@@ -29,22 +37,53 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 describe('receiptDraft', () => {
-  it('adds a product and counts it up when added again', () => {
+  it('adds a product without its prices and counts it up when added again', () => {
     const milk = product('milk', { name: 'Süt' });
     const once = addProduct(EMPTY_DRAFT, milk);
-    expect(once.lines).toEqual([
-      {
-        productId: 'milk',
-        name: 'Süt',
-        unit: 'piece',
-        qty: '1',
-        buyPrice: '30,00',
-        sellPrice: '42,50',
-      },
-    ]);
+    expect(once.lines).toEqual([{ productId: 'milk', name: 'Süt', unit: 'piece', qty: '1' }]);
     expect(addProduct(once, milk).lines.map((line) => line.qty)).toEqual(['2']);
-    const cheese = product('cheese', { name: 'Peynir', unit: 'kg', buyPrice: 0 });
-    expect(addProduct(EMPTY_DRAFT, cheese).lines[0]).toMatchObject({ qty: '1', buyPrice: '' });
+  });
+
+  it('shows the price the product has now until one is typed', () => {
+    const [line] = addProduct(EMPTY_DRAFT, product('milk')).lines;
+    const raised = product('milk', { buyPrice: 3500, sellPrice: 5000 });
+    expect(shownPrice(line!, raised, 'buyPrice')).toBe('35,00');
+    expect(shownPrice(line!, raised, 'sellPrice')).toBe('50,00');
+    expect(shownPrice(line!, product('milk', { buyPrice: 0 }), 'buyPrice')).toBe('');
+    expect(shownPrice({ ...line!, sellPrice: '45' }, raised, 'sellPrice')).toBe('45');
+    expect(shownPrice(line!, undefined, 'sellPrice')).toBe('');
+  });
+
+  it('sends only the prices that were typed', () => {
+    const draft = addProduct(addProduct(EMPTY_DRAFT, product('milk')), product('tea'));
+    const typed = {
+      ...draft,
+      lines: draft.lines.map((line) =>
+        line.productId === 'tea' ? { ...line, qty: '3', buyPrice: '', sellPrice: '45' } : line,
+      ),
+    };
+    // Both prices were raised elsewhere after the lines were added.
+    const products = new Map([
+      ['milk', product('milk', { buyPrice: 3500, sellPrice: 5000 })],
+      ['tea', product('tea', { buyPrice: 3500, sellPrice: 5000 })],
+    ]);
+    expect(readDraftLines(typed, products)).toEqual({
+      lines: [
+        { productId: 'milk', qtyMilli: 1000 },
+        { productId: 'tea', qtyMilli: 3000, sellPrice: 4500 },
+      ],
+      errors: new Map(),
+    });
+  });
+
+  it('prices a line at the buy price it will be saved with', () => {
+    const [line] = addProduct(EMPTY_DRAFT, product('milk')).lines;
+    const milk = product('milk', { buyPrice: 3500 });
+    expect(draftLineCost({ ...line!, qty: '12' }, milk)).toBe(42000);
+    expect(draftLineCost({ ...line!, qty: '12', buyPrice: ' ' }, milk)).toBe(42000);
+    expect(draftLineCost({ ...line!, qty: '12', buyPrice: '30' }, milk)).toBe(36000);
+    expect(draftLineCost({ ...line!, qty: 'x' }, milk)).toBeUndefined();
+    expect(draftLineCost(line!, undefined)).toBeUndefined();
   });
 
   it('keeps a draft in storage and ignores a broken one', () => {
@@ -52,6 +91,12 @@ describe('receiptDraft', () => {
     const draft = { ...addProduct(EMPTY_DRAFT, product('milk')), note: 'İrsaliye 7' };
     saveDraft(draft, storage);
     expect(loadDraft(storage)).toEqual(draft);
+    const typed = { note: '', lines: [{ ...draft.lines[0]!, buyPrice: '30', sellPrice: '' }] };
+    expect(loadDraft(memoryStorage({ 'mk2.goodsReceipt': JSON.stringify(typed) }))).toEqual(typed);
+    const numeric = { note: '', lines: [{ ...draft.lines[0]!, buyPrice: 3000 }] };
+    expect(loadDraft(memoryStorage({ 'mk2.goodsReceipt': JSON.stringify(numeric) }))).toEqual(
+      EMPTY_DRAFT,
+    );
     expect(loadDraft(memoryStorage({ 'mk2.goodsReceipt': '{"lines":[{"name":3}]}' }))).toEqual(
       EMPTY_DRAFT,
     );
@@ -59,42 +104,35 @@ describe('receiptDraft', () => {
   });
 
   it('reads lines and names what is wrong', () => {
+    const products = new Map([
+      ['a', product('a')],
+      ['b', product('b')],
+      ['c', product('c', { unit: 'kg' })],
+      // Weighed when it was added; counted in pieces now.
+      ['d', product('d')],
+      ['e', product('e', { deletedAt: stamp })],
+    ]);
     const draft = {
       note: '',
       lines: [
-        {
-          productId: 'a',
-          name: 'A',
-          unit: 'piece' as const,
-          qty: '12',
-          buyPrice: '30',
-          sellPrice: '',
-        },
-        {
-          productId: 'b',
-          name: 'B',
-          unit: 'piece' as const,
-          qty: '1,5',
-          buyPrice: '',
-          sellPrice: '',
-        },
-        {
-          productId: 'c',
-          name: 'C',
-          unit: 'kg' as const,
-          qty: '2,5',
-          buyPrice: 'x',
-          sellPrice: '',
-        },
+        { productId: 'a', name: 'A', unit: 'piece' as const, qty: '12', buyPrice: '30' },
+        { productId: 'b', name: 'B', unit: 'piece' as const, qty: '1,5' },
+        { productId: 'c', name: 'C', unit: 'kg' as const, qty: '2,5', buyPrice: 'x' },
+        { productId: 'd', name: 'D', unit: 'kg' as const, qty: '1,5' },
+        { productId: 'e', name: 'E', unit: 'piece' as const, qty: '1' },
+        { productId: 'f', name: 'F', unit: 'piece' as const, qty: '1' },
       ],
     };
-    const read = readDraftLines(draft);
+    const read = readDraftLines(draft, products);
     expect(read.errors).toEqual(
       new Map([
         ['b', 'Adet için tam sayı girin.'],
         ['c', 'Geçerli bir tutar girin.'],
+        ['d', 'Adet için tam sayı girin.'],
+        ['e', 'Bu ürün silinmiş; satırı çıkarın.'],
+        ['f', 'Bu ürün silinmiş; satırı çıkarın.'],
       ]),
     );
-    expect(read.lines[0]).toEqual({ productId: 'a', qtyMilli: 12000, buyPrice: 3000 });
+    expect(read.lines).toEqual([{ productId: 'a', qtyMilli: 12000, buyPrice: 3000 }]);
   });
 });

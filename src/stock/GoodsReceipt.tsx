@@ -2,26 +2,32 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
+import type { MarketDb } from '@/data/db';
 import { findProductByBarcode, searchProducts } from '@/data/products';
 import { recordPurchase } from '@/data/purchases';
 import type { ProductRecord } from '@/data/types';
 import { Button, TextField } from '@/design';
-import { formatTRY, parseTRY } from '@/domain/money';
-import { lineTotal } from '@/domain/pricing';
-import { formatStock, parseQuantity } from '@/pos/format';
-import { useBarcodeScanner } from '@/pos/keyboard';
+import { formatTRY } from '@/domain/money';
+import { formatPriceInput, formatStock } from '@/pos/format';
+import { looksLikeBarcode, useBarcodeScanner } from '@/pos/keyboard';
 import { ProductFormDialog } from '@/products/ProductFormDialog';
 import {
   addProduct,
+  DELETED_PRODUCT_LINE,
+  draftLineCost,
   EMPTY_DRAFT,
   loadDraft,
   readDraftLines,
   saveDraft,
+  shownPrice,
   type DraftLine,
   type ReceiptDraft,
 } from './receiptDraft';
 
 const SEARCH_LIMIT = 8;
+
+type LineField = 'qty' | 'buyPrice' | 'sellPrice';
+type PriceField = 'buyPrice' | 'sellPrice';
 
 export type GoodsReceiptProps = {
   /** Called with the message to show once a receipt or a new product is saved. */
@@ -45,11 +51,16 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     () => (term === '' ? [] : searchProducts(db, term, SEARCH_LIMIT)),
     [db, term],
   );
-  const ids = draft.lines.map((line) => line.productId);
-  const idKey = ids.join(',');
-  const stock = useLiveQuery(async () => {
-    const levels = await db.stockLevels.where('productId').anyOf(idKey.split(',')).toArray();
-    return new Map(levels.map((level) => [level.productId, level.qtyMilli]));
+  const idKey = draft.lines.map((line) => line.productId).join(',');
+  // The draft's products as they are now: their prices fill the boxes nobody typed in, and a
+  // product deleted elsewhere is marked on its line before anyone tries to save.
+  const live = useLiveQuery(async () => {
+    const ids = idKey.split(',');
+    const [products, levels] = await Promise.all([
+      productsById(db, ids),
+      db.stockLevels.where('productId').anyOf(ids).toArray(),
+    ]);
+    return { products, stock: new Map(levels.map((level) => [level.productId, level.qtyMilli])) };
   }, [db, idKey]);
 
   useEffect(() => {
@@ -61,11 +72,12 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     setQuery('');
   }
 
-  async function addByBarcode(code: string) {
+  // A scanned code is always a barcode; typed text only when it looks like one, as at the register.
+  async function addByBarcode(code: string, typed = false) {
     const product = await findProductByBarcode(db, code);
     if (product) {
       add(product);
-    } else {
+    } else if (!typed || looksLikeBarcode(code)) {
       setNewBarcode(code);
     }
   }
@@ -90,11 +102,11 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   function submitSearch(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter' && term !== '') {
       event.preventDefault();
-      void addByBarcode(term);
+      void addByBarcode(term, true);
     }
   }
 
-  function setLine(productId: string, field: 'qty' | 'buyPrice' | 'sellPrice', value: string) {
+  function setLine(productId: string, field: LineField, value: string) {
     setDraft((current) => ({
       ...current,
       lines: current.lines.map((line) =>
@@ -111,14 +123,23 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   }
 
   async function save() {
-    const read = readDraftLines(draft);
-    setErrors(read.errors);
-    if (read.errors.size > 0 || read.lines.length === 0) {
-      return;
-    }
     setBusy(true);
     setFailure(undefined);
     try {
+      // Read again now: the products may have changed since the screen last drew them.
+      const products = await productsById(
+        db,
+        draft.lines.map((line) => line.productId),
+      );
+      const read = readDraftLines(draft, products);
+      setErrors(read.errors);
+      if (read.errors.size > 0) {
+        const names = draft.lines
+          .filter((line) => read.errors.has(line.productId))
+          .map((line) => products.get(line.productId)?.name ?? line.name);
+        setFailure(`Mal kabul kaydedilmedi. Düzeltilecek satırlar: ${names.join(', ')}.`);
+        return;
+      }
       const purchase = await recordPurchase(
         db,
         { deviceCode: settings.deviceCode, lines: read.lines, note: draft.note },
@@ -134,8 +155,17 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     }
   }
 
-  const costs = draft.lines.map(costOf);
-  const total = costs.reduce<number>((sum, cost) => sum + (cost ?? 0), 0);
+  const rows = draft.lines.map((line) => {
+    const product = live?.products.get(line.productId);
+    const gone = live !== undefined && (!product || Boolean(product.deletedAt));
+    return {
+      line,
+      product,
+      cost: gone ? undefined : draftLineCost(line, product),
+      error: errors.get(line.productId) ?? (gone ? DELETED_PRODUCT_LINE : undefined),
+    };
+  });
+  const total = rows.reduce<number>((sum, row) => sum + (row.cost ?? 0), 0);
 
   return (
     <section aria-label="Mal kabul" className="flex flex-col gap-4">
@@ -160,17 +190,18 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         ) : null}
       </div>
 
-      {draft.lines.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-text-2">Gelen ürünleri okutun ya da arayın; burada listelenir.</p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {draft.lines.map((line, index) => (
+          {rows.map(({ line, product, cost, error }) => (
             <li key={line.productId}>
               <ReceiptLine
                 line={line}
-                stockMilli={stock?.get(line.productId) ?? 0}
-                cost={costs[index]}
-                error={errors.get(line.productId)}
+                product={product}
+                stockMilli={live?.stock.get(line.productId) ?? 0}
+                cost={cost}
+                error={error}
                 onChange={(field, value) => setLine(line.productId, field, value)}
                 onRemove={() => remove(line.productId)}
               />
@@ -207,6 +238,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         <ProductFormDialog
           open
           barcode={newBarcode}
+          askOpeningStock={false}
           onClose={() => setNewBarcode(undefined)}
           onSaved={(message) => void created(newBarcode, message)}
         />
@@ -217,6 +249,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
 
 function ReceiptLine({
   line,
+  product,
   stockMilli,
   cost,
   error,
@@ -224,25 +257,29 @@ function ReceiptLine({
   onRemove,
 }: {
   line: DraftLine;
+  /** The product as it is now; deleted ones too, so the line keeps its name. */
+  product: ProductRecord | undefined;
   stockMilli: number;
   cost: number | undefined;
   error: string | undefined;
-  onChange(field: 'qty' | 'buyPrice' | 'sellPrice', value: string): void;
+  onChange(field: LineField, value: string): void;
   onRemove(): void;
 }): JSX.Element {
+  const name = product?.name ?? line.name;
+  const unit = product?.unit ?? line.unit;
   return (
     <div
       role="group"
-      aria-label={line.name}
+      aria-label={name}
       className="flex flex-col gap-2 rounded-control border border-line p-3"
     >
       <div className="flex items-center gap-2">
-        <p className="min-w-0 flex-1 font-medium break-words">{line.name}</p>
-        <span className="text-sm text-text-2">{`Stok: ${formatStock(stockMilli, line.unit)}`}</span>
+        <p className="min-w-0 flex-1 font-medium break-words">{name}</p>
+        <span className="text-sm text-text-2">{`Stok: ${formatStock(stockMilli, unit)}`}</span>
         <Button
           variant="ghost"
           size="icon"
-          aria-label={`Çıkar: ${line.name}`}
+          aria-label={`Çıkar: ${name}`}
           icon={<X aria-hidden="true" size={18} />}
           onClick={onRemove}
         />
@@ -250,7 +287,7 @@ function ReceiptLine({
       <div className="grid gap-2 sm:grid-cols-3">
         <TextField
           label="Miktar"
-          hint={line.unit === 'kg' ? 'Kilogram' : 'Adet'}
+          hint={unit === 'kg' ? 'Kilogram' : 'Adet'}
           inputMode="decimal"
           autoComplete="off"
           value={line.qty}
@@ -260,14 +297,16 @@ function ReceiptLine({
           label="Alış fiyatı"
           inputMode="decimal"
           autoComplete="off"
-          value={line.buyPrice}
+          value={shownPrice(line, product, 'buyPrice')}
+          placeholder={keptPrice(product, 'buyPrice')}
           onChange={(event) => onChange('buyPrice', event.target.value)}
         />
         <TextField
           label="Satış fiyatı"
           inputMode="decimal"
           autoComplete="off"
-          value={line.sellPrice}
+          value={shownPrice(line, product, 'sellPrice')}
+          placeholder={keptPrice(product, 'sellPrice')}
           onChange={(event) => onChange('sellPrice', event.target.value)}
         />
       </div>
@@ -283,15 +322,17 @@ function ReceiptLine({
   );
 }
 
-/** A line's cost when its quantity and buy price can be read; nothing otherwise. */
-function costOf(line: DraftLine): number | undefined {
-  const qtyMilli = parseQuantity(line.qty, line.unit);
-  if (qtyMilli === null || line.buyPrice.trim() === '') {
-    return undefined;
-  }
-  try {
-    return lineTotal(qtyMilli, parseTRY(line.buyPrice));
-  } catch {
-    return undefined;
-  }
+/** An emptied price box shows, greyed, the price the product keeps. */
+function keptPrice(product: ProductRecord | undefined, field: PriceField): string | undefined {
+  return product && product[field] > 0 ? formatPriceInput(product[field]) : undefined;
+}
+
+async function productsById(
+  db: MarketDb,
+  ids: readonly string[],
+): Promise<Map<string, ProductRecord>> {
+  const products = await db.products.bulkGet([...ids]);
+  return new Map(
+    products.flatMap((product) => (product ? [[product.id, product] as const] : [])),
+  );
 }
