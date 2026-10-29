@@ -13,6 +13,9 @@
   --color-success-bg: #e8f6ef;
   --color-danger: #b42318;
   --color-danger-bg: #fdecea;
+  /* Uyarı (§13): 5.8:1 on its background. */
+  --color-warning: #8a5300;
+  --color-warning-bg: #fdf3e1;
 
   --radius-control: 8px;
   --radius-chip: 6px;

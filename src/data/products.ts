@@ -157,17 +157,21 @@ export async function restoreProduct(db: MarketDb, id: string, at: Date): Promis
   });
 }
 
-/** The live product with this barcode, in any letter case; none for text that is no barcode. */
+/**
+ * The live product with this barcode, in any letter case; none for text that is no barcode.
+ * `includeDeleted` also finds a deleted product that still holds the code.
+ */
 export async function findProductByBarcode(
   db: MarketDb,
   code: string,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {},
 ): Promise<ProductRecord | undefined> {
   const barcode = code.trim().toUpperCase();
   if (!BARCODE.test(barcode)) {
     return undefined;
   }
   const product = await db.products.where('barcode').equals(barcode).first();
-  return product && !product.deletedAt ? product : undefined;
+  return product && (includeDeleted || !product.deletedAt) ? product : undefined;
 }
 
 /** Products whose name contains the query, or whose barcode starts with it; deleted ones excluded. */

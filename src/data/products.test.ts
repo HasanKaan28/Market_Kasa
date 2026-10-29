@@ -59,6 +59,19 @@ describe('products', () => {
     expect(await findProductByBarcode(db, 'brk 42')).toBeUndefined();
   });
 
+  it('finds a deleted product by its barcode only when asked', async () => {
+    const old = await createProduct(
+      db,
+      { barcode: '8690000000031', name: 'Eski Gazoz', sellPrice: 1000, vatRate: 1 },
+      at,
+    );
+    await deleteProduct(db, old.id, at);
+    expect(await findProductByBarcode(db, '8690000000031')).toBeUndefined();
+    expect((await findProductByBarcode(db, '8690000000031', { includeDeleted: true }))?.id).toBe(
+      old.id,
+    );
+  });
+
   it('takes a barcode off a deleted product', async () => {
     const old = await createProduct(
       db,

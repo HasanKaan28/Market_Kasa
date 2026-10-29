@@ -60,6 +60,23 @@ describe('ProductFormDialog', () => {
     });
   });
 
+  it('shows the stock only once it is read', async () => {
+    const data = createTestData();
+    const cheese = await createProduct(
+      data.db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 32000, vatRate: 1 },
+      at,
+      { openingStockMilli: 1500 },
+    );
+    await renderWithData(
+      <ProductFormDialog open product={cheese} onClose={vi.fn()} onSaved={vi.fn()} />,
+      data,
+    );
+    // Before the stock is read nothing is shown, never a made-up "Stok: 0 kg".
+    expect(screen.queryByText(/^Stok: /)).not.toBeInTheDocument();
+    expect(await screen.findByText('Stok: 1,5 kg')).toBeInTheDocument();
+  });
+
   it('refuses a barcode another product holds and names it', async () => {
     const data = createTestData();
     await createProduct(data.db, milk, at);

@@ -202,7 +202,9 @@ export function ProductFormDialog({
         />
         {product ? (
           <div className="flex flex-col gap-1">
-            <p className="font-medium">{`Stok: ${formatStock(stockMilli ?? 0, product.unit)}`}</p>
+            {stockMilli === undefined ? null : (
+              <p className="font-medium">{`Stok: ${formatStock(stockMilli, product.unit)}`}</p>
+            )}
             <p className="text-sm text-muted">Stok, mal kabul ve sayımla değişir.</p>
           </div>
         ) : (
