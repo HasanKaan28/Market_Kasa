@@ -3,7 +3,8 @@ import { Kbd } from './Kbd';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  size?: 'md' | 'lg';
+  /** `icon`: a square 44 px button for an icon with an aria-label. */
+  size?: 'md' | 'lg' | 'icon';
   kbd?: string;
   icon?: ReactNode;
 };
@@ -18,6 +19,7 @@ const VARIANT_CLASSES: Record<NonNullable<ButtonProps['variant']>, string> = {
 const SIZE_CLASSES: Record<NonNullable<ButtonProps['size']>, string> = {
   md: 'min-h-11 px-3.5 text-[15px]',
   lg: 'min-h-14 px-5 text-[17px]',
+  icon: 'size-11 shrink-0',
 };
 
 export function Button({
