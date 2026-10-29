@@ -157,3 +157,28 @@
 - [ ] **Step 4: Bütün kontroller** — Run: `npm run lint && npm run typecheck && npm test && npm run build`.
 - [ ] **Step 5: Gözle kontrol** — `kasa-preview`, 1366 × 768 ve 375 × 812: tartılı ürün ekle ve kg gir, satır indirimi, sepet indirimi, bölünmüş ödeme (nakit + kart + veresiye), indirimli satıştan iade.
 - [ ] **Step 6: Commit** — `git commit -m "feat(pos): wire discounts, line editing and split payment into the register"`
+
+## Uygulama notları (2026-10-29)
+
+Commit'ler `e070a11`…`e09a806`. Son inceleme: 1 kritik, 2 önemli (düzeltildi); 2 küçük bulgu önemliye yükseltildi (düzeltildi); 7 küçük bulgu ertelendi.
+
+**Verilen kararlar:**
+- `isCart` yerine `readCart`: eski kayıtlı sepetlerde birim ve indirim alanı yok, okurken tamamlanıyor; bekleyen sepetler de bundan geçiyor.
+- Bir satırda en fazla 10.000 adet (en yüksek fiyatla çarpım kesin kalsın diye).
+- Müşteri kaydı bulunamazsa "Veresiye için müşteri seçin." yerine genel mesaj (aynı hata ürün için de kullanılıyor).
+- İndirim girişi `DiscountField` ve `discountInput.ts`'te ortak.
+- Veresiye müşterisi bölünmüş ödeme penceresinin üstünde açılan müşteri seçicide seçiliyor.
+- **İade, satışın ödendiği yoldan döner** (sahip adına verdiğim karar): önce veresiye borcundan, sonra karta, en son nakit; her yöntem en fazla o yolla gelen tutar eksi önceki iadeler. Kasiyer artık iade yöntemi seçmiyor; iade kaydı `refunds[]` taşıyor (eski kayıtlar tek yöntem olarak okunuyor). İade bildirimi paranın nasıl döndüğünü yazıyor.
+- Sepette satırlar kendi indirimini gösteriyor; Ara toplam satırların toplamı, ardından Sepet indirimi ve Toplam; KDV "KDV (dahil)" bilgi satırı.
+- Bölünmüş ödemede okunamayan tutar, eksik alınan nakit ve fazla ödeme ("Fazla") yazıyla gösteriliyor.
+- Düzenlenen satır kaybolunca pencere kapalı sayılıyor; miktar düzenleme alanı binlik ayırıcısız dolduruluyor (küçük bulgulardan yükseltildi).
+- Bayat sepet koruması yalnız satırları (ürün, miktar) karşılaştırmaya devam ediyor.
+
+**Ertelenen küçük bulgular:**
+- ₺0'lık (tamamen indirimli) sepet ödeme yollarında tutarsız; bölünmüşte ödemesiz satış oluşuyor ve iadesi alınamıyor.
+- Sepet indirimi penceresi mevcut indirimi göstermiyor; boş alanla "Uygula" indirimi sessizce kaldırıyor.
+- Odak ve ekran okuyucu: bölünmüş ödeme ve sepet indirimi pencereleri "Kapat"ta açılıyor; iç içe müşteri seçicinin ardından odak sayfaya düşüyor; para üstü ve hata metinleri duyurulmuyor.
+- Tartılı satırlar birimini kaybedebiliyor (eski kayıt, `refresh`), sepet satırında "kg" yok.
+- Satır adındaki düzenleme butonu 44 px'ten küçük.
+- İndirim girişi: "%10" ve "10%" reddediliyor; "%"ye geçince dolu tutar hata veriyor.
+- Test boşlukları: boş sepette Bölünmüş/İndirim, ekrandan veresiyeli bölünmüş satış ve limit hatası, eski biçimli bekleyen sepet.
