@@ -7,6 +7,7 @@ import { recordSale } from '@/data/sales';
 import { voidSale } from '@/data/voids';
 import { renderWithData } from '@/test/renderWithData';
 import { ReceiptsDialog } from './ReceiptsDialog';
+import { DEFAULT_RECEIPT_SETTINGS } from './receiptSettings';
 
 const at = new Date('2026-10-29T09:00:00Z');
 
@@ -25,7 +26,15 @@ async function twoSales(db: MarketDb) {
 describe('ReceiptsDialog', () => {
   it('lists recent sales and marks voided ones', async () => {
     const { data } = await renderWithData(
-      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
     );
     const [first] = await twoSales(data.db);
     await voidSale(data.db, { saleId: first.id, reason: 'Yanlış', deviceCode: 'K1', at });
@@ -37,7 +46,15 @@ describe('ReceiptsDialog', () => {
 
   it('finds a receipt by its last four digits', async () => {
     const { data } = await renderWithData(
-      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
     );
     await twoSales(data.db);
     await screen.findByText('K1-20261029-0001');
@@ -52,7 +69,15 @@ describe('ReceiptsDialog', () => {
     const onReturn = vi.fn();
     const onVoid = vi.fn();
     const { data } = await renderWithData(
-      <ReceiptsDialog open onClose={vi.fn()} onReturn={onReturn} onVoid={onVoid} />,
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={onReturn}
+        onVoid={onVoid}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
     );
     const [first] = await twoSales(data.db);
     await userEvent.click(await screen.findByRole('button', { name: /K1-20261029-0001/ }));
@@ -68,7 +93,15 @@ describe('ReceiptsDialog', () => {
 
   it('blocks a second void and a return on a voided sale', async () => {
     const { data } = await renderWithData(
-      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
     );
     const [first] = await twoSales(data.db);
     await voidSale(data.db, { saleId: first.id, reason: 'Yanlış', deviceCode: 'K1', at });
@@ -82,7 +115,15 @@ describe('ReceiptsDialog', () => {
 
   it('flags a receipt that needs checking', async () => {
     const { data } = await renderWithData(
-      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
     );
     const [first] = await twoSales(data.db);
     const stamp = { occurredAt: at.toISOString(), businessDate: '2026-10-29' };
@@ -117,7 +158,15 @@ describe('ReceiptsDialog', () => {
 
   it('finds an older receipt by its last four digits', async () => {
     const { data } = await renderWithData(
-      <ReceiptsDialog open onClose={vi.fn()} onReturn={vi.fn()} onVoid={vi.fn()} />,
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
     );
     const milk = await createProduct(data.db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
     for (let minute = 0; minute < 55; minute += 1) {
@@ -130,5 +179,50 @@ describe('ReceiptsDialog', () => {
     }
     await userEvent.type(screen.getByLabelText('Fiş no'), '0001');
     expect(await screen.findByText('K1-20261029-0001')).toBeInTheDocument();
+  });
+
+  it('shows the receipt and shares it on WhatsApp', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { data } = await renderWithData(
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
+    );
+    await twoSales(data.db);
+    await userEvent.click(await screen.findByRole('button', { name: /K1-20261029-0001/ }));
+    expect(await screen.findByRole('article', { name: 'Fiş K1-20261029-0001' })).toHaveTextContent(
+      'Bilgi fişidir, mali değeri yoktur.',
+    );
+    expect(screen.queryByRole('button', { name: 'Yazdır' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'WhatsApp' }));
+    const url = String(open.mock.calls[0]?.[0]);
+    expect(url.startsWith('https://wa.me/?text=')).toBe(true);
+    expect(decodeURIComponent(url)).toContain('K1-20261029-0001');
+    open.mockRestore();
+  });
+
+  it('offers printing only when it is on', async () => {
+    const onPrint = vi.fn();
+    const { data } = await renderWithData(
+      <ReceiptsDialog
+        open
+        settings={{ ...DEFAULT_RECEIPT_SETTINGS, printing: true }}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={onPrint}
+        onSettings={vi.fn()}
+      />,
+    );
+    const [first] = await twoSales(data.db);
+    await userEvent.click(await screen.findByRole('button', { name: /K1-20261029-0001/ }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Yazdır' }));
+    expect(onPrint).toHaveBeenCalledWith(expect.objectContaining({ id: first.id }));
   });
 });

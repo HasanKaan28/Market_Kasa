@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Settings } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { saleStatus } from '@/data/returns';
@@ -7,13 +7,20 @@ import { findSalesByReceiptEnding, recentSales } from '@/data/sales';
 import type { SaleRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
-import { formatDateTime, formatQty, PAYMENT_LABELS } from './format';
+import { formatDateTime, PAYMENT_LABELS } from './format';
+import { buildReceipt } from './receipt';
+import type { ReceiptSettings } from './receiptSettings';
+import { receiptText, whatsappLink } from './receiptText';
+import { ReceiptView } from './ReceiptView';
 
 export type ReceiptsDialogProps = {
   open: boolean;
+  settings: ReceiptSettings;
   onClose(): void;
   onReturn(sale: SaleRecord): void;
   onVoid(sale: SaleRecord): void;
+  onPrint(sale: SaleRecord): void;
+  onSettings(): void;
 };
 
 const RECENT_LIMIT = 50;
@@ -21,9 +28,12 @@ const RECENT_LIMIT = 50;
 /** The latest receipts, with each one's lines, payments and what can still be done with it. */
 export function ReceiptsDialog({
   open,
+  settings,
   onClose,
   onReturn,
   onVoid,
+  onPrint,
+  onSettings,
 }: ReceiptsDialogProps): JSX.Element {
   const [selected, setSelected] = useState<SaleRecord | null>(null);
   return (
@@ -31,12 +41,19 @@ export function ReceiptsDialog({
       {selected ? (
         <ReceiptDetail
           sale={selected}
+          settings={settings}
           onBack={() => setSelected(null)}
           onReturn={onReturn}
           onVoid={onVoid}
+          onPrint={onPrint}
         />
       ) : (
-        <ReceiptList onSelect={setSelected} />
+        <>
+          <ReceiptList onSelect={setSelected} />
+          <Button icon={<Settings aria-hidden="true" size={18} />} onClick={onSettings}>
+            Fiş ayarları
+          </Button>
+        </>
       )}
     </Dialog>
   );
@@ -96,16 +113,20 @@ function ReceiptList({ onSelect }: { onSelect(sale: SaleRecord): void }): JSX.El
 
 function ReceiptDetail({
   sale,
+  settings,
   onBack,
   onReturn,
   onVoid,
+  onPrint,
 }: {
   sale: SaleRecord;
+  settings: ReceiptSettings;
   onBack(): void;
   onReturn(sale: SaleRecord): void;
   onVoid(sale: SaleRecord): void;
+  onPrint(sale: SaleRecord): void;
 }): JSX.Element {
-  const { db } = useData();
+  const { db, settings: device } = useData();
   const status = useLiveQuery(() => saleStatus(db, sale.id), [db, sale.id]);
   const customer = useLiveQuery(
     async () => (sale.customerId ? db.customers.get(sale.customerId) : undefined),
@@ -117,6 +138,19 @@ function ReceiptDetail({
   // Until the status is known, nothing can be started.
   const canReturn = status !== undefined && !status.voided && !fullyReturned;
   const canVoid = status !== undefined && !status.voided && status.returned.size === 0;
+  const model = buildReceipt(sale, {
+    marketName: device.marketName,
+    deviceName: device.deviceName,
+    header: settings.header,
+    footer: settings.footer,
+    customerName: customer?.name,
+    status: { voided: status?.voided ?? false, returnedAny: (status?.returned.size ?? 0) > 0 },
+  });
+
+  function share() {
+    const text = receiptText(model, settings.paperWidth === 58 ? 32 : 48);
+    window.open(whatsappLink(text, customer?.phone), '_blank', 'noopener');
+  }
 
   return (
     <section aria-label={`Fiş ${sale.receiptNo}`} className="flex flex-col gap-3">
@@ -136,44 +170,12 @@ function ReceiptDetail({
         {status && status.returned.size > 0 ? <Badge tone="muted">İade var</Badge> : null}
         {status?.conflict ? <Badge tone="danger">Kontrol gerekli</Badge> : null}
       </div>
-      <ul className="flex flex-col divide-y divide-line">
-        {sale.lines.map((line) => (
-          <li key={line.productId} className="flex items-center gap-3 py-2">
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{line.name}</p>
-              <p className="font-mono text-sm text-text-2">
-                {`${formatQty(line.qtyMilli)} × ${formatTRY(line.unitPrice)}`}
-              </p>
-            </div>
-            <span className="font-mono">{formatTRY(line.net)}</span>
-          </li>
-        ))}
-      </ul>
-      <dl className="flex flex-col gap-1 border-t border-line pt-2">
-        <div className="flex justify-between font-semibold">
-          <dt>Toplam</dt>
-          <dd className="font-mono">{formatTRY(sale.total)}</dd>
-        </div>
-        {sale.payments.map((payment) => (
-          <div key={payment.method} className="flex justify-between text-text-2">
-            <dt>{PAYMENT_LABELS[payment.method]}</dt>
-            <dd className="font-mono">{formatTRY(payment.amount)}</dd>
-          </div>
-        ))}
-        {sale.change > 0 ? (
-          <div className="flex justify-between text-text-2">
-            <dt>Para üstü</dt>
-            <dd className="font-mono">{formatTRY(sale.change)}</dd>
-          </div>
-        ) : null}
-        {customer ? (
-          <div className="flex justify-between text-text-2">
-            <dt>Müşteri</dt>
-            <dd>{customer.name}</dd>
-          </div>
-        ) : null}
-      </dl>
+      <div className="max-h-[50dvh] overflow-y-auto rounded-control border border-line bg-white">
+        <ReceiptView model={model} paperWidth={settings.paperWidth} />
+      </div>
       <div className="grid grid-cols-2 gap-2">
+        {settings.printing ? <Button onClick={() => onPrint(sale)}>Yazdır</Button> : null}
+        <Button onClick={share}>WhatsApp</Button>
         <Button disabled={!canReturn} onClick={() => onReturn(sale)}>
           İade al
         </Button>

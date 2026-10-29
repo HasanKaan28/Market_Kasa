@@ -3,6 +3,7 @@ import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
 import { findProductByBarcode } from '@/data/products';
+import { saleStatus } from '@/data/returns';
 import type { Payment, ProductRecord, SaleRecord } from '@/data/types';
 import { Button, ToastRegion, useToast } from '@/design';
 import { formatTRY, type Kurus } from '@/domain/money';
@@ -17,9 +18,13 @@ import { useBarcodeScanner, useShortcuts } from './keyboard';
 import { LineDialog } from './LineDialog';
 import { NewProductDialog } from './NewProductDialog';
 import { PaymentDialog } from './PaymentDialog';
+import { printReceipt } from './printReceipt';
 import { PAYMENT_LABELS } from './format';
 import { ProductPanel } from './ProductPanel';
+import { buildReceipt } from './receipt';
 import { ReceiptsDialog } from './ReceiptsDialog';
+import { ReceiptSettingsDialog } from './ReceiptSettingsDialog';
+import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from './receiptSettings';
 import { ReturnDialog } from './ReturnDialog';
 import { SplitPaymentDialog } from './SplitPaymentDialog';
 import { VoidDialog } from './VoidDialog';
@@ -30,6 +35,7 @@ type OpenDialog =
   | { kind: 'split' }
   | { kind: 'discount' }
   | { kind: 'line'; productId: string }
+  | { kind: 'receiptSettings' }
   | { kind: 'newProduct'; barcode?: string }
   | { kind: 'held' }
   | { kind: 'receipts' }
@@ -43,6 +49,7 @@ export function PosScreen(): JSX.Element {
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const [held, setHeld] = useState(() => loadHeld());
+  const [receiptSettings, setReceiptSettings] = useState(() => loadReceiptSettings());
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -119,6 +126,9 @@ export function PosScreen(): JSX.Element {
       dispatch({ type: 'clear' });
       setDialog(null);
       toast.show(`Satış tamamlandı · ${sale.receiptNo}`);
+      if (receiptSettings.printing && receiptSettings.autoPrint) {
+        void printSale(sale);
+      }
       void runner.run();
     } catch (error) {
       if (error instanceof StaleCartError) {
@@ -157,6 +167,29 @@ export function PosScreen(): JSX.Element {
     setHeld(hasItems ? holdCart(rest, cart, new Date()) : rest);
     dispatch({ type: 'replace', cart: resumed });
     setDialog(null);
+  }
+
+  // The receipt as it stands now: a reprint shows a later void or return.
+  async function printSale(sale: SaleRecord) {
+    const [status, customer] = await Promise.all([
+      saleStatus(db, sale.id),
+      sale.customerId ? db.customers.get(sale.customerId) : undefined,
+    ]);
+    const model = buildReceipt(sale, {
+      marketName: settings.marketName,
+      deviceName: settings.deviceName,
+      header: receiptSettings.header,
+      footer: receiptSettings.footer,
+      customerName: customer?.name,
+      status: { voided: status.voided, returnedAny: status.returned.size > 0 },
+    });
+    printReceipt(model, receiptSettings.paperWidth);
+  }
+
+  function saveSettings(next: ReceiptSettings) {
+    saveReceiptSettings(next);
+    setReceiptSettings(next);
+    setDialog({ kind: 'receipts' });
   }
 
   function finish(message: string) {
@@ -282,6 +315,9 @@ export function PosScreen(): JSX.Element {
       {dialog?.kind === 'receipts' ? (
         <ReceiptsDialog
           open
+          settings={receiptSettings}
+          onPrint={(sale) => void printSale(sale)}
+          onSettings={() => setDialog({ kind: 'receiptSettings' })}
           onClose={close}
           onReturn={(sale) => setDialog({ kind: 'return', sale })}
           onVoid={(sale) => setDialog({ kind: 'void', sale })}
@@ -307,6 +343,14 @@ export function PosScreen(): JSX.Element {
                 .join(' + ')}`,
             )
           }
+        />
+      ) : null}
+      {dialog?.kind === 'receiptSettings' ? (
+        <ReceiptSettingsDialog
+          open
+          settings={receiptSettings}
+          onClose={() => setDialog({ kind: 'receipts' })}
+          onSave={saveSettings}
         />
       ) : null}
       <ToastRegion message={toast.message} />

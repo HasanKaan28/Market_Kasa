@@ -258,4 +258,45 @@ describe('PosScreen', () => {
     fireEvent.keyDown(window, { key: 'F9' });
     expect(await screen.findByRole('dialog', { name: 'Son fişler' })).toBeInTheDocument();
   });
+
+  it('prints the new receipt when auto print is on', async () => {
+    localStorage.setItem(
+      'mk2.receipt',
+      JSON.stringify({ printing: true, autoPrint: true, paperWidth: 80, header: '', footer: '' }),
+    );
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    fireEvent.keyDown(window, { key: 'F2' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Satışı tamamla' }));
+    await vi.waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event('afterprint'));
+    print.mockRestore();
+  });
+
+  it('does not print after a void', async () => {
+    localStorage.setItem(
+      'mk2.receipt',
+      JSON.stringify({ printing: true, autoPrint: true, paperWidth: 80, header: '', footer: '' }),
+    );
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    const { data } = await renderWithData(<PosScreen />);
+    const created = await createProduct(data.db, milk, new Date());
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at: new Date(),
+      lines: [{ productId: created.id, qtyMilli: 1000 }],
+      payments: [{ method: 'cash', amount: 4250 }],
+    });
+    fireEvent.keyDown(window, { key: 'F9' });
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(sale.receiptNo) }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Satışı iptal et' }));
+    await userEvent.type(await screen.findByLabelText('İptal nedeni'), 'Yanlış ürün');
+    await userEvent.click(screen.getByRole('button', { name: 'İptal et' }));
+    await screen.findByText(`Satış iptal edildi · ${sale.receiptNo}`);
+    expect(print).not.toHaveBeenCalled();
+    print.mockRestore();
+  });
 });
