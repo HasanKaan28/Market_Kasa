@@ -73,6 +73,18 @@ describe('recordSale', () => {
     expect(sale.lines.map((line) => line.unit)).toEqual(['kg', 'piece']);
   });
 
+  it('keeps no change on a card sale', async () => {
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at: new Date('2026-10-29T09:00:00Z'),
+      lines: [{ productId: ids.ekmek, qtyMilli: 1000 }],
+      payments: [{ method: 'card', amount: 1500 }],
+      cashGiven: 5000,
+    });
+    expect(sale.change).toBe(0);
+    expect(sale.cashGiven).toBeUndefined();
+  });
+
   it('queues every sale record as an insert', async () => {
     const before = await pendingCount(db);
     await recordSale(db, cashSale('2026-10-28T09:00:00Z'));

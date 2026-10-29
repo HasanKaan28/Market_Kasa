@@ -32,6 +32,14 @@ describe('parseTRY', () => {
   it.each(['', 'abc', '-5', '1,234', '1,2,3', '12.3.4', ','])('rejects %j', (s) =>
     expect(() => parseTRY(s)).toThrow(MoneyParseError),
   );
+
+  it('refuses grouping that cannot be thousands', () => {
+    for (const typed of ['0.500', '00.500', '1.23,50', '1234.567', '1.2345,00', '0.500,00']) {
+      expect(() => parseTRY(typed), typed).toThrow(MoneyParseError);
+    }
+    expect(parseTRY('1.250,5')).toBe(125050);
+    expect(parseTRY('12.345.678')).toBe(1234567800);
+  });
 });
 
 describe('divRoundHalfUp', () => {

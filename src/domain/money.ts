@@ -62,15 +62,28 @@ function splitWholeAndFraction(text: string, input: string): [string, string] {
     if (rest.length > 0 || !/^\d{1,2}$/.test(fraction)) {
       throw new MoneyParseError(input);
     }
-    return [whole.replaceAll('.', ''), fraction];
+    return [thousands(whole, input), fraction];
   }
   const groups = text.split('.');
   const [head = '', ...tail] = groups;
   if (tail.length === 1 && /^\d{1,2}$/.test(tail[0] ?? '')) {
     return [head, tail[0] ?? ''];
   }
-  if (!tail.every((group) => /^\d{3}$/.test(group))) {
+  return [thousands(text, input), ''];
+}
+
+/**
+ * The digits of a whole part, its dots read as thousands separators only where they can be:
+ * a first group of one to three digits not starting with 0, then groups of exactly three.
+ * "0.500" or "1.23" is refused rather than read as ₺500 or ₺123.
+ */
+function thousands(whole: string, input: string): string {
+  if (!whole.includes('.')) {
+    return whole;
+  }
+  const [head = '', ...tail] = whole.split('.');
+  if (!/^[1-9]\d{0,2}$/.test(head) || !tail.every((group) => /^\d{3}$/.test(group))) {
     throw new MoneyParseError(input);
   }
-  return [groups.join(''), ''];
+  return whole.replaceAll('.', '');
 }

@@ -10,7 +10,9 @@ export function readDiscount(text: string, mode: DiscountMode, base: Kurus): Kur
     return 0;
   }
   if (mode === 'percent') {
-    const percent = /^\d{1,3}$/.test(value) ? Number(value) : NaN;
+    // "%10", "10%" and "% 10" are all ten percent, as people write it.
+    const digits = value.replace(/\s+/g, '').replace(/^%|%$/g, '');
+    const percent = /^\d{1,3}$/.test(digits) ? Number(digits) : NaN;
     return percent >= 1 && percent <= 100 ? percentOf(base, percent) : null;
   }
   try {

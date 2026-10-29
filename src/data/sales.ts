@@ -65,13 +65,15 @@ export async function recordSale(db: MarketDb, input: RecordSaleInput): Promise<
       input.cartDiscount ?? 0,
     );
     const split = splitPayments(input.payments, cart.total);
-    const change = cashChange(input.cashGiven, split.cash);
+    // Cash handed over means something only when part of the sale is paid in cash.
+    const cashGiven = split.cash > 0 ? input.cashGiven : undefined;
+    const change = cashChange(cashGiven, split.cash);
     if (split.credit > 0) {
       await assertCreditAllowed(db, input.customerId, split.credit, input.allowOverLimit === true);
     }
     const day = businessDate(input.at, { cutoffMinutes: input.cutoffMinutes });
     const seq = nextReceiptSeq(await highestSeq(db, input.deviceCode, day));
-    const sale = buildSale(input, products, cart, { day, seq, change });
+    const sale = buildSale({ ...input, cashGiven }, products, cart, { day, seq, change });
 
     for (const line of sale.lines) {
       await recordStockMovement(db, {
