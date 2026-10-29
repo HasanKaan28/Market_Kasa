@@ -209,6 +209,17 @@ describe('ProductFormDialog', () => {
     expect(screen.getByLabelText('Satış fiyatı')).toBeDisabled();
   });
 
+  it('opens the stock adjustment from the product', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, milk, at, { openingStockMilli: 5000 });
+    await renderWithData(
+      <ProductFormDialog open product={product} onClose={vi.fn()} onSaved={vi.fn()} />,
+      data,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Stoğu düzelt' }));
+    expect(await screen.findByRole('dialog', { name: 'Stoğu düzelt' })).toBeInTheDocument();
+  });
+
   it('fills the barcode from a scan', async () => {
     await renderWithData(<ProductFormDialog open onClose={vi.fn()} onSaved={vi.fn()} />);
     const name = screen.getByLabelText('Ürün adı');

@@ -9,6 +9,7 @@ import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, SelectField, TextField } from '@/design';
 import { formatStock, UNIT_LABELS, VAT_OPTIONS } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
+import { AdjustStockDialog } from '@/stock/AdjustStockDialog';
 import { suggestProductName } from './openFoodFacts';
 import {
   draftOf,
@@ -56,6 +57,7 @@ export function ProductFormDialog({
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [stockDialog, setStockDialog] = useState<'adjust' | null>(null);
   const categories = useLiveQuery(() => listCategories(db), [db]);
   const productId = product?.id;
   const stockMilli = useLiveQuery(
@@ -230,7 +232,12 @@ export function ProductFormDialog({
               {stockMilli === undefined ? null : (
                 <p className="font-medium">{`Stok: ${formatStock(stockMilli, product.unit)}`}</p>
               )}
-              <p className="text-sm text-muted">Stok, mal kabul ve sayımla değişir.</p>
+              <p className="text-sm text-muted">Stok, mal kabul, sayım ve düzeltmeyle değişir.</p>
+              {deleted ? null : (
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => setStockDialog('adjust')}>Stoğu düzelt</Button>
+                </div>
+              )}
             </div>
           ) : (
             <TextField
@@ -289,6 +296,17 @@ export function ProductFormDialog({
             Ürünü sil
           </Button>
         )
+      ) : null}
+      {product && stockDialog === 'adjust' ? (
+        <AdjustStockDialog
+          open
+          product={product}
+          onClose={() => setStockDialog(null)}
+          onDone={(message) => {
+            setStockDialog(null);
+            onSaved(message);
+          }}
+        />
       ) : null}
     </Dialog>
   );
