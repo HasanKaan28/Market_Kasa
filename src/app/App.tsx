@@ -10,6 +10,7 @@ import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
 import { loadDeviceSettings } from './device';
+import { SessionProvider } from './SessionProvider';
 import { useRoute } from './route';
 
 export function App(): JSX.Element {
@@ -25,19 +26,21 @@ export function App(): JSX.Element {
   return (
     <ErrorBoundary {...(route === 'pos' ? { onReset: resetRegister } : LEAVE_SCREEN)}>
       <DataProvider value={data}>
-        {route === 'products' ? (
-          <ProductsScreen />
-        ) : route === 'stock' ? (
-          <StockScreen />
-        ) : route === 'customers' ? (
-          <CustomersScreen />
-        ) : route === 'suppliers' ? (
-          <SuppliersScreen />
-        ) : route === 'reports' ? (
-          <ReportsScreen />
-        ) : (
-          <PosScreen />
-        )}
+        <SessionProvider>
+          {route === 'products' ? (
+            <ProductsScreen />
+          ) : route === 'stock' ? (
+            <StockScreen />
+          ) : route === 'customers' ? (
+            <CustomersScreen />
+          ) : route === 'suppliers' ? (
+            <SuppliersScreen />
+          ) : route === 'reports' ? (
+            <ReportsScreen />
+          ) : (
+            <PosScreen />
+          )}
+        </SessionProvider>
       </DataProvider>
     </ErrorBoundary>
   );

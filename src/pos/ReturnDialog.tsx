@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Minus, Plus } from 'lucide-react';
 import { useRef, useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { ReturnExceedsSaleError } from '@/data/errors';
 import { planRefund, quantitiesOf, recordReturn, refundsOf } from '@/data/returns';
 import type { Payment, PaymentMethod, ReturnRecord, SaleRecord } from '@/data/types';
@@ -37,6 +38,7 @@ function safePlan(sale: SaleRecord, earlier: readonly Payment[], amount: number)
 /** Takes goods back from one receipt: how many of each line, and how the money goes back. */
 export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogProps): JSX.Element {
   const { db, settings } = useData();
+  const { staff } = useSession();
   const earlier = useLiveQuery(
     () => db.returns.where('saleId').equals(sale.id).toArray(),
     [db, sale.id],
@@ -86,6 +88,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
         saleId: sale.id,
         lines,
         deviceCode: settings.deviceCode,
+        staffId: staff?.id,
         at: new Date(),
       });
       onReturned(record);

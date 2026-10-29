@@ -12,6 +12,8 @@ export type CheckoutInput = {
   payments: Payment[];
   customerId?: string;
   cashGiven?: Kurus;
+  /** Who sells it. */
+  staffId?: string;
   at: Date;
 };
 
@@ -40,12 +42,13 @@ export function singlePayment(cart: Cart, method: PaymentMethod): Payment[] {
  */
 export async function checkout(
   db: MarketDb,
-  { cart, deviceCode, payments, customerId, cashGiven, at }: CheckoutInput,
+  { cart, deviceCode, payments, customerId, cashGiven, staffId, at }: CheckoutInput,
 ): Promise<SaleRecord> {
   const paidBy = (method: PaymentMethod) => payments.some((payment) => payment.method === method);
   const sale = await recordSale(db, {
     id: cart.id,
     deviceCode,
+    staffId,
     at,
     lines: cart.lines.map(({ productId, qtyMilli, lineDiscount }) => ({
       productId,

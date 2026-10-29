@@ -13,6 +13,7 @@ export type CountInput = {
   deviceCode: string;
   lines: readonly { productId: string; countedMilli: number }[];
   note?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -68,6 +69,7 @@ export async function recordCount(
       deviceCode: input.deviceCode,
       lines,
       note: input.note?.trim() || undefined,
+      staffId: input.staffId,
       occurredAt: stamp,
       businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
     });

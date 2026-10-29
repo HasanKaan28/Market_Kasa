@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { recordPayment } from '@/data/ledger';
 import type { LedgerMethod } from '@/data/types';
 import { Button, ChoiceGroup, TextField } from '@/design';
@@ -31,6 +32,7 @@ export function PaymentForm({
   onCancel,
 }: FormProps & { balance: number }): JSX.Element {
   const { db, settings } = useData();
+  const { staff } = useSession();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<LedgerMethod>('cash');
   const [note, setNote] = useState('');
@@ -49,7 +51,14 @@ export function PaymentForm({
     try {
       await recordPayment(
         db,
-        { deviceCode: settings.deviceCode, customerId, amount: kurus, method, note },
+        {
+          deviceCode: settings.deviceCode,
+          staffId: staff?.id,
+          customerId,
+          amount: kurus,
+          method,
+          note,
+        },
         new Date(),
       );
       onSaved(`Tahsilat alındı: ${formatTRY(kurus)}.`);

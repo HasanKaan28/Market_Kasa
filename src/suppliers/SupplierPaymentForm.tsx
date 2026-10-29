@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { recordSupplierPayment } from '@/data/supplierLedger';
 import type { SupplierPaymentMethod } from '@/data/types';
 import { Button, ChoiceGroup, TextField } from '@/design';
@@ -27,6 +28,7 @@ export function SupplierPaymentForm({
   onCancel(): void;
 }): JSX.Element {
   const { db, settings } = useData();
+  const { staff } = useSession();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<SupplierPaymentMethod>('cash');
   const [note, setNote] = useState('');
@@ -55,7 +57,14 @@ export function SupplierPaymentForm({
     try {
       await recordSupplierPayment(
         db,
-        { deviceCode: settings.deviceCode, supplierId, amount: kurus, method, note },
+        {
+          deviceCode: settings.deviceCode,
+          staffId: staff?.id,
+          supplierId,
+          amount: kurus,
+          method,
+          note,
+        },
         new Date(),
       );
       onSaved(`Ödeme kaydedildi: ${formatTRY(kurus)}.`);

@@ -124,6 +124,8 @@ export type PurchaseRecord = {
   /** Cash when absent: receipts written before the payment was kept. */
   payment?: PurchasePayment;
   note?: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -148,6 +150,8 @@ export type StockCountRecord = {
   deviceCode: string;
   lines: CountLine[];
   note?: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -196,6 +200,8 @@ export type SupplierLedgerRecord = {
   /** The goods receipt an invoice is for. */
   purchaseId?: string;
   note?: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -209,6 +215,8 @@ export type LedgerRecord = {
   method?: LedgerMethod;
   saleId?: string;
   note?: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -219,6 +227,8 @@ export type SaleVoidRecord = {
   saleId: string;
   reason: string;
   deviceCode: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -243,6 +253,8 @@ export type ReturnRecord = {
   refunds: Payment[];
   amount: Kurus;
   vat: Kurus;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -271,6 +283,8 @@ export type CashMovementRecord = {
   reason: string;
   /** The ledger entry or goods receipt that moved the cash; absent when entered by hand. */
   refId?: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -290,6 +304,8 @@ export type CashSessionRecord = {
   difference: Kurus;
   /** The register's sales over the session; every product sold is left to the reports. */
   summary: Omit<Summary, 'productsSold'>;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   businessDate: string;
 };
 

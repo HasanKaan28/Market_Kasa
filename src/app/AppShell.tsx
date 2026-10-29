@@ -1,6 +1,9 @@
+import { Lock } from 'lucide-react';
 import type { JSX, ReactNode } from 'react';
+import { Button } from '@/design';
 import type { SyncState } from '@/sync/runner';
 import type { Route } from './route';
+import { useSession } from './session';
 import { APP_VERSION } from './version';
 
 export type NavKey = Route;
@@ -37,6 +40,8 @@ export function AppShell({
   children,
   cart,
 }: AppShellProps): JSX.Element {
+  const session = useSession();
+  const shownStaff = staffName ?? session.staff?.name;
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-line bg-surface px-5 py-2.5">
@@ -61,7 +66,16 @@ export function AppShell({
         </nav>
         <div className="ml-auto flex flex-wrap items-center gap-4">
           <SyncBadge state={syncState} pendingCount={pendingCount} />
-          {staffName ? <span className="text-sm text-text-2">{staffName}</span> : null}
+          {shownStaff ? <span className="text-sm text-text-2">{shownStaff}</span> : null}
+          {session.staff ? (
+            <Button
+              variant="ghost"
+              icon={<Lock aria-hidden="true" size={18} />}
+              onClick={session.signOut}
+            >
+              Kilitle
+            </Button>
+          ) : null}
         </div>
       </header>
 

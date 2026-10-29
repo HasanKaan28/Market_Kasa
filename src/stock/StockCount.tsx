@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { countsNeedingCheck, recordCount } from '@/data/counts';
 import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
 import type { ProductRecord, ProductUnit } from '@/data/types';
@@ -39,6 +40,7 @@ export type StockCountProps = {
  */
 export function StockCount({ onDone }: StockCountProps): JSX.Element {
   const { db, settings, runner } = useData();
+  const { staff } = useSession();
   const [draft, setDraft] = useState<CountDraft>(() => loadCountDraft());
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState<string>();
@@ -133,7 +135,12 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
       }
       const count = await recordCount(
         db,
-        { deviceCode: settings.deviceCode, lines: read.lines, note: draft.note },
+        {
+          deviceCode: settings.deviceCode,
+          staffId: staff?.id,
+          lines: read.lines,
+          note: draft.note,
+        },
         new Date(),
       );
       const differing = count.lines.filter((line) => line.countedMilli !== line.expectedMilli);

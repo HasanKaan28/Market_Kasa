@@ -16,6 +16,7 @@ export type SupplierPaymentInput = {
   amount: Kurus;
   method: SupplierPaymentMethod;
   note?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -25,6 +26,7 @@ export type SupplierInvoiceInput = {
   amount: Kurus;
   purchaseId: string;
   note?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -58,6 +60,7 @@ export async function recordSupplierPayment(
         amount: -input.amount,
         method: input.method,
         note: input.note?.trim() || undefined,
+        staffId: input.staffId,
       },
       at,
       input.cutoffMinutes,
@@ -71,6 +74,7 @@ export async function recordSupplierPayment(
           amount: input.amount,
           reason: `Tedarikçi ödemesi · ${supplier.name}`,
           refId: entry.id,
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         at,
@@ -103,6 +107,7 @@ export async function addSupplierInvoice(
         amount: input.amount,
         purchaseId: input.purchaseId,
         note: input.note?.trim() || undefined,
+        staffId: input.staffId,
       },
       at,
       input.cutoffMinutes,
@@ -116,6 +121,7 @@ export type SupplierAdjustmentInput = {
   amount: Kurus;
   /** Why, always: an opening balance, a mistyped invoice, a payment recorded twice. */
   note: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -140,7 +146,13 @@ export async function recordSupplierAdjustment(
     await requireSupplier(db, input.supplierId, { active: false });
     return addEntry(
       db,
-      { supplierId: input.supplierId, kind: 'adjustment', amount: input.amount, note },
+      {
+        supplierId: input.supplierId,
+        kind: 'adjustment',
+        amount: input.amount,
+        note,
+        staffId: input.staffId,
+      },
       at,
       input.cutoffMinutes,
     );

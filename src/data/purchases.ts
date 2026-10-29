@@ -35,6 +35,7 @@ export type PurchaseInput = {
   /** Cash when not said. */
   payment?: PurchasePayment;
   note?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -118,6 +119,7 @@ export async function recordPurchase(
       invoiceNo: input.invoiceNo?.trim() || undefined,
       payment,
       note: input.note?.trim() || undefined,
+      staffId: input.staffId,
       occurredAt: at.toISOString(),
       businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
     });
@@ -147,6 +149,7 @@ export async function recordPurchase(
           amount: record.total,
           reason: supplier ? `Mal kabul · ${supplier.name}` : 'Mal kabul',
           refId: id,
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         at,
@@ -161,6 +164,7 @@ export async function recordPurchase(
           amount: record.total,
           purchaseId: id,
           note: record.invoiceNo,
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         at,

@@ -91,6 +91,7 @@ export async function recordSale(db: MarketDb, input: RecordSaleInput): Promise<
           kind: 'debt',
           amount: split.credit,
           saleId: sale.id,
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         input.at,

@@ -19,6 +19,7 @@ export type NewLedgerEntry = {
   method?: LedgerMethod;
   saleId?: string;
   note?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -30,6 +31,7 @@ export type PaymentInput = {
   amount: Kurus;
   method: LedgerMethod;
   note?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -39,6 +41,7 @@ export type AdjustmentInput = {
   amount: Kurus;
   /** Why, always: an adjustment without a reason cannot be checked later. */
   note: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -59,6 +62,7 @@ export async function addLedgerEntry(
     method: entry.method,
     saleId: entry.saleId,
     note: entry.note,
+    staffId: entry.staffId,
     occurredAt: at.toISOString(),
     businessDate: businessDate(at, { cutoffMinutes: entry.cutoffMinutes }),
   });
@@ -95,6 +99,7 @@ export async function recordPayment(
         amount: -input.amount,
         method: input.method,
         note: input.note?.trim() || undefined,
+        staffId: input.staffId,
         cutoffMinutes: input.cutoffMinutes,
       },
       at,
@@ -108,6 +113,7 @@ export async function recordPayment(
           amount: input.amount,
           reason: `Tahsilat · ${customer.name}`,
           refId: entry.id,
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         at,
@@ -140,6 +146,7 @@ export async function recordAdjustment(
         kind: 'adjustment',
         amount: input.amount,
         note,
+        staffId: input.staffId,
         cutoffMinutes: input.cutoffMinutes,
       },
       at,

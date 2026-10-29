@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
 import { findProductByBarcode } from '@/data/products';
 import { saleStatus } from '@/data/returns';
@@ -52,6 +53,7 @@ type OpenDialog =
 /** The register: search and scan on the left, the cart and payment on the right. */
 export function PosScreen(): JSX.Element {
   const { db, settings, runner } = useData();
+  const { staff } = useSession();
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
   const [dialog, setDialog] = useState<OpenDialog>(null);
@@ -126,6 +128,7 @@ export function PosScreen(): JSX.Element {
       const sale = await checkout(db, {
         cart,
         deviceCode: settings.deviceCode,
+        staffId: staff?.id,
         payments,
         at: new Date(),
         ...extra,

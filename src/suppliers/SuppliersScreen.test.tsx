@@ -28,7 +28,7 @@ describe('SuppliersScreen', () => {
 
   it('opens from the menu', async () => {
     render(<App />);
-    const nav = screen.getByRole('navigation', { name: 'Ana menü' });
+    const nav = await screen.findByRole('navigation', { name: 'Ana menü' });
     await userEvent.click(within(nav).getByRole('link', { name: 'Tedarikçiler' }));
     expect(
       await screen.findByRole('heading', { name: 'Tedarikçiler', level: 1 }),

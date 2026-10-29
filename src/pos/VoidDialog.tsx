@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { SaleReturnedError, SaleVoidedError } from '@/data/errors';
 import type { SaleRecord, SaleVoidRecord } from '@/data/types';
 import { voidSale } from '@/data/voids';
@@ -15,6 +16,7 @@ export type VoidDialogProps = {
 
 export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): JSX.Element {
   const { db, settings } = useData();
+  const { staff } = useSession();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -37,6 +39,7 @@ export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): 
         saleId: sale.id,
         reason,
         deviceCode: settings.deviceCode,
+        staffId: staff?.id,
         at: new Date(),
       });
       onVoided(record);

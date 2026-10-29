@@ -14,6 +14,8 @@ export type ReturnInput = {
   saleId: string;
   lines: { productId: string; qtyMilli: number }[];
   deviceCode: string;
+  /** Who does it, for the record. */
+  staffId?: string;
   at: Date;
   cutoffMinutes?: number;
 };
@@ -143,6 +145,7 @@ export async function recordReturn(db: MarketDb, input: ReturnInput): Promise<Re
       id: newId(input.at.getTime()),
       saleId: sale.id,
       deviceCode: input.deviceCode,
+      ...(input.staffId ? { staffId: input.staffId } : {}),
       lines,
       refunds,
       amount,
@@ -176,6 +179,7 @@ export async function recordReturn(db: MarketDb, input: ReturnInput): Promise<Re
           amount: -credit,
           saleId: sale.id,
           note: 'İade',
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         input.at,

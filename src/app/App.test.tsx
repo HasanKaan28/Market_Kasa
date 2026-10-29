@@ -8,9 +8,9 @@ describe('App', () => {
     window.location.hash = '';
   });
 
-  it('renders the main landmark', () => {
+  it('renders the main landmark', async () => {
     render(<App />);
-    expect(screen.getByRole('main')).toBeInTheDocument();
+    expect(await screen.findByRole('main')).toBeInTheDocument();
   });
 
   it("shows the sync runner's state in the shell", async () => {
@@ -20,7 +20,7 @@ describe('App', () => {
 
   it('opens the products screen from the menu', async () => {
     render(<App />);
-    const nav = screen.getByRole('navigation', { name: 'Ana menü' });
+    const nav = await screen.findByRole('navigation', { name: 'Ana menü' });
     await userEvent.click(within(nav).getByRole('link', { name: 'Ürünler' }));
     expect(await screen.findByRole('heading', { name: 'Ürünler', level: 1 })).toBeInTheDocument();
     const shown = screen.getByRole('navigation', { name: 'Ana menü' });

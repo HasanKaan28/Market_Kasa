@@ -11,6 +11,8 @@ export type VoidSaleInput = {
   saleId: string;
   reason: string;
   deviceCode: string;
+  /** Who does it, for the record. */
+  staffId?: string;
   at: Date;
   cutoffMinutes?: number;
 };
@@ -51,6 +53,7 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
       saleId: sale.id,
       reason,
       deviceCode: input.deviceCode,
+      ...(input.staffId ? { staffId: input.staffId } : {}),
       occurredAt: input.at.toISOString(),
       businessDate: businessDate(input.at, { cutoffMinutes: input.cutoffMinutes }),
     };
@@ -84,6 +87,7 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
           amount: -credit,
           saleId: sale.id,
           note: 'Satış iptali',
+          staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
         input.at,

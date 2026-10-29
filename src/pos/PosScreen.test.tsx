@@ -2,9 +2,11 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
+import { createStaff } from '@/data/staff';
 import { recentSales, recordSale } from '@/data/sales';
 import { stockOf } from '@/data/stock';
 import { isVoided } from '@/data/voids';
+import { SessionProvider } from '@/app/SessionProvider';
 import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { cartReducer, emptyCart, loadCart } from './cart';
@@ -34,6 +36,32 @@ describe('PosScreen', () => {
     expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Satış tamamlandı');
     expect(await recentSales(data.db)).toHaveLength(1);
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
+  });
+
+  it('sells in the name of the person signed in', async () => {
+    const data = createTestData();
+    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, new Date());
+    const ayse = await createStaff(
+      data.db,
+      { name: 'Ayşe', role: 'cashier', pin: '1234' },
+      new Date(),
+    );
+    localStorage.setItem('mk2.staff', ayse.id);
+    await createProduct(data.db, milk, new Date());
+    await renderWithData(
+      <SessionProvider>
+        <PosScreen />
+      </SessionProvider>,
+      data,
+    );
+    expect(await screen.findByText('Ayşe')).toBeInTheDocument();
+    scan(milk.barcode);
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'F2' });
+    await userEvent.type(await screen.findByLabelText('Alınan tutar'), '50');
+    await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
+    expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+    expect((await recentSales(data.db)).map((sale) => sale.staffId)).toEqual([ayse.id]);
   });
 
   it('adds an unknown scanned barcode through the new product dialog', async () => {

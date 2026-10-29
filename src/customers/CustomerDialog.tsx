@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { archiveCustomer } from '@/data/customers';
 import { recordAdjustment } from '@/data/ledger';
 import { Button, Dialog } from '@/design';
@@ -37,6 +38,7 @@ export function CustomerDialog({
   onDone,
 }: CustomerDialogProps): JSX.Element {
   const { db, settings } = useData();
+  const { staff } = useSession();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -175,7 +177,7 @@ export function CustomerDialog({
           {panel === 'adjustment' ? (
             <AdjustmentForm
               save={(amount, note) =>
-                recordAdjustment(db, { customerId, amount, note }, new Date())
+                recordAdjustment(db, { customerId, amount, note, staffId: staff?.id }, new Date())
               }
               onSaved={saved}
               onCancel={() => setPanel(null)}

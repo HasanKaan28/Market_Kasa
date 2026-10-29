@@ -24,6 +24,7 @@ export type CashMovementInput = {
   amount: Kurus;
   reason: string;
   refId?: string;
+  staffId?: string;
   cutoffMinutes?: number;
 };
 
@@ -104,6 +105,7 @@ export async function addCashMovement(
     amount: input.amount,
     reason: input.reason.trim(),
     refId: input.refId,
+    staffId: input.staffId,
     occurredAt: at.toISOString(),
     businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
   });
@@ -141,8 +143,9 @@ export async function closeCashSession(
   {
     deviceCode,
     countedCash,
+    staffId,
     cutoffMinutes,
-  }: { deviceCode: string; countedCash: Kurus; cutoffMinutes?: number },
+  }: { deviceCode: string; countedCash: Kurus; staffId?: string; cutoffMinutes?: number },
   at: Date,
 ): Promise<CashSessionRecord> {
   assertSafeInteger(countedCash, 'Counted cash');
@@ -185,6 +188,7 @@ export async function closeCashSession(
       countedCash,
       difference: countedCash - expected,
       summary,
+      staffId,
       businessDate: businessDate(at, { cutoffMinutes }),
     });
     await db.cashSessions.add(record);

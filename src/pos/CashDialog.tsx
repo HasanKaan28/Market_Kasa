@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useId, useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import {
   closeCashSession,
   expectedCash,
@@ -37,11 +38,9 @@ type View =
  */
 export function CashDialog({ open, paperWidth, onClose, onDone }: CashDialogProps): JSX.Element {
   const { db, settings } = useData();
+  const { staff } = useSession();
   const [view, setView] = useState<View>({ kind: 'status' });
-  const cash = useLiveQuery(
-    () => expectedCash(db, settings.deviceCode),
-    [db, settings.deviceCode],
-  );
+  const cash = useLiveQuery(() => expectedCash(db, settings.deviceCode), [db, settings.deviceCode]);
 
   function print(record: CashSessionRecord) {
     printZReport(
@@ -62,7 +61,13 @@ export function CashDialog({ open, paperWidth, onClose, onDone }: CashDialogProp
           onSave={async (amount, reason) => {
             await recordCashMovement(
               db,
-              { deviceCode: settings.deviceCode, kind: view.direction, amount, reason },
+              {
+                deviceCode: settings.deviceCode,
+                staffId: staff?.id,
+                kind: view.direction,
+                amount,
+                reason,
+              },
               new Date(),
             );
             setView({ kind: 'status' });
@@ -77,7 +82,7 @@ export function CashDialog({ open, paperWidth, onClose, onDone }: CashDialogProp
           onSave={async (countedCash) => {
             const record = await closeCashSession(
               db,
-              { deviceCode: settings.deviceCode, countedCash },
+              { deviceCode: settings.deviceCode, staffId: staff?.id, countedCash },
               new Date(),
             );
             setView({ kind: 'closed', record });

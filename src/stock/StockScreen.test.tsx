@@ -10,7 +10,7 @@ describe('StockScreen', () => {
 
   it('opens from the menu', async () => {
     render(<App />);
-    const nav = screen.getByRole('navigation', { name: 'Ana menü' });
+    const nav = await screen.findByRole('navigation', { name: 'Ana menü' });
     await userEvent.click(within(nav).getByRole('link', { name: 'Stok' }));
     expect(await screen.findByRole('heading', { name: 'Stok', level: 1 })).toBeInTheDocument();
     const view = screen.getByRole('group', { name: 'Göster' });
