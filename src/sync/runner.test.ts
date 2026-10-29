@@ -45,6 +45,12 @@ describe('createSyncRunner', () => {
     expect(await runner.run()).toEqual({ state: 'error', pendingCount: 1, error: 'network down' });
   });
 
+  it('never rejects, even when the database is closed', async () => {
+    const runner = createSyncRunner({ db, transport: server, isOnline: () => false, now });
+    db.close();
+    await expect(runner.run()).resolves.toMatchObject({ state: 'error' });
+  });
+
   it('runs one sync at a time', async () => {
     const push = vi.spyOn(server, 'push');
     const runner = createSyncRunner({ db, transport: server, isOnline: () => true, now });

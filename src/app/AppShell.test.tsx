@@ -26,6 +26,7 @@ describe('AppShell', () => {
     ['online', undefined, 'Çevrimiçi'],
     ['offline', undefined, 'Çevrimdışı'],
     ['pending', 3, '3 işlem bekliyor'],
+    ['error', undefined, 'Eşitleme hatası'],
   ] as const)('shows sync state %s', (state, n, label) => {
     render(<AppShell {...base} syncState={state} pendingCount={n} />);
     expect(screen.getByRole('status')).toHaveTextContent(label);
@@ -35,5 +36,13 @@ describe('AppShell', () => {
     render(<AppShell {...base} syncState="online" />);
     expect(screen.getByRole('complementary', { name: 'Sepet' })).toHaveTextContent('Sepet boş');
     expect(screen.getByText(`v${APP_VERSION}`)).toBeInTheDocument();
+  });
+
+  it('hides the staff name when there is none', () => {
+    render(
+      <AppShell marketName="Kurşunlu Market" deviceName="Kasa 1" activeNav="pos" syncState="online" />,
+    );
+    expect(screen.queryByText('Elif Y.')).not.toBeInTheDocument();
+    expect(screen.getByText('Kasa 1')).toBeInTheDocument();
   });
 });

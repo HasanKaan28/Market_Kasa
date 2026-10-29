@@ -1,14 +1,13 @@
 import type { JSX, ReactNode } from 'react';
+import type { SyncState } from '@/sync/runner';
 import { APP_VERSION } from './version';
 
 export type NavKey = 'pos' | 'products' | 'stock' | 'customers' | 'reports';
 
-export type SyncState = 'online' | 'offline' | 'pending';
-
 export type AppShellProps = {
   marketName: string;
   deviceName: string;
-  staffName: string;
+  staffName?: string;
   syncState: SyncState;
   pendingCount?: number;
   activeNav: NavKey;
@@ -58,7 +57,7 @@ export function AppShell({
         </nav>
         <div className="ml-auto flex flex-wrap items-center gap-4">
           <SyncBadge state={syncState} pendingCount={pendingCount} />
-          <span className="text-sm text-text-2">{staffName}</span>
+          {staffName ? <span className="text-sm text-text-2">{staffName}</span> : null}
         </div>
       </header>
 
@@ -102,6 +101,7 @@ const SYNC_STYLES: Record<SyncState, { dot: string; text: string }> = {
   online: { dot: 'bg-success', text: 'text-success' },
   offline: { dot: 'bg-muted', text: 'text-text-2' },
   pending: { dot: 'bg-accent', text: 'text-accent' },
+  error: { dot: 'bg-danger', text: 'text-danger' },
 };
 
 function SyncBadge({
@@ -111,12 +111,12 @@ function SyncBadge({
   state: SyncState;
   pendingCount: number;
 }): JSX.Element {
-  const label =
-    state === 'online'
-      ? 'Çevrimiçi'
-      : state === 'offline'
-        ? 'Çevrimdışı'
-        : `${pendingCount} işlem bekliyor`;
+  const label = {
+    online: 'Çevrimiçi',
+    offline: 'Çevrimdışı',
+    pending: `${pendingCount} işlem bekliyor`,
+    error: 'Eşitleme hatası',
+  }[state];
   const style = SYNC_STYLES[state];
   return (
     <span

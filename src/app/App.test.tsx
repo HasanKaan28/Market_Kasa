@@ -7,4 +7,9 @@ describe('App', () => {
     render(<App />);
     expect(screen.getByRole('main')).toBeInTheDocument();
   });
+
+  it("shows the sync runner's state in the shell", async () => {
+    render(<App />);
+    expect(await screen.findByText('Çevrimdışı')).toBeInTheDocument();
+  });
 });

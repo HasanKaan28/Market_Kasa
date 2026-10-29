@@ -44,12 +44,13 @@ export function createSyncRunner({ db, transport, isOnline, now }: SyncRunnerDep
     return next;
   };
 
+  // Callers fire and forget, so a round reports every failure as a status and never rejects.
   const syncRound = async (): Promise<SyncStatus> => {
     const { lastSyncedAt } = current;
-    if (!isOnline()) {
-      return publish({ state: 'offline', pendingCount: await pendingCount(db), lastSyncedAt });
-    }
     try {
+      if (!isOnline()) {
+        return publish({ state: 'offline', pendingCount: await pendingCount(db), lastSyncedAt });
+      }
       await syncOnce(db, transport);
       const pending = await pendingCount(db);
       return publish({
@@ -60,7 +61,7 @@ export function createSyncRunner({ db, transport, isOnline, now }: SyncRunnerDep
     } catch (error) {
       return publish({
         state: 'error',
-        pendingCount: await pendingCount(db),
+        pendingCount: await pendingCount(db).catch(() => current.pendingCount),
         lastSyncedAt,
         error: error instanceof Error ? error.message : String(error),
       });

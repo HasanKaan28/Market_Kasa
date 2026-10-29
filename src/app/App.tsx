@@ -1,32 +1,21 @@
-import type { JSX } from 'react';
-import { Button, TextField } from '@/design';
-import { AppShell } from './AppShell';
+import { useEffect, useState, type JSX } from 'react';
+import { PosScreen } from '@/pos/PosScreen';
+import { createAppData } from './appData';
+import { DataProvider } from './DataProvider';
+import { loadDeviceSettings } from './device';
 
 export function App(): JSX.Element {
+  const [data] = useState(() => createAppData(loadDeviceSettings()));
+
+  useEffect(() => {
+    void data.runner.run();
+    data.runner.start();
+    return () => data.runner.stop();
+  }, [data]);
+
   return (
-    <AppShell
-      marketName="Kurşunlu Market"
-      deviceName="Kasa 1"
-      staffName="Elif Y."
-      syncState="online"
-      activeNav="pos"
-    >
-      <TextField
-        label="Barkod veya ürün adı"
-        hint="Okuyucu ile okutun ya da yazmaya başlayın."
-        type="search"
-      />
-      <div className="mt-auto flex flex-wrap gap-2">
-        <Button kbd="F8" disabled>
-          Beklet
-        </Button>
-        <Button kbd="F7" disabled>
-          İade
-        </Button>
-        <Button kbd="F9" disabled>
-          Son fişler
-        </Button>
-      </div>
-    </AppShell>
+    <DataProvider value={data}>
+      <PosScreen />
+    </DataProvider>
   );
 }
