@@ -26,9 +26,20 @@ describe('recordPurchase', () => {
       { name: 'Süt', sellPrice: 4250, buyPrice: 3000, vatRate: 1 },
       at,
     );
-    const gone = await createProduct(db, { name: 'Gazoz', sellPrice: 1000, vatRate: 1 }, at);
-    await deleteProduct(db, gone.id, at);
+    const tea = await createProduct(
+      db,
+      { name: 'Çay', sellPrice: 9000, buyPrice: 7000, vatRate: 1 },
+      at,
+    );
     const before = (await pendingOps(db)).length;
+    // The second line's movement is the last write; everything before it must go too.
+    let movements = 0;
+    db.stockMovements.hook('creating', () => {
+      movements += 1;
+      if (movements === 2) {
+        throw new Error('disk full');
+      }
+    });
     await expect(
       recordPurchase(
         db,
@@ -36,6 +47,32 @@ describe('recordPurchase', () => {
           deviceCode: 'K1',
           lines: [
             { productId: milk.id, qtyMilli: 12000, sellPrice: 4500 },
+            { productId: tea.id, qtyMilli: 6000, buyPrice: 7500 },
+          ],
+        },
+        later,
+      ),
+    ).rejects.toThrow('disk full');
+    expect(movements).toBe(2);
+    expect(await db.purchases.count()).toBe(0);
+    expect(await db.stockMovements.count()).toBe(0);
+    expect(await stockOf(db, milk.id)).toBe(0);
+    expect(await db.products.get(milk.id)).toMatchObject({ sellPrice: 4250 });
+    expect(await db.products.get(tea.id)).toMatchObject({ buyPrice: 7000 });
+    expect(await pendingOps(db)).toHaveLength(before);
+  });
+
+  it('refuses a deleted product before writing anything', async () => {
+    const milk = await createProduct(db, { name: 'Süt', sellPrice: 4250, vatRate: 1 }, at);
+    const gone = await createProduct(db, { name: 'Gazoz', sellPrice: 1000, vatRate: 1 }, at);
+    await deleteProduct(db, gone.id, at);
+    await expect(
+      recordPurchase(
+        db,
+        {
+          deviceCode: 'K1',
+          lines: [
+            { productId: milk.id, qtyMilli: 12000 },
             { productId: gone.id, qtyMilli: 6000 },
           ],
         },
@@ -44,8 +81,6 @@ describe('recordPurchase', () => {
     ).rejects.toBeInstanceOf(RecordNotFoundError);
     expect(await db.purchases.count()).toBe(0);
     expect(await stockOf(db, milk.id)).toBe(0);
-    expect((await db.products.get(milk.id))?.sellPrice).toBe(4250);
-    expect(await pendingOps(db)).toHaveLength(before);
   });
 
   it('updates only the prices that change', async () => {
