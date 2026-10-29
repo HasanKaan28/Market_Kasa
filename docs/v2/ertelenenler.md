@@ -105,7 +105,7 @@ M4a veresiyeyi getirir: Müşteriler ekranı, tahsilat, düzeltme, ekstre ve Wha
 - Küçükler: iki alan testi `describe('stockLevel')` altında; yazdırma CSS'i ve sınıf adı hâlâ "receipt" diyor; hatırlatma ve ekstre sıralama eşitlikleri ve `customerSummaries`'te gün dönümü test edilmiyor. (M4a)
  M4b'nin planı taslak olarak yazıldı ([2026-10-29-m4b-tedarikciler.md](plans/2026-10-29-m4b-tedarikciler.md)) ve aşağıdaki maddeleri alır:
 
-- M4b tedarikçileri getirir: Tedarikçiler ekranı, tedarikçi carisi (ödeme, düzeltme), mal kabulün tedarikçiye ve açık hesaba bağlanması, KDV hariç alış fiyatı, bedelsiz mal. Plan sahibin onayını bekliyor. İncelemesinden kalan küçük maddeler (M4 cilası):
+- M4b tedarikçileri getirir: Tedarikçiler ekranı, tedarikçi carisi (ödeme, düzeltme), mal kabulün tedarikçiye ve açık hesaba bağlanması, KDV hariç alış fiyatı, bedelsiz mal. Sahip "Bütün adımları bitir" diyerek kararlarıyla birlikte onayladı (2026-10-29). İncelemesinden kalan küçük maddeler (M4 cilası):
 - Çevrimdışı iki kasada aynı adla eklenen tedarikçiler eşitlemeden sonra düzenlenemiyor (ad her kayıtta yeniden denetleniyor). (M4b)
 - Fiyatı bilinmeyen ürünlerle açık hesap mal kabulü ₺0 kaydediliyor, fatura yazmıyor ve uyarmıyor. (M4b)
 - Tedarikçi ödemesinin üst sınırı birim fiyat sabitini (`MAX_UNIT_PRICE`) kullanıyor. (M4b)
@@ -114,8 +114,7 @@ M4a veresiyeyi getirir: Müşteriler ekranı, tahsilat, düzeltme, ekstre ve Wha
 
 ## M5 · Raporlar ve kasa
 
-- Tedarikçiye ve müşteriye nakit ödeme ya da tahsilat kasa hareketine yazılmıyor (DESIGN §10). (M4b)
-- `PurchaseRecord.payment` tipte zorunlu ama eski satırlarda yok; M5 okumadan önce isteğe bağlı yapılmalı (yoksa nakit). (M4b)
+M5 (raporlar ve gün sonu) planı yazıldı ve bu bölümün iki maddesini aldı: nakit tahsilat ve ödemelerin kasa hareketi, `PurchaseRecord.payment`'ın isteğe bağlı olması.
 
 ## M6 · Yönetim
 
