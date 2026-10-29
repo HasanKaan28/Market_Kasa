@@ -35,6 +35,8 @@ export type ExpectedCash = CashBreakdown & {
 };
 
 const sessionKey = (deviceCode: string) => `cashSession:${deviceCode}`;
+// Above every ISO timestamp: an open end for a range of instants.
+const LATEST = '\uffff';
 
 /** The drawer open on this register, if any. */
 export async function currentCashSession(
@@ -118,11 +120,13 @@ export async function addCashMovement(
  * the register's sales, less the cash part of the sales voided on it (those of earlier days too)
  * and the cash refunded on it, plus money put in, less money taken out. Only what happened on
  * this register since the drawer opened counts; a drawer never opened counts from the last close.
+ * Without `at` it counts everything so far, and a live query of it sees every later record too:
+ * a query bounded by the time it ran watches only up to that time.
  */
 export async function expectedCash(
   db: MarketDb,
   deviceCode: string,
-  at: Date,
+  at?: Date,
 ): Promise<ExpectedCash> {
   return (await countDrawer(db, deviceCode, at)).cash;
 }
@@ -197,7 +201,7 @@ export async function closeCashSession(
 async function countDrawer(
   db: MarketDb,
   deviceCode: string,
-  at: Date,
+  at: Date | undefined,
 ): Promise<{
   cash: ExpectedCash;
   records: Pick<SummaryInput, 'sales' | 'voids' | 'returns' | 'salesById'>;
@@ -209,7 +213,7 @@ async function countDrawer(
     // The opening counts from its own instant; a close already counted what happened at it.
     const from = since ?? '';
     const includeFrom = session !== undefined;
-    const until = at.toISOString();
+    const until = at?.toISOString() ?? LATEST;
     const records = await loadRange(db, {
       index: 'occurredAt',
       from,

@@ -11,6 +11,7 @@ import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from '.
 import { CartPanel } from './CartPanel';
 import { checkout, checkoutErrorMessage, singlePayment, StaleCartError } from './checkout';
 import { CustomerPicker } from './CustomerPicker';
+import { CashDialog } from './CashDialog';
 import { DiscountDialog } from './DiscountDialog';
 import { HELD_STORAGE_KEY, holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld } from './held';
 import { HeldCartsDialog } from './HeldCartsDialog';
@@ -44,6 +45,7 @@ type OpenDialog =
   | { kind: 'newProduct'; barcode?: string }
   | { kind: 'held' }
   | { kind: 'receipts' }
+  | { kind: 'drawer' }
   | { kind: 'void' | 'return'; sale: SaleRecord }
   | null;
 
@@ -215,6 +217,7 @@ export function PosScreen(): JSX.Element {
         else if (held.length > 0) setDialog({ kind: 'held' });
       },
       F9: () => setDialog({ kind: 'receipts' }),
+      F10: () => setDialog({ kind: 'drawer' }),
     },
     openDialog === null,
   );
@@ -255,6 +258,9 @@ export function PosScreen(): JSX.Element {
           </Button>
           <Button kbd="F9" onClick={() => setDialog({ kind: 'receipts' })}>
             Son fişler
+          </Button>
+          <Button kbd="F10" onClick={() => setDialog({ kind: 'drawer' })}>
+            Kasa
           </Button>
         </div>
       </AppShell>
@@ -347,6 +353,9 @@ export function PosScreen(): JSX.Element {
             )
           }
         />
+      ) : null}
+      {dialog?.kind === 'drawer' ? (
+        <CashDialog open paperWidth={receiptSettings.paperWidth} onClose={close} onDone={finish} />
       ) : null}
       {dialog?.kind === 'receiptSettings' ? (
         <ReceiptSettingsDialog

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
@@ -245,6 +245,16 @@ describe('PosScreen', () => {
       { method: 'cash', amount: 2000 },
       { method: 'card', amount: 2250 },
     ]);
+  });
+
+  it('opens the cash drawer with F10 and says when it is opened', async () => {
+    await renderWithData(<PosScreen />);
+    fireEvent.keyDown(window, { key: 'F10' });
+    const dialog = await screen.findByRole('dialog', { name: 'Kasa' });
+    await userEvent.type(await within(dialog).findByLabelText('Açılış nakdi'), '150');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kasayı aç' }));
+    expect(await screen.findByText('Kasa açıldı · ₺150,00')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Kasa' })).not.toBeInTheDocument();
   });
 
   it('lets go of the line editor when its line disappears', async () => {
