@@ -1,4 +1,5 @@
 import type { MarketDb } from '@/data/db';
+import { canonicalBarcode } from '@/data/products';
 import { parkRows, type ParkedRow } from './issues';
 import type { ServerRow, SyncTable } from './protocol';
 
@@ -85,9 +86,23 @@ async function applyEntity(db: MarketDb, { table, id, row }: ServerRow): Promise
     merged = op.kind === 'insert' ? { ...merged, ...op.record } : applyPatch(merged, op.patch);
   }
   if (table === 'products') {
+    merged = withStoredBarcode(merged);
     await releaseBarcode(db, merged.barcode, id);
   }
   await db.table(table).put(merged);
+}
+
+/** A pulled product with its barcode in the stored form; an invalid barcode refuses the row. */
+function withStoredBarcode(row: Record<string, unknown>): Record<string, unknown> {
+  if (typeof row.barcode !== 'string') {
+    return row;
+  }
+  const barcode = canonicalBarcode(row.barcode);
+  const stored = { ...row, barcode };
+  if (barcode === undefined) {
+    delete stored.barcode;
+  }
+  return stored;
 }
 
 /** The server gives a contested barcode to one product; take it off any other local holder first. */

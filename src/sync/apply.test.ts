@@ -26,6 +26,18 @@ const movement = {
   businessDate: '2026-10-29',
 };
 
+const productRow = {
+  name: 'X',
+  unit: 'piece',
+  sellPrice: 100,
+  buyPrice: 0,
+  vatRate: 1,
+  isQuick: false,
+  criticalLevelMilli: 0,
+  createdAt: at.toISOString(),
+  updatedAt: at.toISOString(),
+} as const;
+
 async function clearOutbox() {
   await acknowledgeOps(
     db,
@@ -88,6 +100,33 @@ describe('applyServerRows', () => {
     ]);
     expect((await db.products.get('p-1'))?.barcode).toBe('X');
     expect((await db.products.get('p-2'))?.barcode).toBeUndefined();
+  });
+
+  it('upper-cases a pulled barcode and takes it off a local holder', async () => {
+    await db.products.add({ ...productRow, id: 'p-2', barcode: 'ABC' });
+    await applyServerRows(db, [
+      {
+        table: 'products',
+        id: 'p-1',
+        serverSeq: 5,
+        row: { ...productRow, id: 'p-1', barcode: 'abc' },
+      },
+    ]);
+    expect((await db.products.get('p-1'))?.barcode).toBe('ABC');
+    expect((await db.products.get('p-2'))?.barcode).toBeUndefined();
+  });
+
+  it('sets aside a pulled product whose barcode is invalid', async () => {
+    await applyServerRows(db, [
+      {
+        table: 'products',
+        id: 'p-3',
+        serverSeq: 6,
+        row: { ...productRow, id: 'p-3', barcode: 'a b' },
+      },
+    ]);
+    expect(await db.products.get('p-3')).toBeUndefined();
+    expect((await parkedRows(db)).map((parked) => parked.row.id)).toEqual(['p-3']);
   });
 
   it('stores two sales that share a receipt number', async () => {

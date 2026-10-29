@@ -51,7 +51,42 @@ export class MarketDb extends Dexie {
     });
     // v4: voids and returns (M2b).
     this.version(4).stores({ saleVoids: 'id, saleId', returns: 'id, saleId' });
+    // v5: barcodes are stored in capitals (M3a). No server holds these rows yet; it upper-cases
+    // what it receives on its own (M0b).
+    this.version(5)
+      .stores({})
+      .upgrade((tx) => upperCaseBarcodes(tx.table('products')));
   }
+}
+
+/**
+ * Where two products differ only in the case of their barcode, the older one keeps it and the
+ * other loses it. The losers are cleared first, so the unique index never sees two holders.
+ */
+async function upperCaseBarcodes(products: Table<ProductRecord, string>): Promise<void> {
+  const holders = (await products.toArray())
+    .filter((product): product is ProductRecord & { barcode: string } => !!product.barcode)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  const claimed = new Set<string>();
+  const renamed: ProductRecord[] = [];
+  const losers: ProductRecord[] = [];
+  for (const product of holders) {
+    const barcode = product.barcode.toUpperCase();
+    if (claimed.has(barcode)) {
+      losers.push(product);
+    } else {
+      claimed.add(barcode);
+      if (barcode !== product.barcode) {
+        renamed.push({ ...product, barcode });
+      }
+    }
+  }
+  for (const loser of losers) {
+    const cleared = { ...loser };
+    delete cleared.barcode;
+    await products.put(cleared);
+  }
+  await products.bulkPut(renamed);
 }
 
 /** One database per market, named apart from v1's "MarketPosDB" so v1 data is never touched. */

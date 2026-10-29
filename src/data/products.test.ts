@@ -2,16 +2,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { VatRate } from '@/domain/pricing';
 import { makeTestDb } from '@/test/db';
 import type { MarketDb } from './db';
-import { DuplicateBarcodeError } from './errors';
+import { DuplicateBarcodeError, RecordNotFoundError } from './errors';
 import { pendingOps } from './outbox';
 import {
   createProduct,
   deleteProduct,
   findProductByBarcode,
   listQuickProducts,
+  restoreProduct,
   searchProducts,
   updateProduct,
 } from './products';
+import { stockOf } from './stock';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -46,16 +48,98 @@ describe('products', () => {
     expect(ops[0]).toMatchObject({ kind: 'insert', table: 'products', recordId: p.id, record: p });
   });
 
-  it('refuses a barcode that another product holds, even a deleted one', async () => {
-    const p = await createProduct(
+  it('stores barcodes in upper case and finds them in any case', async () => {
+    const pen = await createProduct(
+      db,
+      { barcode: 'brk-0042', name: 'Kalem', sellPrice: 1500, vatRate: 20 },
+      at,
+    );
+    expect(pen.barcode).toBe('BRK-0042');
+    expect((await findProductByBarcode(db, ' brk-0042 '))?.id).toBe(pen.id);
+    expect(await findProductByBarcode(db, 'brk 42')).toBeUndefined();
+  });
+
+  it('takes a barcode off a deleted product', async () => {
+    const old = await createProduct(
+      db,
+      { barcode: '869', name: 'Eski Süt', sellPrice: 4000, vatRate: 1 },
+      at,
+    );
+    await deleteProduct(db, old.id, at);
+    const milk = await createProduct(
+      db,
+      { barcode: '869', name: 'Süt', sellPrice: 4250, vatRate: 1 },
+      later,
+    );
+    expect(milk.barcode).toBe('869');
+    expect((await db.products.get(old.id))?.barcode).toBeUndefined();
+    const oldOps = (await pendingOps(db)).filter((op) => op.recordId === old.id);
+    expect(oldOps.at(-1)).toMatchObject({
+      kind: 'patch',
+      patch: { barcode: null, updatedAt: later.toISOString() },
+    });
+
+    const gone = await createProduct(
+      db,
+      { barcode: '870', name: 'Eski Ayran', sellPrice: 2000, vatRate: 1 },
+      at,
+    );
+    await deleteProduct(db, gone.id, at);
+    const ayran = await createProduct(db, { name: 'Ayran', sellPrice: 2250, vatRate: 1 }, at);
+    expect((await updateProduct(db, ayran.id, { barcode: '870' }, later)).barcode).toBe('870');
+    expect((await db.products.get(gone.id))?.barcode).toBeUndefined();
+  });
+
+  it('refuses a barcode a live product holds, on create and on update', async () => {
+    await createProduct(
       db,
       { barcode: '8690000000017', name: 'Süt', sellPrice: 4250, vatRate: 1 },
       at,
     );
-    const ayran = { barcode: '8690000000017', name: 'Ayran', sellPrice: 2250, vatRate: 1 } as const;
-    await expect(createProduct(db, ayran, at)).rejects.toBeInstanceOf(DuplicateBarcodeError);
-    await deleteProduct(db, p.id, later);
-    await expect(createProduct(db, ayran, at)).rejects.toBeInstanceOf(DuplicateBarcodeError);
+    const ayran = await createProduct(db, { name: 'Ayran', sellPrice: 2250, vatRate: 1 }, at);
+    const kefir = createProduct(
+      db,
+      { barcode: '8690000000017', name: 'Kefir', sellPrice: 3000, vatRate: 1 },
+      at,
+    );
+    await expect(kefir).rejects.toBeInstanceOf(DuplicateBarcodeError);
+    await expect(kefir).rejects.toMatchObject({ holderName: 'Süt' });
+    const update = updateProduct(db, ayran.id, { barcode: '8690000000017' }, later);
+    await expect(update).rejects.toBeInstanceOf(DuplicateBarcodeError);
+    await expect(update).rejects.toMatchObject({ holderName: 'Süt' });
+    expect((await db.products.get(ayran.id))?.barcode).toBeUndefined();
+  });
+
+  it('restores a deleted product', async () => {
+    const simit = await createProduct(db, { name: 'Simit', sellPrice: 1500, vatRate: 1 }, at);
+    await deleteProduct(db, simit.id, at);
+    const restored = await restoreProduct(db, simit.id, later);
+    expect(restored.deletedAt).toBeUndefined();
+    expect(restored.updatedAt).toBe(later.toISOString());
+    expect((await db.products.get(simit.id))?.deletedAt).toBeUndefined();
+    const ops = await pendingOps(db);
+    expect(ops.at(-1)).toMatchObject({
+      kind: 'patch',
+      recordId: simit.id,
+      patch: { deletedAt: null, updatedAt: later.toISOString() },
+    });
+    await restoreProduct(db, simit.id, later);
+    expect(await pendingOps(db)).toHaveLength(ops.length);
+    await expect(restoreProduct(db, 'missing', later)).rejects.toBeInstanceOf(RecordNotFoundError);
+  });
+
+  it('records opening stock as a count movement', async () => {
+    const cheese = await createProduct(
+      db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 30000, vatRate: 1 },
+      at,
+      { openingStockMilli: 1500 },
+    );
+    expect(await stockOf(db, cheese.id)).toBe(1500);
+    expect(await db.stockMovements.where('productId').equals(cheese.id).toArray()).toMatchObject([
+      { kind: 'count', delta: 1500 },
+    ]);
+    expect((await pendingOps(db)).map((op) => op.table)).toEqual(['products', 'stockMovements']);
   });
 
   it('patches only the changed fields', async () => {

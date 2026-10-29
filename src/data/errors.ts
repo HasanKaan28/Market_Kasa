@@ -5,10 +5,16 @@ export class RecordNotFoundError extends Error {
   }
 }
 
+/** `holderName` is the live product that has the barcode, so the message can name it. */
 export class DuplicateBarcodeError extends Error {
-  constructor(barcode: string) {
-    super(`Barcode already in use: ${barcode}`);
+  readonly barcode: string;
+  readonly holderName: string;
+
+  constructor(barcode: string, holderName: string) {
+    super(`Barcode already in use: ${barcode} (${holderName})`);
     this.name = 'DuplicateBarcodeError';
+    this.barcode = barcode;
+    this.holderName = holderName;
   }
 }
 
