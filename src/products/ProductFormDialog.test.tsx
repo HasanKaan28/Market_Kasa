@@ -220,6 +220,17 @@ describe('ProductFormDialog', () => {
     expect(await screen.findByRole('dialog', { name: 'Stoğu düzelt' })).toBeInTheDocument();
   });
 
+  it('opens the movement history from the product', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, milk, at, { openingStockMilli: 5000 });
+    await renderWithData(
+      <ProductFormDialog open product={product} onClose={vi.fn()} onSaved={vi.fn()} />,
+      data,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Hareketler' }));
+    expect(await screen.findByRole('table', { name: 'Stok hareketleri' })).toBeInTheDocument();
+  });
+
   it('fills the barcode from a scan', async () => {
     await renderWithData(<ProductFormDialog open onClose={vi.fn()} onSaved={vi.fn()} />);
     const name = screen.getByLabelText('Ürün adı');

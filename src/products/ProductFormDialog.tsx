@@ -10,6 +10,7 @@ import { Button, ChoiceGroup, Dialog, SelectField, TextField } from '@/design';
 import { formatStock, UNIT_LABELS, VAT_OPTIONS } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
 import { AdjustStockDialog } from '@/stock/AdjustStockDialog';
+import { MovementsDialog } from '@/stock/MovementsDialog';
 import { suggestProductName } from './openFoodFacts';
 import {
   draftOf,
@@ -57,7 +58,7 @@ export function ProductFormDialog({
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [stockDialog, setStockDialog] = useState<'adjust' | null>(null);
+  const [stockDialog, setStockDialog] = useState<'adjust' | 'movements' | null>(null);
   const categories = useLiveQuery(() => listCategories(db), [db]);
   const productId = product?.id;
   const stockMilli = useLiveQuery(
@@ -236,6 +237,7 @@ export function ProductFormDialog({
               {deleted ? null : (
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => setStockDialog('adjust')}>Stoğu düzelt</Button>
+                  <Button onClick={() => setStockDialog('movements')}>Hareketler</Button>
                 </div>
               )}
             </div>
@@ -296,6 +298,9 @@ export function ProductFormDialog({
             Ürünü sil
           </Button>
         )
+      ) : null}
+      {product && stockDialog === 'movements' ? (
+        <MovementsDialog open product={product} onClose={() => setStockDialog(null)} />
       ) : null}
       {product && stockDialog === 'adjust' ? (
         <AdjustStockDialog
