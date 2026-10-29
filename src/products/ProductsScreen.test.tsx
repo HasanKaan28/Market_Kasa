@@ -1,10 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCategory, deleteCategory } from '@/data/categories';
 import { createProduct, deleteProduct } from '@/data/products';
 import { recordStockMovement } from '@/data/stock';
 import type { ProductRecord } from '@/data/types';
+import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
 import { ProductsScreen } from './ProductsScreen';
@@ -17,6 +18,8 @@ function shownNames(): (string | null)[] {
     .queryAllByRole('button')
     .map((button) => button.textContent);
 }
+
+afterEach(removeCamera);
 
 describe('ProductsScreen', () => {
   it('lists products with their stock, unit and category', async () => {
@@ -302,5 +305,18 @@ describe('ProductsScreen', () => {
     expect(await screen.findByText('Aramaya uyan ürün yok.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: 'Tümü' }));
     expect(shownNames()).toEqual(['Ayran', 'Eski Gazoz']);
+  });
+
+  it('opens the product the camera reads', async () => {
+    fakeCamera([['8690000000017']]);
+    const data = createTestData();
+    await createProduct(
+      data.db,
+      { barcode: '8690000000017', name: 'Süt', sellPrice: 4250, vatRate: 1 },
+      at,
+    );
+    await renderWithData(<ProductsScreen />, data);
+    await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
+    expect(await screen.findByRole('dialog', { name: 'Ürünü düzenle' })).toBeInTheDocument();
   });
 });

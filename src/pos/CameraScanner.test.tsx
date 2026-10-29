@@ -1,44 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fakeCamera, removeCamera } from '@/test/camera';
+import { CameraButton } from './CameraButton';
 import { CameraScanner } from './CameraScanner';
 
-/**
- * A camera that shows, frame by frame, the codes in `reads` (the last frame repeats), read by a
- * BarcodeDetector the way the browser's would be.
- */
-function fakeCamera(reads: string[][], failure?: string) {
-  const track = { stop: vi.fn() };
-  const getUserMedia = vi.fn(async () => {
-    if (failure) {
-      throw new DOMException('camera', failure);
-    }
-    return { getTracks: () => [track] };
-  });
-  Object.defineProperty(navigator, 'mediaDevices', {
-    value: { getUserMedia },
-    configurable: true,
-  });
-  let frame = 0;
-  class FakeDetector {
-    async detect() {
-      const codes = reads[Math.min(frame, reads.length - 1)] ?? [];
-      frame += 1;
-      return codes.map((rawValue) => ({ rawValue }));
-    }
-  }
-  vi.stubGlobal('BarcodeDetector', FakeDetector);
-  return { track, getUserMedia };
-}
-
-beforeEach(() => {
-  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-});
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-  Reflect.deleteProperty(navigator, 'mediaDevices');
-});
+afterEach(removeCamera);
 
 describe('CameraScanner', () => {
   it('reads a code and closes', async () => {
@@ -60,7 +27,9 @@ describe('CameraScanner', () => {
     const onScan = vi.fn();
     const onClose = vi.fn();
     render(<CameraScanner open continuous onClose={onClose} onScan={onScan} />);
-    expect(await screen.findByText('Okundu: 8690000000017', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText('Okundu: 8690000000017', {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
     expect(onScan.mock.calls).toEqual([['BRK-0042'], ['8690000000017']]);
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -85,5 +54,21 @@ describe('CameraScanner', () => {
     fakeCamera([], 'NotFoundError');
     render(<CameraScanner open onClose={vi.fn()} onScan={vi.fn()} />);
     expect(await screen.findByText('Kamera bulunamadı.')).toBeInTheDocument();
+  });
+});
+
+describe('CameraButton', () => {
+  it('offers the camera only where the browser has one', async () => {
+    const onScan = vi.fn();
+    const { unmount } = render(<CameraButton onScan={onScan} />);
+    expect(screen.queryByRole('button', { name: 'Kamerayla okut' })).not.toBeInTheDocument();
+    unmount();
+    fakeCamera([['8690000000017']]);
+    render(<CameraButton onScan={onScan} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
+    await waitFor(() => expect(onScan).toHaveBeenCalledWith('8690000000017'));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Kamerayla okut' })).not.toBeInTheDocument(),
+    );
   });
 });

@@ -243,6 +243,7 @@ export function PosScreen(): JSX.Element {
         <ProductPanel
           onAdd={add}
           onNewProduct={(barcode) => setDialog({ kind: 'newProduct', barcode })}
+          onScan={(code) => void handleScan(code)}
           searchRef={searchRef}
         />
         <div className="mt-auto flex flex-wrap gap-2">

@@ -1,10 +1,11 @@
 import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
 import { recentSales, recordSale } from '@/data/sales';
 import { stockOf } from '@/data/stock';
 import { isVoided } from '@/data/voids';
+import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { cartReducer, emptyCart, loadCart } from './cart';
 import { checkout, singlePayment } from './checkout';
@@ -17,6 +18,8 @@ function scan(code: string) {
     fireEvent.keyDown(window, { key });
   }
 }
+
+afterEach(removeCamera);
 
 describe('PosScreen', () => {
   it('sells a scanned product for cash', async () => {
@@ -298,5 +301,13 @@ describe('PosScreen', () => {
     await screen.findByText(`Satış iptal edildi · ${sale.receiptNo}`);
     expect(print).not.toHaveBeenCalled();
     print.mockRestore();
+  });
+
+  it('scans with the camera at the register', async () => {
+    fakeCamera([[milk.barcode]]);
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
   });
 });

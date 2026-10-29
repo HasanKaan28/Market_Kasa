@@ -12,6 +12,7 @@ import {
 import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
+import { CameraButton } from './CameraButton';
 import { looksLikeBarcode } from './keyboard';
 
 /** The group of the quick products, which comes before the categories. */
@@ -22,11 +23,18 @@ const SEARCH = 'search';
 export type ProductPanelProps = {
   onAdd(product: ProductRecord): void;
   onNewProduct(barcode?: string): void;
+  /** A code read by the camera, handled as the register handles a scanner's. */
+  onScan?(code: string): void;
   searchRef?: Ref<HTMLInputElement>;
 };
 
 /** Search by name or barcode, the quick-product grid, and the way to add a missing product. */
-export function ProductPanel({ onAdd, onNewProduct, searchRef }: ProductPanelProps): JSX.Element {
+export function ProductPanel({
+  onAdd,
+  onNewProduct,
+  onScan,
+  searchRef,
+}: ProductPanelProps): JSX.Element {
   const { db } = useData();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState(QUICK);
@@ -97,9 +105,12 @@ export function ProductPanel({ onAdd, onNewProduct, searchRef }: ProductPanelPro
         <h2 className="text-[15px] font-semibold">
           {term !== '' ? 'Arama sonuçları' : (category?.name ?? 'Hızlı ürünler')}
         </h2>
-        <Button icon={<Plus aria-hidden="true" size={18} />} onClick={() => onNewProduct()}>
-          Yeni ürün
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {onScan ? <CameraButton onScan={onScan} /> : null}
+          <Button icon={<Plus aria-hidden="true" size={18} />} onClick={() => onNewProduct()}>
+            Yeni ürün
+          </Button>
+        </div>
       </div>
       {term !== '' && products?.length === 0 ? <p className="text-text-2">Sonuç yok</p> : null}
       {term === '' && category && products?.length === 0 ? (

@@ -1,9 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { recordCount } from '@/data/counts';
 import { createProduct } from '@/data/products';
 import { recordStockMovement, stockOf } from '@/data/stock';
+import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
 import { StockCount } from './StockCount';
@@ -15,6 +16,8 @@ const tea = { barcode: '8690000000017', name: 'Çay', sellPrice: 9000, vatRate: 
 async function lineOf(name: string) {
   return screen.findByRole('group', { name });
 }
+
+afterEach(removeCamera);
 
 describe('StockCount', () => {
   it('counts a product up with each scan', async () => {
@@ -121,5 +124,24 @@ describe('StockCount', () => {
     ).toBeInTheDocument();
     await userEvent.click(within(checks).getByRole('button', { name: 'Yeniden say: Çay' }));
     expect(await lineOf('Çay')).toBeInTheDocument();
+  });
+
+  it('counts with the camera continuously', async () => {
+    fakeCamera([['8690000000017'], ['BRK-0042']]);
+    const data = createTestData();
+    await createProduct(data.db, tea, minutesAgo(60));
+    await createProduct(
+      data.db,
+      { barcode: 'BRK-0042', name: 'Bardak', sellPrice: 500, vatRate: 20 },
+      minutesAgo(60),
+    );
+    await renderWithData(<StockCount onDone={vi.fn()} />, data);
+    await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
+    expect(await screen.findByText('Okundu: BRK-0042', {}, { timeout: 3000 })).toBeInTheDocument();
+    // The camera stays open over the count, which is hidden from the accessibility tree meanwhile.
+    for (const name of ['Çay', 'Bardak']) {
+      const line = await screen.findByRole('group', { name, hidden: true });
+      expect(within(line).getByLabelText('Sayılan')).toHaveValue('1');
+    }
   });
 });

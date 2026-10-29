@@ -8,6 +8,7 @@ import type { ProductRecord } from '@/data/types';
 import { Button, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { formatPriceInput, formatStock } from '@/pos/format';
+import { CameraButton } from '@/pos/CameraButton';
 import { looksLikeBarcode, useBarcodeScanner } from '@/pos/keyboard';
 import { ProductFormDialog } from '@/products/ProductFormDialog';
 import {
@@ -171,6 +172,9 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={submitSearch}
         />
+        <div>
+          <CameraButton onScan={(code) => void addByBarcode(code)} />
+        </div>
         {results && results.length > 0 ? (
           <ul aria-label="Arama sonuçları" className="flex flex-wrap gap-2">
             {results.map((product) => (

@@ -1,8 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, deleteProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
+import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
 import { GoodsReceipt } from './GoodsReceipt';
@@ -25,6 +26,8 @@ async function retype(field: HTMLElement, text: string) {
   await userEvent.clear(field);
   await userEvent.type(field, text);
 }
+
+afterEach(removeCamera);
 
 describe('GoodsReceipt', () => {
   it('adds a scanned product and counts it up when scanned again', async () => {
@@ -153,5 +156,14 @@ describe('GoodsReceipt', () => {
     await scan('8690000000099');
     const dialog = await screen.findByRole('dialog', { name: 'Yeni ürün' });
     expect(within(dialog).queryByLabelText('Başlangıç stoğu')).not.toBeInTheDocument();
+  });
+
+  it('adds a product read by the camera', async () => {
+    fakeCamera([['8690000000017']]);
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
+    expect(await lineOf('Süt')).toBeInTheDocument();
   });
 });

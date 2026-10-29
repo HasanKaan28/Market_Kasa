@@ -10,6 +10,7 @@ import { Button, ChoiceGroup, SelectField, TextField, ToastRegion, useToast } fr
 import { businessDate } from '@/domain/businessDate';
 import { formatTRY } from '@/domain/money';
 import { formatStock } from '@/pos/format';
+import { CameraButton } from '@/pos/CameraButton';
 import { useBarcodeScanner } from '@/pos/keyboard';
 import { BulkPriceDialog } from './BulkPriceDialog';
 import { CategoriesDialog } from './CategoriesDialog';
@@ -153,6 +154,7 @@ export function ProductsScreen(): JSX.Element {
             Dışa aktar
           </Button>
           <Button onClick={() => setDialog({ kind: 'categories' })}>Kategoriler</Button>
+          <CameraButton onScan={(code) => void openByBarcode(code)} />
           <Button
             variant="primary"
             icon={<Plus aria-hidden="true" size={18} />}

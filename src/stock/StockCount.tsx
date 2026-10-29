@@ -7,6 +7,7 @@ import { findProductByBarcode, productsById, searchProducts } from '@/data/produ
 import type { ProductRecord, ProductUnit } from '@/data/types';
 import { Button, TextField } from '@/design';
 import { formatStock } from '@/pos/format';
+import { CameraButton } from '@/pos/CameraButton';
 import { looksLikeBarcode, useBarcodeScanner } from '@/pos/keyboard';
 import {
   addToCount,
@@ -176,6 +177,9 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={submitSearch}
         />
+        <div>
+          <CameraButton continuous onScan={(code) => void scanned(code)} />
+        </div>
         {notice ? (
           <p role="status" className="text-sm font-medium text-danger">
             {notice}
