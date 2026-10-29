@@ -4,6 +4,9 @@ export type VatRate = 0 | 1 | 10 | 20;
 
 export const VAT_RATES: readonly VatRate[] = [0, 1, 10, 20];
 
+/** ₺1.000.000,00: far above any shelf price, and low enough that line totals stay exact. */
+export const MAX_UNIT_PRICE: Kurus = 100_000_000;
+
 export type CartLineInput = {
   qtyMilli: number;
   unitPrice: Kurus;

@@ -151,4 +151,14 @@ describe('products', () => {
     await deleteProduct(db, ayran.id, later);
     expect((await listQuickProducts(db)).map((p) => p.name)).toEqual(['Simit']);
   });
+
+  it('rejects a price above ₺1.000.000', async () => {
+    await expect(
+      createProduct(db, { name: 'X', sellPrice: 100_000_001, vatRate: 1 }, at),
+    ).rejects.toThrow(RangeError);
+    const p = await createProduct(db, { name: 'Y', sellPrice: 100_000_000, vatRate: 1 }, at);
+    await expect(updateProduct(db, p.id, { sellPrice: 8690000000017 }, later)).rejects.toThrow(
+      RangeError,
+    );
+  });
 });

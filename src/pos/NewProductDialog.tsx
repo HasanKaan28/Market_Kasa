@@ -4,8 +4,8 @@ import { DuplicateBarcodeError } from '@/data/errors';
 import { createProduct } from '@/data/products';
 import type { ProductRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
-import { parseTRY, type Kurus } from '@/domain/money';
-import { VAT_RATES, type VatRate } from '@/domain/pricing';
+import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
+import { MAX_UNIT_PRICE, VAT_RATES, type VatRate } from '@/domain/pricing';
 
 export type NewProductDialogProps = {
   open: boolean;
@@ -42,6 +42,10 @@ export function NewProductDialog({
       sellPrice = parseTRY(price);
     } catch {
       found.price = 'Geçerli bir tutar girin.';
+    }
+    if (sellPrice !== undefined && sellPrice > MAX_UNIT_PRICE) {
+      found.price = `Fiyat en fazla ${formatTRY(MAX_UNIT_PRICE)} olabilir.`;
+      sellPrice = undefined;
     }
     setErrors(found);
     if (found.name !== undefined || sellPrice === undefined) {

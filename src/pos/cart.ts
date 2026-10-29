@@ -1,7 +1,13 @@
 import { newId } from '@/data/ids';
 import type { ProductRecord } from '@/data/types';
 import type { Kurus } from '@/domain/money';
-import { computeCart, VAT_RATES, type CartTotals, type VatRate } from '@/domain/pricing';
+import {
+  computeCart,
+  MAX_UNIT_PRICE,
+  VAT_RATES,
+  type CartTotals,
+  type VatRate,
+} from '@/domain/pricing';
 
 export type CartLine = {
   productId: string;
@@ -86,7 +92,11 @@ export function loadCart(storage?: Pick<Storage, 'getItem'>): Cart {
   try {
     const raw = (storage ?? localStorage).getItem(CART_STORAGE_KEY);
     const parsed: unknown = raw === null ? null : JSON.parse(raw);
-    return isCart(parsed) ? parsed : emptyCart();
+    if (!isCart(parsed)) {
+      return emptyCart();
+    }
+    cartTotals(parsed); // throws for amounts too large to total exactly
+    return parsed;
   } catch {
     return emptyCart();
   }
@@ -141,6 +151,8 @@ function isLine(value: unknown): value is CartLine {
     typeof line.productId === 'string' &&
     typeof line.name === 'string' &&
     Number.isSafeInteger(line.unitPrice) &&
+    Number(line.unitPrice) >= 0 &&
+    Number(line.unitPrice) <= MAX_UNIT_PRICE &&
     (VAT_RATES as readonly unknown[]).includes(line.vatRate) &&
     Number.isSafeInteger(line.qtyMilli) &&
     Number(line.qtyMilli) > 0

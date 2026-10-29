@@ -1,5 +1,5 @@
 import { assertSafeInteger, type Kurus } from '@/domain/money';
-import { assertVatRate, type VatRate } from '@/domain/pricing';
+import { assertVatRate, MAX_UNIT_PRICE, type VatRate } from '@/domain/pricing';
 import type { MarketDb } from './db';
 import { DuplicateBarcodeError, RecordNotFoundError } from './errors';
 import { newId } from './ids';
@@ -174,6 +174,9 @@ function validateFields(input: ProductPatch): Partial<ProductFields> {
     const value = input[key];
     if (value !== undefined) {
       assertNonNegativeInteger(value, key);
+      if (key !== 'criticalLevelMilli' && value > MAX_UNIT_PRICE) {
+        throw new RangeError(`${key} cannot exceed ${MAX_UNIT_PRICE}, got ${value}`);
+      }
       fields[key] = value;
     }
   }

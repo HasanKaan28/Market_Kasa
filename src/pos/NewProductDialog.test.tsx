@@ -65,4 +65,13 @@ describe('NewProductDialog', () => {
     expect(await screen.findByText('Bu barkod başka bir üründe kayıtlı.')).toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
   });
+
+  it('refuses a price above ₺1.000.000', async () => {
+    const { data } = await renderWithData(
+      <NewProductDialog open onClose={vi.fn()} onCreated={vi.fn()} />,
+    );
+    await fill('Ekmek', '8690000000017');
+    expect(await screen.findByText('Fiyat en fazla ₺1.000.000,00 olabilir.')).toBeInTheDocument();
+    expect(await data.db.products.count()).toBe(0);
+  });
 });

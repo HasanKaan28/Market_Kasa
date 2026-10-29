@@ -102,4 +102,17 @@ describe('cart', () => {
     };
     expect(() => saveCart(mockupCart(), failing)).not.toThrow();
   });
+
+  it('opens an empty cart when a stored line cannot be priced', () => {
+    const stored = (unitPrice: number, qtyMilli: number) => ({
+      getItem: () =>
+        JSON.stringify({
+          id: 'c',
+          lines: [{ productId: 'p', name: 'X', unitPrice, vatRate: 1, qtyMilli }],
+        }),
+    });
+    expect(loadCart(stored(-100, 1000)).lines).toEqual([]);
+    expect(loadCart(stored(869_000_000_001_700, 1000)).lines).toEqual([]);
+    expect(loadCart(stored(1000, 9_000_000_000_000_000)).lines).toEqual([]);
+  });
 });
