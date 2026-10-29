@@ -105,6 +105,19 @@ export function ProductFormDialog({
       setErrors(read.errors);
       return;
     }
+    // Pieces are counted whole: a weighed product keeps its unit until its stock is whole.
+    if (
+      product &&
+      product.unit !== 'piece' &&
+      draft.unit === 'piece' &&
+      stockMilli !== undefined &&
+      stockMilli % 1000 !== 0
+    ) {
+      setErrors({
+        form: `Stok kesirli (${formatStock(stockMilli, product.unit)}); adede çevirmeden önce stoğu düzeltin.`,
+      });
+      return;
+    }
     setErrors({});
     void run(async () => {
       if (product) {

@@ -231,6 +231,29 @@ describe('ProductFormDialog', () => {
     expect(await screen.findByRole('table', { name: 'Stok hareketleri' })).toBeInTheDocument();
   });
 
+  it('refuses to make a product with a fractional stock count pieces', async () => {
+    const data = createTestData();
+    const cheese = await createProduct(
+      data.db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 32000, vatRate: 1 },
+      at,
+      { openingStockMilli: 1500 },
+    );
+    const onSaved = vi.fn();
+    await renderWithData(
+      <ProductFormDialog open product={cheese} onClose={vi.fn()} onSaved={onSaved} />,
+      data,
+    );
+    await screen.findByText('Stok: 1,5 kg');
+    await userEvent.click(screen.getByRole('radio', { name: 'Adet' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    expect(
+      await screen.findByText('Stok kesirli (1,5 kg); adede çevirmeden önce stoğu düzeltin.'),
+    ).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect((await data.db.products.get(cheese.id))?.unit).toBe('kg');
+  });
+
   it('fills the barcode from a scan', async () => {
     await renderWithData(<ProductFormDialog open onClose={vi.fn()} onSaved={vi.fn()} />);
     const name = screen.getByLabelText('Ürün adı');
