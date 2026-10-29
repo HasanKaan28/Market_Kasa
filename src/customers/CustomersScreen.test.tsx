@@ -77,4 +77,19 @@ describe('CustomersScreen', () => {
     await userEvent.type(search, 'zzz');
     expect(screen.getByText('Bu aramaya uyan müşteri yok.')).toBeInTheDocument();
   });
+
+  it('opens a customer and adds a new one', async () => {
+    const data = createTestData();
+    await createCustomer(data.db, { name: 'Ahmet' }, daysAgo(1));
+    await renderWithData(<CustomersScreen />, data);
+    await userEvent.click(await screen.findByRole('button', { name: 'Ahmet' }));
+    expect(await screen.findByRole('dialog', { name: 'Ahmet' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Kapat' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Yeni müşteri' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni müşteri' });
+    await userEvent.type(within(dialog).getByLabelText('Ad'), 'Veli');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByRole('button', { name: 'Veli' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Müşteri eklendi.');
+  });
 });

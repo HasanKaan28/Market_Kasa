@@ -1,11 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { Plus } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
 import { normalizeForSearch } from '@/data/text';
-import { ChoiceGroup, TextField, ToastRegion, useToast } from '@/design';
+import { Button, ChoiceGroup, TextField, ToastRegion, useToast } from '@/design';
 import { businessDate } from '@/domain/businessDate';
 import { formatTRY } from '@/domain/money';
+import { CustomerDialog } from './CustomerDialog';
+import { CustomerFormDialog } from './CustomerFormDialog';
 import { customerSummaries, formatBalance, type CustomerSummary } from './statement';
 
 type CustomerView = 'all' | 'debtors';
@@ -22,7 +25,15 @@ export function CustomersScreen(): JSX.Element {
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [view, setView] = useState<CustomerView>('all');
+  const [dialog, setDialog] = useState<{ kind: 'customer'; id: string } | { kind: 'new' } | null>(
+    null,
+  );
   const summaries = useLiveQuery(() => customerSummaries(db, businessDate(new Date())), [db]);
+  function done(message: string) {
+    toast.show(message);
+    void runner.run();
+  }
+
   const rows = (summaries ?? []).filter(
     (row) => (view === 'all' || row.balance > 0) && matches(row, query),
   );
@@ -36,9 +47,18 @@ export function CustomersScreen(): JSX.Element {
         pendingCount={status.pendingCount}
         activeNav="customers"
       >
-        <div>
-          <h1 className="text-xl font-semibold">Müşteriler</h1>
-          <p className="text-sm text-text-2">{`${summaries?.length ?? 0} müşteri`}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="mr-auto">
+            <h1 className="text-xl font-semibold">Müşteriler</h1>
+            <p className="text-sm text-text-2">{`${summaries?.length ?? 0} müşteri`}</p>
+          </div>
+          <Button
+            variant="primary"
+            icon={<Plus aria-hidden="true" size={18} />}
+            onClick={() => setDialog({ kind: 'new' })}
+          >
+            Yeni müşteri
+          </Button>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0 flex-1">
@@ -91,7 +111,15 @@ export function CustomersScreen(): JSX.Element {
                 const overLimit = customer.creditLimit > 0 && balance > customer.creditLimit;
                 return (
                   <tr key={customer.id} className="border-b border-line align-top last:border-0">
-                    <td className="py-3 pr-3 font-medium break-words">{customer.name}</td>
+                    <td className="py-1.5 pr-3 break-words">
+                      <button
+                        type="button"
+                        className="min-h-11 text-left font-medium hover:underline"
+                        onClick={() => setDialog({ kind: 'customer', id: customer.id })}
+                      >
+                        {customer.name}
+                      </button>
+                    </td>
                     <td className="hidden py-3 pr-3 text-text-2 sm:table-cell">
                       {customer.phone ?? '—'}
                     </td>
@@ -113,6 +141,19 @@ export function CustomersScreen(): JSX.Element {
           </table>
         ) : null}
       </AppShell>
+      {dialog?.kind === 'customer' ? (
+        <CustomerDialog open customerId={dialog.id} onClose={() => setDialog(null)} onDone={done} />
+      ) : null}
+      {dialog?.kind === 'new' ? (
+        <CustomerFormDialog
+          open
+          onClose={() => setDialog(null)}
+          onSaved={(message) => {
+            setDialog(null);
+            done(message);
+          }}
+        />
+      ) : null}
       <ToastRegion message={toast.message} />
     </>
   );
