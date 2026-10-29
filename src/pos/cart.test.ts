@@ -117,7 +117,11 @@ describe('cart', () => {
   });
 
   it('applies line and cart discounts to the totals', () => {
-    let cart = cartReducer(mockupCart(), { type: 'setLineDiscount', productId: 'ekmek', amount: 300 });
+    let cart = cartReducer(mockupCart(), {
+      type: 'setLineDiscount',
+      productId: 'ekmek',
+      amount: 300,
+    });
     cart = cartReducer(cart, { type: 'setCartDiscount', amount: 1000 });
     expect(cartTotals(cart).total).toBe(56640 - 1300);
   });
@@ -140,9 +144,9 @@ describe('cart', () => {
     expect(cart.lines[0]?.unit).toBe('kg');
     cart = cartReducer(cart, { type: 'setQuantity', productId: 'peynir', qtyMilli: 1250 });
     expect(cart.lines[0]?.qtyMilli).toBe(1250);
-    expect(cartReducer(cart, { type: 'setQuantity', productId: 'peynir', qtyMilli: 0 }).lines).toEqual(
-      [],
-    );
+    expect(
+      cartReducer(cart, { type: 'setQuantity', productId: 'peynir', qtyMilli: 0 }).lines,
+    ).toEqual([]);
   });
 
   it('reads a cart saved before discounts existed', () => {

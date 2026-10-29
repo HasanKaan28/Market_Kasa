@@ -147,7 +147,9 @@ export async function searchProducts(
 
 /** Products marked for the quick grid, by name; deleted ones excluded. */
 export async function listQuickProducts(db: MarketDb): Promise<ProductRecord[]> {
-  const quick = await db.products.filter((product) => product.isQuick && !product.deletedAt).toArray();
+  const quick = await db.products
+    .filter((product) => product.isQuick && !product.deletedAt)
+    .toArray();
   return quick.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 }
 

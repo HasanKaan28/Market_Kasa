@@ -31,7 +31,9 @@ export function PaymentDialog({
         <CashForm total={total} busy={busy} onConfirm={onConfirm} />
       ) : (
         <>
-          <p className="text-text-2">Tutarı kart cihazından çekin, onaylanınca satışı tamamlayın.</p>
+          <p className="text-text-2">
+            Tutarı kart cihazından çekin, onaylanınca satışı tamamlayın.
+          </p>
           {/* No autofocus: a stray Enter (an unread scan) must not complete a card sale. */}
           <Button variant="primary" size="lg" disabled={busy} onClick={() => onConfirm()}>
             Satışı tamamla

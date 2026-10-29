@@ -22,7 +22,15 @@ function mockupCart(): Cart {
   const e = p('e', 'Ekmek', 1500);
   const a = p('a', 'Ayran', 2250);
   let cart = emptyCart('c');
-  for (const product of [e, e, a, a, a, p('b', 'Beyaz Peynir', 18990), p('c', 'Siyah Çay', 27900)]) {
+  for (const product of [
+    e,
+    e,
+    a,
+    a,
+    a,
+    p('b', 'Beyaz Peynir', 18990),
+    p('c', 'Siyah Çay', 27900),
+  ]) {
     cart = cartReducer(cart, { type: 'add', product });
   }
   return cart;
@@ -30,7 +38,15 @@ function mockupCart(): Cart {
 
 describe('CartPanel', () => {
   it('shows the mockup cart totals', () => {
-    render(<CartPanel cart={mockupCart()} dispatch={vi.fn()} onPay={vi.fn()} onEditLine={vi.fn()} onDiscount={vi.fn()} />);
+    render(
+      <CartPanel
+        cart={mockupCart()}
+        dispatch={vi.fn()}
+        onPay={vi.fn()}
+        onEditLine={vi.fn()}
+        onDiscount={vi.fn()}
+      />,
+    );
     expect(screen.getByText('4 kalem')).toBeInTheDocument();
     expect(screen.getByText('2 × ₺15,00')).toBeInTheDocument();
     expect(screen.getByTestId('total')).toHaveTextContent('₺566,40');
@@ -59,7 +75,15 @@ describe('CartPanel', () => {
   });
 
   it('disables payment for an empty cart', () => {
-    render(<CartPanel cart={emptyCart('c')} dispatch={vi.fn()} onPay={vi.fn()} onEditLine={vi.fn()} onDiscount={vi.fn()} />);
+    render(
+      <CartPanel
+        cart={emptyCart('c')}
+        dispatch={vi.fn()}
+        onPay={vi.fn()}
+        onEditLine={vi.fn()}
+        onDiscount={vi.fn()}
+      />,
+    );
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
     for (const name of ['Nakit', 'Kart', 'Veresiye']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();

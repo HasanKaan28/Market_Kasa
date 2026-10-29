@@ -42,7 +42,10 @@ describe('ReturnDialog', () => {
   it('offers only the methods the sale used', async () => {
     const data = createTestData();
     const { sale } = await sold(data.db, 'Ekmek', 1500, 1);
-    await renderWithData(<ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />, data);
+    await renderWithData(
+      <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />,
+      data,
+    );
     expect(screen.getByRole('radio', { name: 'Nakit' })).toBeChecked();
     expect(screen.queryByRole('radio', { name: 'Veresiye' })).not.toBeInTheDocument();
   });
@@ -57,7 +60,10 @@ describe('ReturnDialog', () => {
       deviceCode: 'K1',
       at,
     });
-    await renderWithData(<ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />, data);
+    await renderWithData(
+      <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />,
+      data,
+    );
     const more = await screen.findByRole('button', { name: 'Artır · Ekmek' });
     await userEvent.click(more);
     await vi.waitFor(() => expect(more).toBeDisabled());
@@ -67,14 +73,20 @@ describe('ReturnDialog', () => {
   it('cannot save an empty return', async () => {
     const data = createTestData();
     const { sale } = await sold(data.db, 'Ekmek', 1500, 1);
-    await renderWithData(<ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />, data);
+    await renderWithData(
+      <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />,
+      data,
+    );
     expect(screen.getByRole('button', { name: 'İadeyi kaydet' })).toBeDisabled();
   });
 
   it('survives a return made elsewhere while it is open', async () => {
     const data = createTestData();
     const { product, sale } = await sold(data.db, 'Ekmek', 1500, 2);
-    await renderWithData(<ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />, data);
+    await renderWithData(
+      <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />,
+      data,
+    );
     const more = await screen.findByRole('button', { name: 'Artır · Ekmek' });
     await userEvent.click(more);
     await userEvent.click(more);

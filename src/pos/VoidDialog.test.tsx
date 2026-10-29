@@ -39,7 +39,10 @@ describe('VoidDialog', () => {
   it('asks for a reason', async () => {
     const data = createTestData();
     const { sale } = await soldMilk(data.db);
-    await renderWithData(<VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />, data);
+    await renderWithData(
+      <VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />,
+      data,
+    );
     await userEvent.click(screen.getByRole('button', { name: 'İptal et' }));
     expect(await screen.findByText('İptal nedeni gerekli.')).toBeInTheDocument();
     expect(await data.db.saleVoids.count()).toBe(0);
@@ -55,7 +58,10 @@ describe('VoidDialog', () => {
       deviceCode: 'K1',
       at,
     });
-    await renderWithData(<VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />, data);
+    await renderWithData(
+      <VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />,
+      data,
+    );
     await userEvent.type(screen.getByLabelText('İptal nedeni'), 'Yanlış ürün');
     await userEvent.click(screen.getByRole('button', { name: 'İptal et' }));
     expect(await screen.findByText('İadesi olan satış iptal edilemez.')).toBeInTheDocument();

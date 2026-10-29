@@ -22,7 +22,15 @@ function mockupCart(): Cart {
   const e = p('e', 'Ekmek', 1500);
   const a = p('a', 'Ayran', 2250);
   let cart = emptyCart('c');
-  for (const product of [e, e, a, a, a, p('b', 'Beyaz Peynir', 18990), p('c', 'Siyah Çay', 27900)]) {
+  for (const product of [
+    e,
+    e,
+    a,
+    a,
+    a,
+    p('b', 'Beyaz Peynir', 18990),
+    p('c', 'Siyah Çay', 27900),
+  ]) {
     cart = cartReducer(cart, { type: 'add', product });
   }
   return cart;
@@ -62,7 +70,9 @@ describe('DiscountDialog', () => {
   });
 
   it('removes the discount', async () => {
-    const { dispatch } = setup(cartReducer(mockupCart(), { type: 'setCartDiscount', amount: 1000 }));
+    const { dispatch } = setup(
+      cartReducer(mockupCart(), { type: 'setCartDiscount', amount: 1000 }),
+    );
     await userEvent.click(screen.getByRole('button', { name: 'İndirimi kaldır' }));
     expect(dispatch).toHaveBeenCalledWith({ type: 'setCartDiscount', amount: 0 });
   });

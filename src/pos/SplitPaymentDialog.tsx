@@ -136,7 +136,10 @@ export function SplitPaymentDialog({
             {cashGiven !== undefined && cashGiven !== null && cashGiven >= cash ? (
               <div className="flex items-baseline justify-between">
                 <span className="font-medium">Para üstü</span>
-                <span data-testid="change" className="font-mono text-[22px] font-semibold text-success">
+                <span
+                  data-testid="change"
+                  className="font-mono text-[22px] font-semibold text-success"
+                >
                   {formatTRY(cashGiven - cash)}
                 </span>
               </div>

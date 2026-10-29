@@ -104,8 +104,18 @@ describe('applyServerRows', () => {
   it('sets aside rows it cannot apply and applies the rest', async () => {
     const rows: ServerRow[] = [
       { table: 'categories' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
-      { table: 'stockMovements', id: 'm2', serverSeq: 2, row: { ...movement, id: 'm2', delta: '-1.000' } },
-      { table: 'ledger', id: 'l1', serverSeq: 3, row: { customerId: 'c1', kind: 'debt', amount: 100 } },
+      {
+        table: 'stockMovements',
+        id: 'm2',
+        serverSeq: 2,
+        row: { ...movement, id: 'm2', delta: '-1.000' },
+      },
+      {
+        table: 'ledger',
+        id: 'l1',
+        serverSeq: 3,
+        row: { customerId: 'c1', kind: 'debt', amount: 100 },
+      },
       { table: 'stockMovements', id: 'm1', serverSeq: 4, row: movement },
     ];
     await applyServerRows(db, rows);

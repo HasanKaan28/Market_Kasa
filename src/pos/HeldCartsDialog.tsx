@@ -35,9 +35,7 @@ export function HeldCartsDialog({
                   <span className="font-medium">{time}</span>
                   <span className="text-sm text-text-2">{`${cart.lines.length} kalem`}</span>
                 </div>
-                <span className="font-mono font-semibold">
-                  {formatTRY(cartTotals(cart).total)}
-                </span>
+                <span className="font-mono font-semibold">{formatTRY(cartTotals(cart).total)}</span>
                 <Button
                   variant="primary"
                   aria-label={`Devam et · ${time}`}

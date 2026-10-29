@@ -112,7 +112,9 @@ describe('PosScreen', () => {
     fireEvent.keyDown(window, { key: 'F4' });
     await userEvent.click(await screen.findByRole('button', { name: 'Satışı tamamla' }));
     expect(
-      await screen.findByText('Bu sepet başka bir pencerede satılmış. Sepet yenilendi, yeniden deneyin.'),
+      await screen.findByText(
+        'Bu sepet başka bir pencerede satılmış. Sepet yenilendi, yeniden deneyin.',
+      ),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
     await vi.waitFor(async () => expect(await data.db.sales.count()).toBe(2));

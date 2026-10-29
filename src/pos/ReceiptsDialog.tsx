@@ -52,7 +52,9 @@ function ReceiptList({ onSelect }: { onSelect(sale: SaleRecord): void }): JSX.El
       term === ''
         ? await recentSales(db, RECENT_LIMIT)
         : await findSalesByReceiptEnding(db, term, RECENT_LIMIT);
-    return Promise.all(sales.map(async (sale) => ({ sale, status: await saleStatus(db, sale.id) })));
+    return Promise.all(
+      sales.map(async (sale) => ({ sale, status: await saleStatus(db, sale.id) })),
+    );
   }, [db, term]);
 
   return (

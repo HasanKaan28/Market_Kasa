@@ -13,7 +13,12 @@ export type DiscountDialogProps = {
 };
 
 /** A discount on the whole cart, spread over the lines when the sale is recorded. */
-export function DiscountDialog({ open, cart, onClose, dispatch }: DiscountDialogProps): JSX.Element {
+export function DiscountDialog({
+  open,
+  cart,
+  onClose,
+  dispatch,
+}: DiscountDialogProps): JSX.Element {
   const [mode, setMode] = useState<DiscountMode>('amount');
   const [value, setValue] = useState('');
   const [error, setError] = useState<string>();

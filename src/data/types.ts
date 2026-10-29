@@ -126,13 +126,7 @@ export type ReturnRecord = {
 };
 
 export type OutboxTable =
-  | 'products'
-  | 'customers'
-  | 'sales'
-  | 'stockMovements'
-  | 'ledger'
-  | 'saleVoids'
-  | 'returns';
+  'products' | 'customers' | 'sales' | 'stockMovements' | 'ledger' | 'saleVoids' | 'returns';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }

@@ -33,8 +33,20 @@ afterEach(async () => {
 
 describe('checkout', () => {
   it('records one sale per cart however often it is checked out', async () => {
-    const first = await checkout(db, { cart, deviceCode: 'K1', payments: singlePayment(cart, 'cash'), cashGiven: 5000, at });
-    const again = await checkout(db, { cart, deviceCode: 'K1', payments: singlePayment(cart, 'cash'), cashGiven: 5000, at });
+    const first = await checkout(db, {
+      cart,
+      deviceCode: 'K1',
+      payments: singlePayment(cart, 'cash'),
+      cashGiven: 5000,
+      at,
+    });
+    const again = await checkout(db, {
+      cart,
+      deviceCode: 'K1',
+      payments: singlePayment(cart, 'cash'),
+      cashGiven: 5000,
+      at,
+    });
     expect(first).toMatchObject({
       id: cart.id,
       total: 4250,
@@ -49,9 +61,12 @@ describe('checkout', () => {
     await checkout(db, { cart, deviceCode: 'K1', payments: singlePayment(cart, 'card'), at });
     const bread = await createProduct(db, { name: 'Ekmek', sellPrice: 1500, vatRate: 1 }, at);
     const grown = cartReducer(cart, { type: 'add', product: bread });
-    const error = await checkout(db, { cart: grown, deviceCode: 'K1', payments: singlePayment(grown, 'card'), at }).catch(
-      (e: unknown) => e,
-    );
+    const error = await checkout(db, {
+      cart: grown,
+      deviceCode: 'K1',
+      payments: singlePayment(grown, 'card'),
+      at,
+    }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(StaleCartError);
     expect(checkoutErrorMessage(error)).toBe(
       'Bu sepet başka bir pencerede satılmış. Sepet yenilendi, yeniden deneyin.',
@@ -74,11 +89,16 @@ describe('checkout', () => {
 
   it('explains a total that changed under the cart', async () => {
     await updateProduct(db, milk.id, { sellPrice: 4500 }, at);
-    const error = await checkout(db, { cart, deviceCode: 'K1', payments: singlePayment(cart, 'card'), at }).catch(
-      (e: unknown) => e,
-    );
+    const error = await checkout(db, {
+      cart,
+      deviceCode: 'K1',
+      payments: singlePayment(cart, 'card'),
+      at,
+    }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(PaymentMismatchError);
-    expect(checkoutErrorMessage(error)).toBe('Tutar değişti, toplamı kontrol edip yeniden deneyin.');
+    expect(checkoutErrorMessage(error)).toBe(
+      'Tutar değişti, toplamı kontrol edip yeniden deneyin.',
+    );
   });
 });
 

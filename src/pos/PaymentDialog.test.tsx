@@ -49,7 +49,9 @@ describe('PaymentDialog', () => {
   });
 
   it('keeps focus off the card confirm button, so a stray Enter cannot sell', () => {
-    render(<PaymentDialog open method="card" total={56640} onClose={vi.fn()} onConfirm={vi.fn()} />);
+    render(
+      <PaymentDialog open method="card" total={56640} onClose={vi.fn()} onConfirm={vi.fn()} />,
+    );
     expect(screen.getByRole('button', { name: 'Satışı tamamla' })).not.toHaveFocus();
   });
 });

@@ -40,7 +40,12 @@ describe('AppShell', () => {
 
   it('hides the staff name when there is none', () => {
     render(
-      <AppShell marketName="Kurşunlu Market" deviceName="Kasa 1" activeNav="pos" syncState="online" />,
+      <AppShell
+        marketName="Kurşunlu Market"
+        deviceName="Kasa 1"
+        activeNav="pos"
+        syncState="online"
+      />,
     );
     expect(screen.queryByText('Elif Y.')).not.toBeInTheDocument();
     expect(screen.getByText('Kasa 1')).toBeInTheDocument();

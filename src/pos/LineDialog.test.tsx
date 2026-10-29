@@ -24,7 +24,13 @@ function setup(value: CartLine) {
 
 describe('LineDialog', () => {
   it('sets a weighed quantity', async () => {
-    const cheese = line({ productId: 'p', name: 'Peynir', unit: 'kg', unitPrice: 18990, qtyMilli: 1000 });
+    const cheese = line({
+      productId: 'p',
+      name: 'Peynir',
+      unit: 'kg',
+      unitPrice: 18990,
+      qtyMilli: 1000,
+    });
     const { dispatch, onClose } = setup(cheese);
     const field = screen.getByLabelText('Miktar (kg)');
     await userEvent.clear(field);
