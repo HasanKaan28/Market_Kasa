@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState, type JSX } from 'react';
+import { useLayoutEffect, useState, type JSX } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { createScanBuffer, looksLikeBarcode, useBarcodeScanner, useShortcuts } from './keyboard';
 
@@ -81,6 +81,43 @@ describe('useBarcodeScanner', () => {
     await userEvent.keyboard('8690000000017{Enter}');
     expect(onScan).toHaveBeenCalledWith('8690000000017');
     expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+describe('latest render', () => {
+  // A key can arrive after React commits a render but before its passive effects run (a busy
+  // machine, an update from an IndexedDB result). These probes press keys in that gap.
+  it('gives a shortcut to the handler and enabled flag of the latest render', () => {
+    const seen: number[] = [];
+    function Probe({ count, enabled }: { count: number; enabled: boolean }) {
+      useShortcuts({ F2: () => seen.push(count) }, enabled);
+      useLayoutEffect(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2' }));
+      }, [count, enabled]);
+      return null;
+    }
+    const { rerender } = render(<Probe count={0} enabled />);
+    rerender(<Probe count={1} enabled />);
+    rerender(<Probe count={2} enabled={false} />);
+    expect(seen).toEqual([1]);
+  });
+
+  it('gives a scan to the callback of the latest render', () => {
+    const seen: number[] = [];
+    const clock = fakeClock();
+    clock.gap = 5;
+    function Probe({ count }: { count: number }) {
+      useBarcodeScanner(() => seen.push(count), { now: clock.now });
+      useLayoutEffect(() => {
+        for (const key of [...'8690000000017', 'Enter']) {
+          window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+        }
+      }, [count]);
+      return null;
+    }
+    const { rerender } = render(<Probe count={0} />);
+    rerender(<Probe count={1} />);
+    expect(seen).toEqual([1]);
   });
 });
 

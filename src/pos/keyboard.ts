@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 export type ScanBuffer = { push(key: string, at: number): string | null };
 
@@ -51,8 +51,10 @@ export function useBarcodeScanner(
   onScan: (code: string) => void,
   { now = defaultNow, maxGapMs, minLength }: ScanOptions & { now?: () => number } = {},
 ): void {
+  // Updated during the commit, so a key that arrives before passive effects run still reaches
+  // the callback of the latest render.
   const latest = useRef(onScan);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = onScan;
   });
 
@@ -81,17 +83,17 @@ export function useShortcuts(
   handlers: Partial<Record<ShortcutKey, () => void>>,
   enabled: boolean = true,
 ): void {
-  const latest = useRef(handlers);
-  useEffect(() => {
-    latest.current = handlers;
+  // Same timing as useBarcodeScanner: handlers and the enabled flag of the latest render.
+  const latest = useRef({ handlers, enabled });
+  useLayoutEffect(() => {
+    latest.current = { handlers, enabled };
   });
 
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
     const onKeyDown = (event: KeyboardEvent) => {
-      const handler = isShortcutKey(event.key) ? latest.current[event.key] : undefined;
+      const current = latest.current;
+      const handler =
+        current.enabled && isShortcutKey(event.key) ? current.handlers[event.key] : undefined;
       if (handler) {
         event.preventDefault();
         handler();
@@ -99,7 +101,7 @@ export function useShortcuts(
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [enabled]);
+  }, []);
 }
 
 function defaultNow(): number {
