@@ -23,6 +23,8 @@ describe('openMarketDb', () => {
       'meta',
       'outbox',
       'products',
+      'returns',
+      'saleVoids',
       'sales',
       'stockLevels',
       'stockMovements',

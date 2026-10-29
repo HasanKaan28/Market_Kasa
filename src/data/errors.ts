@@ -25,3 +25,17 @@ export class CreditLimitError extends Error {
     this.name = 'CreditLimitError';
   }
 }
+
+export class SaleVoidedError extends Error {
+  constructor(receiptNo: string) {
+    super(`Sale already voided: ${receiptNo}`);
+    this.name = 'SaleVoidedError';
+  }
+}
+
+export class SaleReturnedError extends Error {
+  constructor(receiptNo: string) {
+    super(`Sale has returns and cannot be voided: ${receiptNo}`);
+    this.name = 'SaleReturnedError';
+  }
+}

@@ -94,7 +94,45 @@ export type LedgerRecord = {
   businessDate: string;
 };
 
-export type OutboxTable = 'products' | 'customers' | 'sales' | 'stockMovements' | 'ledger';
+/** A sale cancelled in full; its stock and credit are put back by separate movements. */
+export type SaleVoidRecord = {
+  id: string;
+  saleId: string;
+  reason: string;
+  deviceCode: string;
+  occurredAt: string;
+  businessDate: string;
+};
+
+export type ReturnLine = {
+  productId: string;
+  name: string;
+  qtyMilli: number;
+  net: Kurus;
+  vat: Kurus;
+};
+
+/** Goods taken back against a receipt; `amount` and `vat` are the line shares added up. */
+export type ReturnRecord = {
+  id: string;
+  saleId: string;
+  deviceCode: string;
+  lines: ReturnLine[];
+  refundMethod: PaymentMethod;
+  amount: Kurus;
+  vat: Kurus;
+  occurredAt: string;
+  businessDate: string;
+};
+
+export type OutboxTable =
+  | 'products'
+  | 'customers'
+  | 'sales'
+  | 'stockMovements'
+  | 'ledger'
+  | 'saleVoids'
+  | 'returns';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }

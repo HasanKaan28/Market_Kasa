@@ -7,10 +7,11 @@ import { customerBalance } from './customers';
 import type { MarketDb } from './db';
 import { CreditLimitError, RecordNotFoundError, PaymentMismatchError } from './errors';
 import { newId } from './ids';
+import { addLedgerEntry } from './ledger';
 import { appendOutbox } from './outbox';
 import { withoutUndefined } from './records';
 import { recordStockMovement } from './stock';
-import type { LedgerRecord, Payment, ProductRecord, SaleLine, SaleRecord } from './types';
+import type { Payment, ProductRecord, SaleLine, SaleRecord } from './types';
 
 export type SaleLineInput = { productId: string; qtyMilli: number; lineDiscount?: Kurus };
 
@@ -83,7 +84,17 @@ export async function recordSale(db: MarketDb, input: RecordSaleInput): Promise<
       });
     }
     if (split.credit > 0 && sale.customerId) {
-      await addLedgerDebt(db, sale, split.credit, input.at);
+      await addLedgerEntry(
+        db,
+        {
+          customerId: sale.customerId,
+          kind: 'debt',
+          amount: split.credit,
+          saleId: sale.id,
+          cutoffMinutes: input.cutoffMinutes,
+        },
+        input.at,
+      );
     }
     await db.sales.add(sale);
     await appendOutbox(
@@ -234,27 +245,4 @@ function buildSale(
     cashGiven: input.cashGiven,
     change: numbering.change,
   });
-}
-
-async function addLedgerDebt(
-  db: MarketDb,
-  sale: SaleRecord,
-  amount: Kurus,
-  at: Date,
-): Promise<void> {
-  const entry: LedgerRecord = {
-    id: newId(at.getTime()),
-    customerId: sale.customerId ?? '',
-    kind: 'debt',
-    amount,
-    saleId: sale.id,
-    occurredAt: sale.occurredAt,
-    businessDate: sale.businessDate,
-  };
-  await db.ledger.add(entry);
-  await appendOutbox(
-    db,
-    { kind: 'insert', table: 'ledger', recordId: entry.id, record: entry },
-    at,
-  );
 }

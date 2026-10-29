@@ -5,7 +5,9 @@ import type {
   MetaRecord,
   OutboxItem,
   ProductRecord,
+  ReturnRecord,
   SaleRecord,
+  SaleVoidRecord,
   StockLevelRecord,
   StockMovementRecord,
 } from './types';
@@ -21,6 +23,8 @@ export class MarketDb extends Dexie {
   declare ledger: Table<LedgerRecord, string>;
   declare outbox: Table<OutboxItem, number>;
   declare meta: Table<MetaRecord, string>;
+  declare saleVoids: Table<SaleVoidRecord, string>;
+  declare returns: Table<ReturnRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -45,6 +49,8 @@ export class MarketDb extends Dexie {
     this.version(3).stores({
       sales: 'id, receiptNo, [deviceCode+businessDate+seq], occurredAt, customerId',
     });
+    // v4: voids and returns (M2b).
+    this.version(4).stores({ saleVoids: 'id, saleId', returns: 'id, saleId' });
   }
 }
 
