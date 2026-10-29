@@ -3,6 +3,7 @@ import { CustomersScreen } from '@/customers/CustomersScreen';
 import { PosScreen } from '@/pos/PosScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
 import { ReportsScreen } from '@/reports/ReportsScreen';
+import { SettingsScreen } from '@/settings/SettingsScreen';
 import { StockScreen } from '@/stock/StockScreen';
 import { SuppliersScreen } from '@/suppliers/SuppliersScreen';
 import { useData, useSyncStatus } from './appData';
@@ -28,6 +29,8 @@ export function Screens({ route }: { route: Route }): JSX.Element {
       return <SuppliersScreen />;
     case 'reports':
       return <ReportsScreen />;
+    case 'settings':
+      return <SettingsScreen />;
     case 'pos':
       return <PosScreen />;
   }

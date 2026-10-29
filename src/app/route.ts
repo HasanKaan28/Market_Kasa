@@ -2,9 +2,18 @@ import { useSyncExternalStore } from 'react';
 import type { Permission } from '@/domain/permissions';
 
 /** The screens this build has; each lives at `#/<route>`, which works offline and from a file. */
-export type Route = 'pos' | 'products' | 'stock' | 'customers' | 'suppliers' | 'reports';
+export type Route =
+  'pos' | 'products' | 'stock' | 'customers' | 'suppliers' | 'reports' | 'settings';
 
-const ROUTES: readonly Route[] = ['pos', 'products', 'stock', 'customers', 'suppliers', 'reports'];
+const ROUTES: readonly Route[] = [
+  'pos',
+  'products',
+  'stock',
+  'customers',
+  'suppliers',
+  'reports',
+  'settings',
+];
 
 /** What a person must be allowed to open each screen (DESIGN §8.5); the register is open to all. */
 export const ROUTE_PERMISSIONS: Partial<Record<Route, Permission>> = {
@@ -13,6 +22,7 @@ export const ROUTE_PERMISSIONS: Partial<Record<Route, Permission>> = {
   customers: 'collect',
   suppliers: 'suppliers',
   reports: 'reports',
+  settings: 'admin',
 };
 
 /** The screen an address names; the register for anything else. */
