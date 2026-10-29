@@ -6,7 +6,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 
 ### Okutma, arama ve klavye
 
-- İmleç metnin ortasındayken okutulan kod alanda kalıyor. (M2a)
+- İmleç metnin ortasındayken okutulan kod alanda kalıyor; alandaki metin seçiliyken okutma alanı boşaltıyor (mal kabulde fiyat kutusu). (M2a, M3c)
 - "5lt", "cola1L" gibi aramalar barkod sanılıyor; Enter yeni ürün penceresini açıyor. (M2a)
 - F1 için ekranda ipucu yok; pencere açıkken F1 Chrome yardımını açıyor. (M2a)
 - Odak bir açılır listedeyken (`select`) harfli bir okutma seçimi değiştirebilir (doğrulanmadı). (M3a)
@@ -22,12 +22,14 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - İndirim girişi: "%10" ve "10%" reddediliyor; "%"ye geçince dolu tutar hata veriyor. (M2c)
 - "Sepeti temizle" geri alınamıyor; satırların Azalt/Artır etiketleri aynı. (M2a)
 - Satır adındaki düzenleme butonu 44 px'ten küçük. (M2c)
+- Sepetteki satırlar yenilenirken (`refreshLines`) ürünün birimi güncellenmiyor; kaydedilen satış doğru. (M3c)
 
 ### Bekletme, iptal ve iade
 
 - Bekleyenler: aynı dakikadaki iki sepetin etiketi aynı, eski günlerin tarihi yok, sepeti açmadan silmenin yolu yok. (M2b)
 - Boş sepette "Beklet" pasif, oysa F8 listeyi açıyor. (M2b)
 - Bu arada iptal edilmiş satışın iadesi genel "İade kaydedilemedi." mesajını veriyor. (M2b)
+- İade penceresi tartılı satırı 1 kg adımla azaltıyor; 0,5 kg iade edilemiyor. (M3c)
 - İptal penceresinin hataları duyurulmuyor ve neden alanı hatalı görünüyor; nakit satışta da "veresiye geri alınır" yazıyor; iptal bildirimi tutarı söylemiyor. (M2b)
 
 ### Fiş
@@ -55,6 +57,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Boş sepette Bölünmüş ve İndirim; ekrandan veresiyeli bölünmüş satış ve limit hatası; eski biçimli bekleyen sepet. (M2c)
 - İadeden sonra otomatik yazdırma olmaması; gerçek bir iadenin fişe "İADESİ VAR" yazması. (M2d)
 - Kasada silinmiş ürünün barkodunu okutup yeni ürün kaydetmek; kasada küçük harfli okutma. (M3a)
+- Birimi olmayan eski satırla iade penceresi. (M3c)
 - Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor; sepet satırları birleştiği için şimdilik oluşmuyor. (M2b; M3c planı buraya taşıdı)
 
 ## M0b · Sunucu ve eşitleme
@@ -66,7 +69,9 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Satışın alt kayıtları satıştan önce kuyruğa giriyor; sunucu çocukları ebeveynden önce kabul etmeli. (M1a)
 - Değişiklik olmayan güncelleme yine de `{updatedAt}` yaması gönderiyor. (M1a)
 - Bilinmeyen ödeme yöntemi ve veresiyesiz satıştaki `customerId` çalışma anında denetlenmiyor. (M1a)
-- Sunucudan gelen satış, iptal, iade ve kategori satırları şekil denetiminden geçmiyor: bozuk bir satış fiş görünümünü, adsız bir kategori kasayı ve Ürünler ekranını düşürüyor. (M2b, M2d, M3a)
+- Sunucudan gelen satış, iptal, iade, kategori ve mal kabul satırları şekil denetiminden geçmiyor: bozuk bir satış fiş görünümünü, adsız bir kategori kasayı ve Ürünler ekranını düşürüyor. (M2b, M2d, M3a, M3c)
+- Kasalar arası hareket sırası saat kaymasında yanlış görünebilir; gerçek sıra için sunucu sıra numarası gerekir. `occurredAt` metin olarak karşılaştırılıyor; sunucu aynı ISO biçimini korumalı. (M3c)
+- Mal kabul taslağı sekmeler arasında eşitlenmiyor ve markete göre anahtarlanmıyor (sepetle aynı); çok marketli girişte ele alınmalı. (M3c)
 - Fişteki satır tutarları ve ara toplam satıştan okunmuyor, yeniden hesaplanıyor. (M2d)
 - Yeniden basılan fiş, satışı yapan kasanın değil bu cihazın adını yazıyor. (M2d)
 - Eşitleme rozeti ilk turdan önce "0 işlem bekliyor" gösteriyor; çevrimdışıyken bekleyen işlem sayısını göstermiyor (§15). (M2a)
@@ -78,13 +83,19 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 
 ## M3 · Ürün ve stok
 
-M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c (mal kabul ve stok hareketleri) planı yazıldı. M3'ün kalan alt planı:
+M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c mal kabulü, stok düzeltmesini, hareket geçmişini ve kritik stok listesini getirir. M3'ün kalan alt planı:
 
 - **M3d · Sayım:** sayım farkı hareket olarak yazılır (DESIGN §10); sayım sürerken başka cihazda yapılan satışlar hesaba katılır.
 
 Ertelenmiş maddeler:
 
 - **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15).
+- **M3d:** Hareket geçmişi ürünün bütün hareketlerini okuyor (`[productId+occurredAt]` indeksi yok) ve stoğu ayrı okuyor. (M3c)
+- **M3d:** Stok düzeltmesi "Ekle" ve "Fire" ile açılıyor; dokunulmadan kaydedilen ekleme "Fire" yazılıyor. `adjustStock`'ta gün dönümü seçeneği yok. (M3c)
+- **M3d:** Uzun mal kabulde satır hataları alan düzeltilince kalkmıyor; görünmeyen satırı artıran tekrar okutma bir şey söylemiyor. Tartılı satırda "Alış fiyatı" kilogram fiyatı olduğunu söylemiyor. (M3c)
+- **M3d:** Mal kabulde silinmiş ürünün barkodu okutulunca "Yeni ürün" açılıyor; Ürünler ekranındaki gibi "Geri getir" önerilmeli. Formdan yeni ürün kaydedilince mal kabul onu açıldığı barkodla arıyor; formda barkod değişirse ürün satıra eklenmiyor. (M3c)
+- **M3d:** Kritik stok kuralı `CriticalStock` ve `productList`'te iki kez yazılı. (M3c)
+- **M3d:** Test: mal kabulde harfli kod okutma; fiyat üst sınırı mesajı. (M3c)
 - **M3d:** İçe aktarma önizlemesinde 50. satırdan sonrası görünmüyor (uyarı, geri getirme, hata nedeni). Satır numaraları boş satırları atlıyor, Excel'inkilerle uyuşmuyor. (M3b)
 - **M3d:** Binlik ayraçlı miktar ("1.000") ondalık okunuyor. (M3b)
 - **M3d:** Gerçek dosyalarda karışıklık. UTF-16 "Unicode Metin" .txt, `sep=;` ilk satırı ve ikili .xls okunamıyor. DOĞRU/YANLIŞ ve "AD" gibi birimler reddediliyor. 12E45 gibi harfli kodlar bilimsel sayı sanılıyor. Sayfa seçimi, gizli ilk sayfa, Strict OOXML ve Mac Roman/cp857 CSV desteklenmiyor. Excel dışa aktarılan dosyayı açınca tarih gibi görünen adları tarihe çeviriyor. (M3b)
@@ -97,11 +108,13 @@ Ertelenmiş maddeler:
 - `debtAgeDays` gün dönümü ayarını ve saat dilimini dikkate almıyor; `cutoffMinutes` için sınır yok. (M0)
 - `addLedgerEntry` kendi transaction'ını açmıyor (bugün her çağıran açıyor). (M2b)
 - Test: arşivli ya da bilinmeyen veresiye müşterisi, `cutoffMinutes`. (M1a)
+- **M4b:** Bedelsiz gelen mal ve KDV hariç fatura fiyatı (tedarikçi faturası). (M3c)
 
 ## M6 · Yönetim
 
 - Fiş ayarlarını her kasiyer değiştirebiliyor (roller). (M2d)
 - Ürünleri ve kategorileri her kasiyer ekleyip silebiliyor (roller); yönetim ekranları için yan menü (§13). (M3a)
+- Mal kabulü ve stok düzeltmesini her kasiyer yapabiliyor (§8.5, roller). (M3c)
 - İçe aktarma, dışa aktarma ve toplu fiyatı her kasiyer yapabiliyor; §8.5'e göre dışa aktarma yalnız sahibe açık olmalı. (M3b)
 
 ## M7 · e-Arşiv

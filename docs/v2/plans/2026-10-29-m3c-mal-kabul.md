@@ -229,3 +229,22 @@
   - Sunucu hatası (5xx, 429) `{ error: 'unavailable' }` döner ve "Ürün veritabanına şu an ulaşılamıyor." yazar. "İnternet bağlantısı yok." yalnız ağ hatasında çıkar.
 - [ ] **Step 1–5:** `it('does not overwrite a name typed while waiting')`, `it('drops the answer for a barcode that changed')`, `it('tells a server error from being offline')`. Commit — `git commit -m "fix(products): name suggestions never overwrite newer input"`
 
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `8491c6e`…`f5a3812` (9 görev), inceleme düzeltmeleri `b472094`, `589badd`, `31cf3b7`. Son durumda 478 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): 1 kritik, 5 önemli, 9 küçük bulgu. Kritik ve önemlilerin hepsi düzeltildi. Küçük bulgulardan biri (mal kabulden açılan yeni ürün formunun başlangıç stoğu sorması) önemliye yükseltilip düzeltildi; kalanlar ertelendi.
+  - **C1:** Mal kabul kaydı, satır taslağa girdikten sonra başka yerde değişen fiyatları eski haline döndürüyordu. Artık yalnız yazılan fiyat gönderiliyor. Dokunulmamış kutu ürünün o anki fiyatını gösteriyor ve koruyor; boşaltılan kutu korunacak fiyatı soluk gösteriyor.
+  - **I2:** Taslaktaki ürün başka yerde silinince kayıt, hangi satır olduğunu söylemeden reddediliyordu. Satır artık "Bu ürün silinmiş; satırı çıkarın." diyor. Kayıt, düzeltilecek satırları adıyla sayıyor.
+  - **I3:** Arama alanında ürün adı + Enter, adı barkod sanıp "Yeni ürün" açıyordu. Artık yalnız barkoda benzeyen metin yeni ürün açıyor, kasadaki gibi.
+  - **I4:** Ürün formundan stok düzeltmesi formu kapatıp kaydedilmemiş değişiklikleri siliyordu. Form artık açık kalıyor ve "Stok düzeltildi." yazıyor.
+  - **I5:** Kesirli stoklu ürünü adede çevirme kuralı yalnız formdaydı; içe aktarma önizlemesi de artık reddediyor. Kesirli kalmış adetli stok, onu tam sayıya getiren kesirli düzeltmeyle düzeltilebiliyor.
+  - **I6:** "Mal kabul tek transaction'dır" testi düşemiyordu. Artık sonraki bir yazmayı bozuyor; transaction kaldırılınca testin kırmızıya döndüğü görüldü.
+  - **M12 (önemliye yükseltildi):** Mal kabulden açılan yeni ürün formu başlangıç stoğu soruyordu; teslim edilen miktar iki kez sayılabilirdi.
+- **Kararlar:**
+  - Satış satırı birimini üründen alır; birimsiz eski satır adet sayılır.
+  - Mal kabul tek transaction'dır: fiş, fiyat yamaları ve hareketler birlikte yazılır, fiş önce kuyruğa girer.
+  - Okutulan ürün tekrar okutulunca miktar 1 artar (tartılıda 1 kg).
+  - Taslaktaki ürünler kayıt anında yeniden okunur; işlem hatasını satıra eşlemek yerine bu yapıldı.
+  - Stok düzeltmesi fark olarak yazılır, mutlak değer olarak değil; mutlak sayım M3d'de.
+- **Doğrulama:** Production build Chromium'da denendi. Tereyağı mal kabul taslağına eklendi, sonra Ürünler ekranında fiyatı ₺125,50'den ₺130,00'a çıkarıldı. Taslaktaki kutu ₺130,00'ı gösterdi. Kayıttan sonra fiyat ₺130,00 kaldı, stok 12'den 13'e çıktı.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M2e, M0b, M3d, M4 ve M6 bölümlerinde.
