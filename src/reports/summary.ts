@@ -19,6 +19,9 @@ export type Summary = {
   voidCount: number;
   /** What the voided sales came to. */
   voidTotal: Kurus;
+  /** The voids among them of sales from before the range: their money went back within it. */
+  earlierVoidCount: number;
+  earlierVoidTotal: Kurus;
   returnCount: number;
   returnTotal: Kurus;
   /** The counted sales' totals, after discounts, VAT included. */
@@ -142,6 +145,8 @@ export function buildSummary({
   }
 
   let voidTotal = 0;
+  let earlierVoidCount = 0;
+  let earlierVoidTotal = 0;
   for (const saleVoid of voids) {
     const sale = salesById.get(saleVoid.saleId);
     if (!sale) {
@@ -150,6 +155,8 @@ export function buildSummary({
     voidTotal += sale.total;
     // A sale of an earlier day: its money goes back now.
     if (!inRange.has(sale.id)) {
+      earlierVoidCount += 1;
+      earlierVoidTotal += sale.total;
       addSale(sale, -1);
       net -= sale.total;
       device(saleVoid.deviceCode).net -= sale.total;
@@ -211,6 +218,8 @@ export function buildSummary({
     salesCount,
     voidCount: voids.filter((saleVoid) => salesById.has(saleVoid.saleId)).length,
     voidTotal,
+    earlierVoidCount,
+    earlierVoidTotal,
     returnCount,
     returnTotal,
     gross,

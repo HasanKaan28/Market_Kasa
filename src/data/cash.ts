@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { businessDate } from '@/domain/businessDate';
+import { businessDate, businessDayStart } from '@/domain/businessDate';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { buildSummary, loadRange, type Summary, type SummaryInput } from '@/reports/summary';
 import type { MarketDb } from './db';
@@ -31,8 +31,10 @@ export type CashMovementInput = {
 export type ExpectedCash = CashBreakdown & {
   /** The open drawer; absent when it was not opened, and then the opening cash counts as 0. */
   session?: OpenCashSession;
-  /** Where the count starts: the opening, else the last close; absent before the first close. */
-  since?: string;
+  /** Where the count starts: the last close, else the start of the day or an earlier opening. */
+  since: string;
+  /** The register's last Z, when there is one. */
+  lastCloseAt?: string;
   expected: Kurus;
 };
 
@@ -121,8 +123,11 @@ export async function addCashMovement(
 /**
  * The cash the register's drawer should hold at `at`: the opening cash, plus the cash part of
  * the register's sales, less the cash part of the sales voided on it (those of earlier days too)
- * and the cash refunded on it, plus money put in, less money taken out. Only what happened on
- * this register since the drawer opened counts; a drawer never opened counts from the last close.
+ * and the cash refunded on it, plus money put in, less money taken out. A Z covers everything this
+ * register did since its last Z, opened or not: the opening cash is the float put in at the start,
+ * not a count, so what was sold before the opening is still counted. A register that has never
+ * closed counts from the start of the business day, or from its opening if that was earlier, so a
+ * first close does not sweep up the register's whole history.
  * Without `at` it counts everything so far, and a live query of it sees every later record too:
  * a query bounded by the time it ran watches only up to that time.
  */
@@ -214,10 +219,16 @@ async function countDrawer(
   const tables = [db.meta, db.cashSessions, db.cashMovements, db.sales, db.saleVoids, db.returns];
   return db.transaction('r', tables, async () => {
     const session = await currentCashSession(db, deviceCode);
-    const since = session?.openedAt ?? (await lastClose(db, deviceCode))?.closedAt;
-    // The opening counts from its own instant; a close already counted what happened at it.
-    const from = since ?? '';
-    const includeFrom = session !== undefined;
+    const last = await lastClose(db, deviceCode);
+    const dayStart = businessDayStart(businessDate(at ?? new Date())).toISOString();
+    const opened = session?.openedAt;
+    const from = last
+      ? last.closedAt
+      : opened !== undefined && opened < dayStart
+        ? opened
+        : dayStart;
+    // A close already counted what happened at its own instant.
+    const includeFrom = last === undefined;
     const until = at?.toISOString() ?? LATEST;
     const records = await loadRange(db, {
       index: 'occurredAt',
@@ -251,7 +262,13 @@ async function countDrawer(
       breakdown.movementsIn -
       breakdown.movementsOut;
     return {
-      cash: withoutUndefined({ session, since, ...breakdown, expected }),
+      cash: withoutUndefined({
+        session,
+        since: from,
+        lastCloseAt: last?.closedAt,
+        ...breakdown,
+        expected,
+      }),
       records,
     };
   });

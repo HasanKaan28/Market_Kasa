@@ -197,6 +197,8 @@ describe('buildSummary', () => {
       net: 3000,
       voidCount: 1,
       voidTotal: 3000,
+      earlierVoidCount: 1,
+      earlierVoidTotal: 3000,
       byMethod: { cash: -3000, card: 6000, credit: 0 },
     });
     // Over both days the voided sale counts nowhere.

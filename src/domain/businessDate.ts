@@ -38,3 +38,50 @@ export function businessDate(
     parts.find((candidate) => candidate.type === type)?.value ?? '';
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
+
+const wallClockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function wallClockFormatter(timeZone: string): Intl.DateTimeFormat {
+  let formatter = wallClockFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    });
+    wallClockFormatters.set(timeZone, formatter);
+  }
+  return formatter;
+}
+
+/** How far the zone's clock is ahead of UTC at an instant, in milliseconds. */
+function zoneOffset(at: number, timeZone: string): number {
+  const parts = wallClockFormatter(timeZone).formatToParts(new Date(at));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((candidate) => candidate.type === type)?.value ?? 0);
+  const wall = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second'),
+  );
+  return wall - Math.floor(at / 1000) * 1000;
+}
+
+/** The instant a business day (YYYY-MM-DD) starts: its midnight in the zone, plus the cutoff. */
+export function businessDayStart(
+  day: string,
+  opts: { timeZone?: string; cutoffMinutes?: number } = {},
+): Date {
+  const { timeZone = DEFAULT_TIME_ZONE, cutoffMinutes = 0 } = opts;
+  const midnightAsUtc = Date.parse(`${day}T00:00:00Z`);
+  const midnight = midnightAsUtc - zoneOffset(midnightAsUtc, timeZone);
+  return new Date(midnight + cutoffMinutes * 60_000);
+}

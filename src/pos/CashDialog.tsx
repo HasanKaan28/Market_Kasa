@@ -13,7 +13,7 @@ import type { CashSessionRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
 import { formatAmount } from '@/reports/reportFormat';
-import { formatTime } from './format';
+import { formatDateTime, formatTime } from './format';
 import { printZReport } from './printZReport';
 import { formatDifference, zReportModel } from './zReport';
 
@@ -137,7 +137,7 @@ function StatusView({
         <p className="text-text-2">Kasa açılmadı.</p>
         <TextField
           label="Açılış nakdi"
-          hint="Kasadaki bozuk para ve banknotlar; boşsa 0 sayılır."
+          hint="Güne başlarken kasaya konan para; kasa yeniden sayılmaz. Boşsa 0 sayılır."
           inputMode="decimal"
           autoComplete="off"
           autoFocus
@@ -268,6 +268,11 @@ function CloseForm({
   return (
     <form noValidate className="flex flex-col gap-4" onSubmit={submit}>
       <h3 className="font-semibold">Gün sonu (Z)</h3>
+      <p className="text-sm text-text-2">
+        {cash.lastCloseAt
+          ? `Kapsam: son Z raporundan (${formatDateTime(cash.since)}) bu yana.`
+          : `Kapsam: ${formatDateTime(cash.since)} itibarıyla, ilk gün sonu.`}
+      </p>
       {unopened ? (
         <p className="rounded-control bg-warning-bg px-3 py-2 text-warning">{unopened}</p>
       ) : null}

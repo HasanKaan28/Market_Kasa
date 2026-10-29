@@ -40,16 +40,34 @@ export function zReportModel(
     : summary.salesCount > 0
       ? 'Kasa açılmadan satış yapıldı.'
       : 'Kasa açılmadı.';
+  // Sales less returns less voids of earlier days make the net; a sale voided within the same Z
+  // was never in the sales, so it is shown for the record only, without a minus.
+  const sameDayVoids = summary.voidCount - summary.earlierVoidCount;
   const sections = [
     {
       title: 'Satışlar',
       rows: [
         { label: 'İşlem', amount: String(summary.salesCount) },
-        { label: 'Brüt satış', amount: formatAmount(summary.gross) },
-        { label: 'İndirim', amount: formatAmount(summary.discounts) },
+        { label: 'Satış (iade öncesi)', amount: formatAmount(summary.gross) },
         { label: `İade (${summary.returnCount})`, amount: takenOff(summary.returnTotal) },
-        { label: `İptal (${summary.voidCount})`, amount: takenOff(summary.voidTotal) },
+        ...(summary.earlierVoidCount > 0
+          ? [
+              {
+                label: `Önceki satış iptali (${summary.earlierVoidCount})`,
+                amount: takenOff(summary.earlierVoidTotal),
+              },
+            ]
+          : []),
         { label: 'Net satış', amount: formatAmount(summary.net) },
+        { label: 'Verilen indirim', amount: formatAmount(summary.discounts) },
+        ...(sameDayVoids > 0
+          ? [
+              {
+                label: `İptal edilen fiş (${sameDayVoids})`,
+                amount: formatAmount(summary.voidTotal - summary.earlierVoidTotal),
+              },
+            ]
+          : []),
       ],
     },
     {

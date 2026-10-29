@@ -30,7 +30,7 @@ export function reportFigures(summary: Summary): Figure[] {
     {
       label: 'Net satış',
       value: formatAmount(summary.net),
-      note: `Brüt satış ${formatAmount(summary.gross)}`,
+      note: `İade öncesi satış ${formatAmount(summary.gross)}`,
     },
     { label: 'İşlem', value: String(summary.salesCount) },
     { label: 'Ortalama sepet', value: formatAmount(summary.averageBasket) },

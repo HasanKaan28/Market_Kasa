@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { closeCashSession, openCashSession } from '@/data/cash';
+import { createProduct } from '@/data/products';
+import { recordSale } from '@/data/sales';
 import type { CashSessionRecord } from '@/data/types';
+import { voidSale } from '@/data/voids';
+import { makeTestDb } from '@/test/db';
 import { zReportModel } from './zReport';
 
 const record: CashSessionRecord = {
@@ -16,6 +21,8 @@ const record: CashSessionRecord = {
     salesCount: 12,
     voidCount: 1,
     voidTotal: 1000,
+    earlierVoidCount: 1,
+    earlierVoidTotal: 1000,
     returnCount: 1,
     returnTotal: 500,
     gross: 52000,
@@ -48,11 +55,11 @@ describe('zReportModel', () => {
     );
     expect(rows['Satışlar']).toEqual([
       'İşlem: 12',
-      'Brüt satış: ₺520,00',
-      'İndirim: ₺3,00',
+      'Satış (iade öncesi): ₺520,00',
       'İade (1): −₺5,00',
-      'İptal (1): −₺10,00',
+      'Önceki satış iptali (1): −₺10,00',
       'Net satış: ₺505,00',
+      'Verilen indirim: ₺3,00',
     ]);
     expect(rows['Ödemeler']).toEqual(['Nakit: ₺285,00', 'Kart: ₺200,00', 'Veresiye: ₺20,00']);
     expect(rows['KDV']).toEqual(['Matrah %10: ₺459,10', 'KDV %10: ₺45,90']);
@@ -74,5 +81,59 @@ describe('zReportModel', () => {
     delete unopened.openedAt;
     const model = zReportModel(unopened, { marketName: 'Bakkal', deviceName: 'Kasa 1' });
     expect(model.opened).toBe('Kasa açılmadan satış yapıldı. · İş günü 29.10.2026');
+  });
+
+  it('adds up after a real close with a void of this day and one of the day before', async () => {
+    const db = makeTestDb();
+    try {
+      const tea = await createProduct(
+        db,
+        { name: 'Çay', sellPrice: 1000, vatRate: 1 },
+        new Date('2026-10-27T09:00:00Z'),
+      );
+      const sell = (pieces: number, at: string) =>
+        recordSale(db, {
+          deviceCode: 'K1',
+          at: new Date(at),
+          lines: [{ productId: tea.id, qtyMilli: pieces * 1000 }],
+          payments: [{ method: 'cash', amount: pieces * 1000 }],
+        });
+      const void_ = (saleId: string, at: string) =>
+        voidSale(db, { saleId, reason: 'Yanlış fiş', deviceCode: 'K1', at: new Date(at) });
+      const yesterday = await sell(2, '2026-10-28T09:00:00Z');
+      await closeCashSession(
+        db,
+        { deviceCode: 'K1', countedCash: 2000 },
+        new Date('2026-10-28T17:00:00Z'),
+      );
+      await openCashSession(
+        db,
+        { deviceCode: 'K1', openingCash: 0 },
+        new Date('2026-10-29T06:00:00Z'),
+      );
+      await sell(3, '2026-10-29T07:00:00Z');
+      const mistaken = await sell(1, '2026-10-29T07:05:00Z');
+      await void_(mistaken.id, '2026-10-29T07:06:00Z');
+      await void_(yesterday.id, '2026-10-29T08:00:00Z');
+      const z = await closeCashSession(
+        db,
+        { deviceCode: 'K1', countedCash: 1000 },
+        new Date('2026-10-29T17:00:00Z'),
+      );
+      const model = zReportModel(z, { marketName: 'Bakkal', deviceName: 'Kasa 1' });
+      const sales = model.sections.find((section) => section.title === 'Satışlar');
+      expect(sales?.rows.map((row) => `${row.label}: ${row.amount}`)).toEqual([
+        'İşlem: 1',
+        'Satış (iade öncesi): ₺30,00',
+        'İade (0): ₺0,00',
+        'Önceki satış iptali (1): −₺20,00',
+        'Net satış: ₺10,00',
+        'Verilen indirim: ₺0,00',
+        'İptal edilen fiş (1): ₺10,00',
+      ]);
+      expect(z).toMatchObject({ expectedCash: 1000, difference: 0 });
+    } finally {
+      await db.delete();
+    }
   });
 });

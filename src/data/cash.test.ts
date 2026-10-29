@@ -58,8 +58,8 @@ function sell(
 describe('expectedCash', () => {
   it('expects the cash this register took in the session', async () => {
     const product = await tea();
-    // Before the drawer opened, and on another register: neither is in this drawer.
-    await sell(product.id, 1, [{ method: 'cash', amount: 1000 }], 'K1', later(-30));
+    // A day before any close, and on another register: neither is in this drawer.
+    await sell(product.id, 1, [{ method: 'cash', amount: 1000 }], 'K1', later(-24 * 60));
     await openCashSession(db, { deviceCode: 'K1', openingCash: 20000 }, opened);
     await sell(product.id, 5, [{ method: 'cash', amount: 5000 }], 'K1', later(10));
     await sell(product.id, 3, [{ method: 'cash', amount: 3000 }], 'K2', later(11));
@@ -152,6 +152,63 @@ describe('expectedCash', () => {
       voids: 6000,
       expected: 10000 + 2000 - 6000,
     });
+  });
+});
+
+describe('what a Z spans', () => {
+  it('counts a first close from the start of the day, not the whole history', async () => {
+    const product = await tea();
+    const day = (iso: string) => new Date(iso);
+    await sell(
+      product.id,
+      1,
+      [{ method: 'cash', amount: 1000 }],
+      'K1',
+      day('2026-08-01T09:00:00Z'),
+    );
+    await sell(
+      product.id,
+      1,
+      [{ method: 'cash', amount: 1000 }],
+      'K1',
+      day('2026-09-15T09:00:00Z'),
+    );
+    // 22:30 the evening before in UTC is already 01:30 on the 29th in Istanbul.
+    await sell(
+      product.id,
+      1,
+      [{ method: 'cash', amount: 1000 }],
+      'K1',
+      day('2026-10-28T22:30:00Z'),
+    );
+    await sell(
+      product.id,
+      1,
+      [{ method: 'cash', amount: 1000 }],
+      'K1',
+      day('2026-10-29T09:00:00Z'),
+    );
+    const z = await closeCashSession(
+      db,
+      { deviceCode: 'K1', countedCash: 2000 },
+      day('2026-10-29T17:00:00Z'),
+    );
+    expect(z).toMatchObject({ expectedCash: 2000, difference: 0 });
+    expect(z.summary.salesCount).toBe(2);
+  });
+
+  it('counts what was sold before the drawer opened, back to the last close', async () => {
+    const product = await tea();
+    await openCashSession(db, { deviceCode: 'K1', openingCash: 10000 }, later(-24 * 60));
+    await sell(product.id, 1, [{ method: 'cash', amount: 1000 }], 'K1', later(-24 * 60 + 60));
+    await closeCashSession(db, { deviceCode: 'K1', countedCash: 11000 }, later(-24 * 60 + 600));
+    // The next morning a sale comes before the drawer is opened with its float.
+    await sell(product.id, 1, [{ method: 'cash', amount: 1000 }], 'K1', later(-60));
+    await openCashSession(db, { deviceCode: 'K1', openingCash: 10000 }, opened);
+    await sell(product.id, 2, [{ method: 'cash', amount: 2000 }], 'K1', later(60));
+    const z = await closeCashSession(db, { deviceCode: 'K1', countedCash: 13000 }, later(600));
+    expect(z).toMatchObject({ openingCash: 10000, expectedCash: 13000, difference: 0 });
+    expect(z.summary.salesCount).toBe(2);
   });
 });
 
