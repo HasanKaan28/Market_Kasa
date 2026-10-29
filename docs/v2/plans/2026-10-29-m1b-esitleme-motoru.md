@@ -600,3 +600,33 @@ Expected: PASS.
 git add src/sync/convergence.test.ts package.json package-lock.json
 git commit -m "test(sync): prove three devices converge under random offline interleavings"
 ```
+
+## Uygulama notları (2026-10-29)
+
+Commit'ler `6e30afd`…`0deb756`. Son inceleme: 0 kritik, 3 önemli (düzeltildi), 4 küçük bulgu ertelendi.
+
+**Verilen kararlar:**
+- Sunucu bir sayfanın yalnız bir kısmını onaylarsa tur durur; cevapsız işlemler bir sonraki turda yenileriyle birlikte tekrar gönderilir.
+- Okunamayan bir sunucu satırı (bilinmeyen tablo, bozuk satır) `meta.parkedRows`'a ayrılır, kalan satırlar uygulanır ve imleç ilerler.
+- Fiş numarası yerelde artık benzersiz değil (şema sürüm 3): aynı cihaz koduna ayarlanmış iki kasanın satışları da saklanır. Cihaz kodlarının benzersizliği M6'nın işi.
+- Sunucu tek bir işlemi reddedebilir (`PushResponse.rejected`). Cihaz işlemi siler ve `meta.rejectedOps`'a yazar; sunucu kaydın güncel satırını yeniden gönderir, yerel değer geri döner. Reddedilen bir ekleme (ürün, satış) yerelde kalır: kasada alınmış parayı silmemek için. M6 reddedilenleri yöneticiye gösterir.
+- Gönderim hata verse de çekme yapılır, sonra gönderim hatası bildirilir.
+- Barkod çakışmasında sunucu kazananı da yeniden gönderir.
+- En küçük kimlik barkodu tutar (deterministik, yakınsıyor).
+- İki sekmede iki koşucu zararsız; M0b gerçek taşıyıcıyı bağlarken her turu bir Web Lock (`mk2-sync`) içinde çalıştırır.
+- Uzun çevrimdışı dönemden sonra her çekilen satır için outbox taranıyor; yavaşlık görülürse outbox'a `[table+recordId]` indeksi eklenir.
+
+**M0b sunucusu FakeServer'dan şunları almalı:**
+- Bütün eşitlenen tablolar için tek bir `serverSeq` sayacı, commit sırasına göre atanır (geç commit'lenen satır kaçmasın; istemcinin 50'lik örtüşmesi yalnız yedek).
+- İşlemle aynı transaction'da yazılan kalıcı bir opId günlüğü, bir cihazın çevrimdışı kalabileceği süre boyunca tutulur.
+- Eşzamanlı gönderimlerde de barkod kuralı (kilit ya da benzersiz indeks ve yeniden deneme); kazanan ve kaybeden yeniden gönderilir.
+- Reddedilen işlem için `rejected` listesi ve kaydın yeniden gönderilmesi.
+- İşlemler dizi sırasıyla uygulanır, her satır `id` taşır, alanlar iki yönde eşlenir. Miktarlar milli-birim tam sayı olarak gider (`numeric(12,3)` "-1.000" metni değil; böyle bir satır `parkedRows`'a düşer).
+- Taşıyıcı (fetch) zaman aşımı uygular; asılı kalan istek koşucuyu dondurur.
+- Satışın alt kayıtları satıştan önce gelir; sunucu bunları aynı gönderimde kabul etmeli (M1a notu).
+
+**Ertelenen küçük bulgular:**
+- Kaybolan onay senaryosunun testi yok (FakeServer uygulayıp onayı kaybedemiyor); `loseNextAck()` ve yakınsama testine kayıp onay, barkod düzenleme, gönderim ile çekme arası yazım, rastgele `batchSize`/`overlap` komutları eklenmeli.
+- Silinmiş bir ürün çakışan barkodu kazanabiliyor; canlı ürün barkodsuz kalıyor.
+- Koşucu: hata atan bir abone temiz bir eşitlemeyi hataya çeviriyor; hiç bitmeyen bir istek koşucuyu donduruyor.
+- Gönderim ve çekme döngüleri sunucunun sayılarına güveniyor (onaylanan sıra numaraları gönderilenlerle eşleştirilmiyor, `latest` ilerlemiyor mu bakılmıyor, `batchSize` ≤ 0 sonsuz döngü).
