@@ -2,7 +2,13 @@ import type { MarketDb } from '@/data/db';
 import { parkRows, type ParkedRow } from './issues';
 import type { ServerRow, SyncTable } from './protocol';
 
-const EVENT_TABLES: ReadonlySet<SyncTable> = new Set(['sales', 'stockMovements', 'ledger']);
+const EVENT_TABLES: ReadonlySet<SyncTable> = new Set([
+  'sales',
+  'stockMovements',
+  'ledger',
+  'saleVoids',
+  'returns',
+]);
 const ENTITY_TABLES: ReadonlySet<SyncTable> = new Set(['products', 'customers']);
 
 /**
@@ -23,6 +29,8 @@ export async function applyServerRows(db: MarketDb, rows: readonly ServerRow[]):
     db.ledger,
     db.products,
     db.customers,
+    db.saleVoids,
+    db.returns,
     db.outbox,
     db.meta,
   ];

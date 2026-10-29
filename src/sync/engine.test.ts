@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MarketDb } from '@/data/db';
 import { pendingCount } from '@/data/outbox';
 import { createProduct, findProductByBarcode, updateProduct } from '@/data/products';
+import { recordReturn, returnedQuantities } from '@/data/returns';
 import { recentSales, recordSale } from '@/data/sales';
 import { stockOf } from '@/data/stock';
+import { isVoided, voidSale } from '@/data/voids';
 import { makeTestDb } from '@/test/db';
 import { syncOnce } from './engine';
 import { FakeServer } from './fakeServer';
-import { rejectedOps } from './issues';
+import { parkedRows, rejectedOps } from './issues';
 import type { SyncTransport } from './protocol';
 
 let a: MarketDb;
@@ -57,6 +59,32 @@ describe('syncOnce', () => {
     expect(await pendingCount(a)).toBe(3);
     await syncOnce(a, server);
     expect(await pendingCount(a)).toBe(0);
+  });
+
+  it('carries a void and a return to another device', async () => {
+    const milk = await sellOneMilk(a);
+    const second = await recordSale(a, {
+      deviceCode: 'K1',
+      at,
+      lines: [{ productId: milk.id, qtyMilli: 2000 }],
+      payments: [{ method: 'cash', amount: 8500 }],
+    });
+    const first = (await recentSales(a)).find((sale) => sale.id !== second.id);
+    if (!first) throw new Error('first sale missing');
+    await voidSale(a, { saleId: first.id, reason: 'Yanlış', deviceCode: 'K1', at });
+    await recordReturn(a, {
+      saleId: second.id,
+      lines: [{ productId: milk.id, qtyMilli: 1000 }],
+      refundMethod: 'cash',
+      deviceCode: 'K1',
+      at,
+    });
+    await syncOnce(a, server);
+    await syncOnce(b, server);
+    expect(await isVoided(b, first.id)).toBe(true);
+    expect((await returnedQuantities(b, second.id)).get(milk.id)).toBe(1000);
+    expect(await stockOf(b, milk.id)).toBe(await stockOf(a, milk.id));
+    expect(await parkedRows(b)).toEqual([]);
   });
 
   it('still pulls when the push fails', async () => {
