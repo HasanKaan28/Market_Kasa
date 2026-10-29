@@ -29,8 +29,9 @@ describe('ReceiptsDialog', () => {
     );
     const [first] = await twoSales(data.db);
     await voidSale(data.db, { saleId: first.id, reason: 'Yanlış', deviceCode: 'K1', at });
+    // The live list may first show an earlier state; wait for both receipts and the badge.
     expect(await screen.findByText('K1-20261029-0001')).toBeInTheDocument();
-    expect(screen.getByText('K1-20261029-0002')).toBeInTheDocument();
+    expect(await screen.findByText('K1-20261029-0002')).toBeInTheDocument();
     expect(await screen.findAllByText('İptal edildi')).toHaveLength(1);
   });
 
