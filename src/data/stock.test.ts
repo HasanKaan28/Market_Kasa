@@ -65,6 +65,17 @@ describe('stock', () => {
     ).rejects.toBeInstanceOf(RangeError);
   });
 
+  it('takes a fraction for a piece product only to make its stock whole', async () => {
+    const product = await createProduct(db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    // Two registers can leave it fractional: one sells 0,5 by weight, the other counts pieces.
+    await recordStockMovement(db, { productId: product.id, delta: 1500, kind: 'count', at });
+    await expect(
+      adjustStock(db, { productId: product.id, deltaMilli: -300, reason: 'lost' }, at),
+    ).rejects.toBeInstanceOf(RangeError);
+    await adjustStock(db, { productId: product.id, deltaMilli: 500, reason: 'found' }, at);
+    expect(await stockOf(db, product.id)).toBe(2000);
+  });
+
   it('lists movements newest first with the stock after each', async () => {
     const product = await createProduct(db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
     const t = (minute: number) => new Date(at.getTime() + minute * 60_000);

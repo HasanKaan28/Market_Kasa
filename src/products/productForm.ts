@@ -3,7 +3,12 @@ import type { ProductRecord, ProductUnit } from '@/data/types';
 import type { ChoiceOption } from '@/design';
 import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
 import { MAX_UNIT_PRICE, type VatRate } from '@/domain/pricing';
-import { formatPriceInput, formatQtyInput, parseQuantity } from '@/pos/format';
+import { formatPriceInput, formatQtyInput, formatStock, parseQuantity } from '@/pos/format';
+
+/** Why a weighed product cannot be counted in pieces yet: its stock is not whole. */
+export function fractionalStockError(stockMilli: number, unit: ProductUnit): string {
+  return `Stok kesirli (${formatStock(stockMilli, unit)}); adede çevirmeden önce stoğu düzeltin.`;
+}
 
 /** The product form as typed: every box is text until it is read. */
 export type ProductDraft = {

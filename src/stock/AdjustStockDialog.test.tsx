@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createProduct } from '@/data/products';
-import { stockOf } from '@/data/stock';
+import { recordStockMovement, stockOf } from '@/data/stock';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { AdjustStockDialog } from './AdjustStockDialog';
 
@@ -49,5 +49,27 @@ describe('AdjustStockDialog', () => {
     await userEvent.type(screen.getByLabelText('Miktar'), '1,5');
     expect(screen.getByText('Adet için tam sayı girin.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Stoğu düzelt' })).toBeDisabled();
+  });
+
+  it('makes a fractional piece stock whole', async () => {
+    const data = createTestData();
+    const cups = await createProduct(data.db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    await recordStockMovement(data.db, { productId: cups.id, delta: 1500, kind: 'count', at });
+    const onDone = vi.fn();
+    await renderWithData(
+      <AdjustStockDialog open product={cups} onClose={vi.fn()} onDone={onDone} />,
+      data,
+    );
+    await userEvent.type(screen.getByLabelText('Miktar'), '0,3');
+    expect(
+      await screen.findByText('Kesirli miktar stoğu tam sayıya getirmeli.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stoğu düzelt' })).toBeDisabled();
+    await userEvent.clear(screen.getByLabelText('Miktar'));
+    await userEvent.type(screen.getByLabelText('Miktar'), '0,5');
+    expect(await screen.findByText('Stok: 1,5 adet → 2 adet')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Stoğu düzelt' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Stok düzeltildi.'));
+    expect(await stockOf(data.db, cups.id)).toBe(2000);
   });
 });

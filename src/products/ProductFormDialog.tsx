@@ -15,6 +15,7 @@ import { suggestProductName } from './openFoodFacts';
 import {
   draftOf,
   editedFields,
+  fractionalStockError,
   profitHint,
   readDraft,
   UNIT_OPTIONS,
@@ -66,6 +67,7 @@ export function ProductFormDialog({
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [stockDialog, setStockDialog] = useState<'adjust' | 'movements' | null>(null);
+  const [stockNote, setStockNote] = useState<string>();
   const categories = useLiveQuery(() => listCategories(db), [db]);
   const productId = product?.id;
   const stockMilli = useLiveQuery(
@@ -120,9 +122,7 @@ export function ProductFormDialog({
       stockMilli !== undefined &&
       stockMilli % 1000 !== 0
     ) {
-      setErrors({
-        form: `Stok kesirli (${formatStock(stockMilli, product.unit)}); adede çevirmeden önce stoğu düzeltin.`,
-      });
+      setErrors({ form: fractionalStockError(stockMilli, product.unit) });
       return;
     }
     setErrors({});
@@ -254,6 +254,11 @@ export function ProductFormDialog({
               {stockMilli === undefined ? null : (
                 <p className="font-medium">{`Stok: ${formatStock(stockMilli, product.unit)}`}</p>
               )}
+              {stockNote ? (
+                <p role="status" className="text-sm font-medium text-success">
+                  {stockNote}
+                </p>
+              ) : null}
               <p className="text-sm text-muted">Stok, mal kabul, sayım ve düzeltmeyle değişir.</p>
               {deleted ? null : (
                 <div className="flex flex-wrap gap-2">
@@ -328,9 +333,10 @@ export function ProductFormDialog({
           open
           product={product}
           onClose={() => setStockDialog(null)}
+          // The stock is saved on its own; the form stays open with whatever is typed in it.
           onDone={(message) => {
             setStockDialog(null);
-            onSaved(message);
+            setStockNote(message);
           }}
         />
       ) : null}

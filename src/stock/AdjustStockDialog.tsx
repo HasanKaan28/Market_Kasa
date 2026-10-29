@@ -39,16 +39,20 @@ export function AdjustStockDialog({
   const [failure, setFailure] = useState<string>();
   const current = useLiveQuery(() => stockOf(db, product.id), [db, product.id]);
 
+  // A piece product whose stock was left fractional takes the fraction that makes it whole.
+  const fractional = product.unit === 'piece' && current !== undefined && current % 1000 !== 0;
   const text = amount.trim();
-  const qtyMilli = text === '' ? null : parseQuantity(text, product.unit);
+  const qtyMilli = text === '' ? null : parseQuantity(text, fractional ? 'kg' : product.unit);
+  const after =
+    current !== undefined && qtyMilli !== null ? current + direction * qtyMilli : undefined;
   const error =
     text !== '' && qtyMilli === null
       ? product.unit === 'piece' && parseQuantity(text, 'kg') !== null
         ? 'Adet için tam sayı girin.'
         : 'Geçerli bir miktar girin.'
-      : undefined;
-  const after =
-    current !== undefined && qtyMilli !== null ? current + direction * qtyMilli : undefined;
+      : fractional && qtyMilli !== null && qtyMilli % 1000 !== 0 && (after ?? 0) % 1000 !== 0
+        ? 'Kesirli miktar stoğu tam sayıya getirmeli.'
+        : undefined;
 
   async function save() {
     if (qtyMilli === null) {
@@ -86,7 +90,13 @@ export function AdjustStockDialog({
         />
         <TextField
           label="Miktar"
-          hint={product.unit === 'kg' ? 'Kilogram' : 'Adet'}
+          hint={
+            product.unit === 'kg'
+              ? 'Kilogram'
+              : fractional
+                ? 'Adet. Stok kesirli; onu tam sayıya getiren kesirli miktar girilebilir.'
+                : 'Adet'
+          }
           inputMode="decimal"
           autoComplete="off"
           value={amount}
@@ -121,7 +131,7 @@ export function AdjustStockDialog({
         <Button
           variant="primary"
           size="lg"
-          disabled={busy || qtyMilli === null}
+          disabled={busy || qtyMilli === null || error !== undefined}
           onClick={() => void save()}
         >
           Stoğu düzelt

@@ -81,8 +81,13 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
       return;
     }
     const rows = readImportRows(loaded.table, mapping, hasHeader);
-    const [products, categories] = await Promise.all([db.products.toArray(), listCategories(db)]);
-    setPreview({ rows, plan: planImport(rows, products, categories) });
+    const [products, categories, levels] = await Promise.all([
+      db.products.toArray(),
+      listCategories(db),
+      db.stockLevels.toArray(),
+    ]);
+    const stock = new Map(levels.map((level) => [level.productId, level.qtyMilli]));
+    setPreview({ rows, plan: planImport(rows, products, categories, stock) });
   }
 
   async function apply() {

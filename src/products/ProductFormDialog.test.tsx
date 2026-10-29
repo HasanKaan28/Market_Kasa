@@ -272,6 +272,30 @@ describe('ProductFormDialog', () => {
     expect(await screen.findByRole('dialog', { name: 'Stoğu düzelt' })).toBeInTheDocument();
   });
 
+  it('keeps unsaved edits when the stock is adjusted', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, milk, at, { openingStockMilli: 5000 });
+    const onSaved = vi.fn();
+    await renderWithData(
+      <ProductFormDialog open product={product} onClose={vi.fn()} onSaved={onSaved} />,
+      data,
+    );
+    const price = screen.getByLabelText('Satış fiyatı');
+    await userEvent.clear(price);
+    await userEvent.type(price, '50');
+    await userEvent.click(await screen.findByRole('button', { name: 'Stoğu düzelt' }));
+    const adjust = await screen.findByRole('dialog', { name: 'Stoğu düzelt' });
+    await userEvent.type(within(adjust).getByLabelText('Miktar'), '1');
+    await userEvent.click(within(adjust).getByRole('button', { name: 'Stoğu düzelt' }));
+    expect(await screen.findByText('Stok düzeltildi.')).toBeInTheDocument();
+    expect(await screen.findByText('Stok: 6 adet')).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Satış fiyatı')).toHaveValue('50');
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Ürün kaydedildi.'));
+    expect((await data.db.products.get(product.id))?.sellPrice).toBe(5000);
+  });
+
   it('opens the movement history from the product', async () => {
     const data = createTestData();
     const product = await createProduct(data.db, milk, at, { openingStockMilli: 5000 });

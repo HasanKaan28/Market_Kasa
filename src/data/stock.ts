@@ -104,7 +104,13 @@ export async function adjustStock(
       if (!product || product.deletedAt) {
         throw new RecordNotFoundError('Product', input.productId);
       }
-      if (product.unit === 'piece' && input.deltaMilli % 1000 !== 0) {
+      // A fraction only to make a fractional piece stock whole: two registers can leave one
+      // behind when one sells by weight offline while the other switches the unit to pieces.
+      if (
+        product.unit === 'piece' &&
+        input.deltaMilli % 1000 !== 0 &&
+        ((await stockOf(db, product.id)) + input.deltaMilli) % 1000 !== 0
+      ) {
         throw new RangeError('A piece product takes whole quantities');
       }
       const note = input.note?.trim();

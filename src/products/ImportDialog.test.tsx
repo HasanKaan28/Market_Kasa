@@ -1,8 +1,9 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { createProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
-import { renderWithData } from '@/test/renderWithData';
+import { createTestData, renderWithData } from '@/test/renderWithData';
 import { makeXlsx } from '@/test/xlsx';
 import { ImportDialog } from './ImportDialog';
 
@@ -69,6 +70,23 @@ describe('ImportDialog', () => {
     expect(screen.getByText('Hatalı satırlar: 3')).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /Gofret/ })).toHaveTextContent(
       'KDV 0, 1, 10 ya da 20 olmalı.',
+    );
+  });
+
+  it('refuses to count a product with a fractional stock in pieces', async () => {
+    const data = createTestData();
+    await createProduct(
+      data.db,
+      { name: 'Beyaz Peynir', unit: 'kg', sellPrice: 32000, vatRate: 1 },
+      new Date('2026-10-29T09:00:00Z'),
+      { openingStockMilli: 1500 },
+    );
+    await renderWithData(<ImportDialog open onClose={vi.fn()} onDone={vi.fn()} />, data);
+    const file = csvFile('Ürün adı;Birim\nBeyaz Peynir;Adet\n', 'liste.csv');
+    await userEvent.upload(screen.getByLabelText('Dosya seç'), file);
+    await userEvent.click(await screen.findByRole('button', { name: 'Devam' }));
+    expect(await screen.findByRole('row', { name: /Beyaz Peynir/ })).toHaveTextContent(
+      'Stok kesirli (1,5 kg); adede çevirmeden önce stoğu düzeltin.',
     );
   });
 

@@ -11,6 +11,7 @@ import {
   type ImportRow,
   type ImportValues,
 } from './importRows';
+import { fractionalStockError } from './productForm';
 
 const UNIT_NAMES = { piece: 'Adet', kg: 'Kg' } as const;
 
@@ -58,6 +59,8 @@ export function planImport(
   rows: readonly ImportRow[],
   products: readonly ProductRecord[],
   categories: readonly CategoryRecord[],
+  /** Each product's stock, by id: a weighed product turns to pieces only with whole stock. */
+  stock: ReadonlyMap<string, number>,
 ): ImportPlan {
   const byBarcode = new Map<string, ProductRecord>();
   const liveByName = new Map<string, ProductRecord[]>();
@@ -109,7 +112,7 @@ export function planImport(
     base.errors.push(...match.errors);
     base.warnings.push(...match.warnings);
     const { product } = match;
-    checkWritable(fields, product, base.errors);
+    checkWritable(fields, product, product && (stock.get(product.id) ?? 0), base.errors);
     if (base.errors.length > 0) {
       return base;
     }
@@ -191,6 +194,7 @@ function findProduct(
 function checkWritable(
   fields: Partial<ImportValues>,
   product: ProductRecord | undefined,
+  stockMilli: number | undefined,
   errors: string[],
 ): void {
   if (!product) {
@@ -214,6 +218,15 @@ function checkWritable(
     : [fields.stockMilli, fields.criticalLevelMilli];
   if (unit === 'piece' && quantities.some((milli) => milli !== undefined && milli % 1000 !== 0)) {
     errors.push('Adet için tam sayı girin.');
+  }
+  if (
+    product &&
+    product.unit !== 'piece' &&
+    fields.unit === 'piece' &&
+    stockMilli !== undefined &&
+    stockMilli % 1000 !== 0
+  ) {
+    errors.push(fractionalStockError(stockMilli, product.unit));
   }
   const category = fields.category?.trim();
   if (category && Array.from(category).length > MAX_CATEGORY_NAME_LENGTH) {
