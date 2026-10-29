@@ -2,7 +2,9 @@ import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
-import { recentSales } from '@/data/sales';
+import { recentSales, recordSale } from '@/data/sales';
+import { stockOf } from '@/data/stock';
+import { isVoided } from '@/data/voids';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { cartReducer, emptyCart, loadCart } from './cart';
 import { checkout } from './checkout';
@@ -114,5 +116,76 @@ describe('PosScreen', () => {
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
     await vi.waitFor(async () => expect(await data.db.sales.count()).toBe(2));
+  });
+
+  it('holds a cart and resumes it with the same id', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    await vi.waitFor(() => expect(loadCart().lines).toHaveLength(1));
+    const heldId = loadCart().id;
+    fireEvent.keyDown(window, { key: 'F8' });
+    expect(await screen.findByText('Sepet boş')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'F8' });
+    await userEvent.click(await screen.findByRole('button', { name: /^Devam et/ }));
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+    await vi.waitFor(() => expect(loadCart().id).toBe(heldId));
+  });
+
+  it('swaps the current cart when resuming another', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    await createProduct(
+      data.db,
+      { barcode: '8690000000024', name: 'Ekmek', sellPrice: 1500, vatRate: 1 },
+      new Date(),
+    );
+    scan(milk.barcode);
+    await screen.findByText('1 kalem');
+    fireEvent.keyDown(window, { key: 'F8' });
+    await screen.findByText('Sepet boş');
+    scan('8690000000024');
+    await screen.findByText('1 × ₺15,00');
+    await userEvent.click(screen.getByRole('button', { name: 'Bekleyenler (1)' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Devam et/ }));
+    expect(await screen.findByText('1 × ₺42,50')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bekleyenler (1)' })).toBeEnabled();
+  });
+
+  it('voids a sale from recent receipts', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    const created = await createProduct(data.db, milk, new Date());
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at: new Date(),
+      lines: [{ productId: created.id, qtyMilli: 1000 }],
+      payments: [{ method: 'cash', amount: 4250 }],
+    });
+    fireEvent.keyDown(window, { key: 'F9' });
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(sale.receiptNo) }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Satışı iptal et' }));
+    await userEvent.type(await screen.findByLabelText('İptal nedeni'), 'Yanlış ürün');
+    await userEvent.click(screen.getByRole('button', { name: 'İptal et' }));
+    expect(await screen.findByText(`Satış iptal edildi · ${sale.receiptNo}`)).toBeInTheDocument();
+    expect(await isVoided(data.db, sale.id)).toBe(true);
+  });
+
+  it('takes a return from a receipt', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    const created = await createProduct(data.db, milk, new Date());
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at: new Date(),
+      lines: [{ productId: created.id, qtyMilli: 1000 }],
+      payments: [{ method: 'cash', amount: 4250 }],
+    });
+    fireEvent.keyDown(window, { key: 'F9' });
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(sale.receiptNo) }));
+    await userEvent.click(await screen.findByRole('button', { name: 'İade al' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Artır · Süt' }));
+    await userEvent.click(screen.getByRole('button', { name: 'İadeyi kaydet' }));
+    expect(await screen.findByText('İade kaydedildi · ₺42,50')).toBeInTheDocument();
+    expect(await stockOf(data.db, created.id)).toBe(0);
   });
 });

@@ -9,12 +9,12 @@ export type ScanBuffer = {
 
 type ScanOptions = { maxGapMs?: number; minLength?: number };
 
-type ShortcutKey = 'F1' | 'F2' | 'F4';
+type ShortcutKey = 'F1' | 'F2' | 'F4' | 'F8' | 'F9';
 
 const SCAN_CHARACTER = /^[0-9A-Za-z-]$/;
 const TYPED_BARCODE = /^[0-9A-Za-z-]{4,32}$/;
 const MAX_CODE_LENGTH = 32;
-const SHORTCUT_KEYS: ReadonlySet<string> = new Set<ShortcutKey>(['F1', 'F2', 'F4']);
+const SHORTCUT_KEYS: ReadonlySet<string> = new Set<ShortcutKey>(['F1', 'F2', 'F4', 'F8', 'F9']);
 // Scanners press Shift before capital letters; modifiers are not part of the code.
 const MODIFIER_KEYS: ReadonlySet<string> = new Set([
   'Shift',

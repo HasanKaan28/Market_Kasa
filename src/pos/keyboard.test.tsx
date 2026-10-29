@@ -161,4 +161,18 @@ describe('useShortcuts', () => {
     fireEvent.keyDown(window, { key: 'F2' });
     expect(onCash).toHaveBeenCalledTimes(1);
   });
+
+  it('also handles F8 and F9', () => {
+    const onHold = vi.fn();
+    const onReceipts = vi.fn();
+    const Probe = () => {
+      useShortcuts({ F8: onHold, F9: onReceipts });
+      return null;
+    };
+    render(<Probe />);
+    fireEvent.keyDown(window, { key: 'F8' });
+    fireEvent.keyDown(window, { key: 'F9' });
+    expect(onHold).toHaveBeenCalledTimes(1);
+    expect(onReceipts).toHaveBeenCalledTimes(1);
+  });
 });

@@ -3,22 +3,30 @@ import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
 import { findProductByBarcode } from '@/data/products';
-import type { PaymentMethod, ProductRecord } from '@/data/types';
-import { ToastRegion, useToast } from '@/design';
-import type { Kurus } from '@/domain/money';
+import type { PaymentMethod, ProductRecord, SaleRecord } from '@/data/types';
+import { Button, ToastRegion, useToast } from '@/design';
+import { formatTRY, type Kurus } from '@/domain/money';
 import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from './cart';
 import { CartPanel } from './CartPanel';
 import { checkout, checkoutErrorMessage, StaleCartError } from './checkout';
 import { CustomerPicker } from './CustomerPicker';
+import { HELD_STORAGE_KEY, holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld } from './held';
+import { HeldCartsDialog } from './HeldCartsDialog';
 import { useBarcodeScanner, useShortcuts } from './keyboard';
 import { NewProductDialog } from './NewProductDialog';
 import { PaymentDialog } from './PaymentDialog';
 import { ProductPanel } from './ProductPanel';
+import { ReceiptsDialog } from './ReceiptsDialog';
+import { ReturnDialog } from './ReturnDialog';
+import { VoidDialog } from './VoidDialog';
 
 type OpenDialog =
   | { kind: 'cash' | 'card' }
   | { kind: 'credit' }
   | { kind: 'newProduct'; barcode?: string }
+  | { kind: 'held' }
+  | { kind: 'receipts' }
+  | { kind: 'void' | 'return'; sale: SaleRecord }
   | null;
 
 /** The register: search and scan on the left, the cart and payment on the right. */
@@ -27,6 +35,7 @@ export function PosScreen(): JSX.Element {
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const [held, setHeld] = useState(() => loadHeld());
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -36,11 +45,17 @@ export function PosScreen(): JSX.Element {
     saveCart(cart);
   }, [cart]);
 
-  // One register, one cart: a cart saved by another tab replaces this one.
+  useEffect(() => {
+    saveHeld(held);
+  }, [held]);
+
+  // One register, one cart: a cart (or held list) saved by another tab replaces this one.
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === CART_STORAGE_KEY) {
         dispatch({ type: 'replace', cart: loadCart() });
+      } else if (event.key === HELD_STORAGE_KEY) {
+        setHeld(loadHeld());
       }
     };
     window.addEventListener('storage', onStorage);
@@ -101,6 +116,33 @@ export function PosScreen(): JSX.Element {
     }
   }
 
+  // The cart keeps its id while held, so a resumed cart still sells only once.
+  function hold() {
+    if (!hasItems) {
+      return;
+    }
+    if (held.length >= MAX_HELD) {
+      toast.show(`En fazla ${MAX_HELD} sepet bekletilebilir.`);
+      return;
+    }
+    setHeld(holdCart(held, cart, new Date()));
+    dispatch({ type: 'clear' });
+    toast.show('Sepet beklemeye alındı.');
+  }
+
+  function resume(cartId: string) {
+    const { cart: resumed, rest } = takeHeld(held, cartId);
+    setHeld(hasItems ? holdCart(rest, cart, new Date()) : rest);
+    dispatch({ type: 'replace', cart: resumed });
+    setDialog(null);
+  }
+
+  function finish(message: string) {
+    setDialog(null);
+    toast.show(message);
+    void runner.run();
+  }
+
   useBarcodeScanner((code) => void handleScan(code));
   useShortcuts(
     {
@@ -111,6 +153,11 @@ export function PosScreen(): JSX.Element {
       F4: () => {
         if (hasItems) setDialog({ kind: 'card' });
       },
+      F8: () => {
+        if (hasItems) hold();
+        else if (held.length > 0) setDialog({ kind: 'held' });
+      },
+      F9: () => setDialog({ kind: 'receipts' }),
     },
     dialog === null,
   );
@@ -135,6 +182,17 @@ export function PosScreen(): JSX.Element {
           onNewProduct={(barcode) => setDialog({ kind: 'newProduct', barcode })}
           searchRef={searchRef}
         />
+        <div className="mt-auto flex flex-wrap gap-2">
+          <Button kbd="F8" disabled={!hasItems} onClick={hold}>
+            Beklet
+          </Button>
+          <Button disabled={held.length === 0} onClick={() => setDialog({ kind: 'held' })}>
+            {`Bekleyenler (${held.length})`}
+          </Button>
+          <Button kbd="F9" onClick={() => setDialog({ kind: 'receipts' })}>
+            Son fişler
+          </Button>
+        </div>
       </AppShell>
 
       {paymentMethod ? (
@@ -164,6 +222,33 @@ export function PosScreen(): JSX.Element {
             add(product);
             close();
           }}
+        />
+      ) : null}
+      {dialog?.kind === 'held' ? (
+        <HeldCartsDialog open held={held} onClose={close} onResume={resume} />
+      ) : null}
+      {dialog?.kind === 'receipts' ? (
+        <ReceiptsDialog
+          open
+          onClose={close}
+          onReturn={(sale) => setDialog({ kind: 'return', sale })}
+          onVoid={(sale) => setDialog({ kind: 'void', sale })}
+        />
+      ) : null}
+      {dialog?.kind === 'void' ? (
+        <VoidDialog
+          open
+          sale={dialog.sale}
+          onClose={() => setDialog({ kind: 'receipts' })}
+          onVoided={() => finish(`Satış iptal edildi · ${dialog.sale.receiptNo}`)}
+        />
+      ) : null}
+      {dialog?.kind === 'return' ? (
+        <ReturnDialog
+          open
+          sale={dialog.sale}
+          onClose={() => setDialog({ kind: 'receipts' })}
+          onReturned={(record) => finish(`İade kaydedildi · ${formatTRY(record.amount)}`)}
         />
       ) : null}
       <ToastRegion message={toast.message} />
