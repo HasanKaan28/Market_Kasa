@@ -105,7 +105,8 @@ export function CustomerDialog({
                 customer &&
                 printStatement({
                   marketName: settings.marketName,
-                  customer,
+                  title: 'Müşteri ekstresi',
+                  party: customer,
                   lines,
                   printedAt: new Date(),
                 })

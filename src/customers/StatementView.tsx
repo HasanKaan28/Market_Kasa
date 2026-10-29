@@ -8,16 +8,16 @@ const dateFormat = new Intl.DateTimeFormat('tr-TR', {
   timeZone: 'Europe/Istanbul',
 });
 
-/** A customer's statement as printed on A4: market, customer, every entry, and the balance. */
+/** A statement as printed on A4: market, whose it is, every entry, and the balance. */
 export function StatementView({ model }: { model: StatementModel }): JSX.Element {
-  const { customer, lines } = model;
+  const { party, lines } = model;
   const balance = lines.at(-1)?.balanceAfter ?? 0;
   return (
     <article className="flex flex-col gap-4 text-[12pt] text-black">
       <header className="flex flex-col gap-1">
         <p className="text-[14pt] font-semibold">{model.marketName}</p>
-        <h1 className="text-[16pt] font-semibold">Müşteri ekstresi</h1>
-        <p>{customer.phone ? `${customer.name} · ${customer.phone}` : customer.name}</p>
+        <h1 className="text-[16pt] font-semibold">{model.title}</h1>
+        <p>{party.phone ? `${party.name} · ${party.phone}` : party.name}</p>
         <p>{`Tarih: ${dateFormat.format(model.printedAt)}`}</p>
       </header>
       <table className="w-full border-collapse text-left">

@@ -23,6 +23,7 @@ const NAV_ITEMS: readonly { key: NavKey; label: string }[] = [
   { key: 'products', label: 'Ürünler' },
   { key: 'stock', label: 'Stok' },
   { key: 'customers', label: 'Müşteriler' },
+  { key: 'suppliers', label: 'Tedarikçiler' },
 ];
 
 export function AppShell({

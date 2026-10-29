@@ -4,6 +4,7 @@ import { PosScreen } from '@/pos/PosScreen';
 import { CustomersScreen } from '@/customers/CustomersScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
 import { StockScreen } from '@/stock/StockScreen';
+import { SuppliersScreen } from '@/suppliers/SuppliersScreen';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -29,6 +30,8 @@ export function App(): JSX.Element {
           <StockScreen />
         ) : route === 'customers' ? (
           <CustomersScreen />
+        ) : route === 'suppliers' ? (
+          <SuppliersScreen />
         ) : (
           <PosScreen />
         )}

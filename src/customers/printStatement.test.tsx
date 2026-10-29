@@ -39,7 +39,8 @@ describe('printStatement', () => {
     printStatement(
       {
         marketName: 'Kurşunlu Market',
-        customer,
+        title: 'Müşteri ekstresi',
+        party: customer,
         lines: [
           {
             entry: entry('e1', 5000, '2026-10-20T09:00:00.000Z'),
