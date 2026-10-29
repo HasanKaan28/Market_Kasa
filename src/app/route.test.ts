@@ -8,6 +8,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/stock')).toBe('stock');
     expect(parseRoute('#/customers')).toBe('customers');
     expect(parseRoute('#/suppliers')).toBe('suppliers');
+    expect(parseRoute('#/reports')).toBe('reports');
     expect(parseRoute('')).toBe('pos');
     expect(parseRoute('#/bilinmeyen')).toBe('pos');
   });

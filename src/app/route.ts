@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react';
 
 /** The screens this build has; each lives at `#/<route>`, which works offline and from a file. */
-export type Route = 'pos' | 'products' | 'stock' | 'customers' | 'suppliers';
+export type Route = 'pos' | 'products' | 'stock' | 'customers' | 'suppliers' | 'reports';
 
-const ROUTES: readonly Route[] = ['pos', 'products', 'stock', 'customers', 'suppliers'];
+const ROUTES: readonly Route[] = ['pos', 'products', 'stock', 'customers', 'suppliers', 'reports'];
 
 /** The screen an address names; the register for anything else. */
 export function parseRoute(hash: string): Route {

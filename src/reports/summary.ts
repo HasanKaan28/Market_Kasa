@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import type { MarketDb } from '@/data/db';
 import type {
   CategoryRecord,
@@ -34,6 +35,14 @@ export type Summary = {
   grossProfit: Kurus;
   averageBasket: Kurus;
   categories: { categoryId?: string; name: string; net: Kurus; qtyMilli: number }[];
+  /** Every product sold, the largest amount first. */
+  productsSold: {
+    productId: string;
+    name: string;
+    unit?: ProductUnit;
+    qtyMilli: number;
+    net: Kurus;
+  }[];
   bestSellers: {
     productId: string;
     name: string;
@@ -195,6 +204,8 @@ export function buildSummary({
     });
   }
 
+  const productsSold = rows.map(([productId, row]) => ({ productId, ...row })).sort(byAmount);
+
   return {
     salesCount,
     voidCount: voids.filter((saleVoid) => salesById.has(saleVoid.saleId)).length,
@@ -213,10 +224,8 @@ export function buildSummary({
     grossProfit: net - cost,
     averageBasket: salesCount === 0 ? 0 : divRoundHalfUp(gross, salesCount),
     categories: [...groups.values()].sort(byAmount),
-    bestSellers: rows
-      .map(([productId, row]) => ({ productId, ...row }))
-      .sort(byAmount)
-      .slice(0, BEST_SELLERS),
+    productsSold,
+    bestSellers: productsSold.slice(0, BEST_SELLERS),
     byDevice: [...devices]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([deviceCode, totals]) => ({ deviceCode, ...totals })),
@@ -250,6 +259,20 @@ export async function loadSummary(
     [...sales, ...earlier.flatMap((sale) => (sale ? [sale] : []))].map((sale) => [sale.id, sale]),
   );
   return buildSummary({ sales, voids, returns, salesById, products, categories });
+}
+
+/** Every register that has rung up a sale, in order: one index step per register, not per sale. */
+export async function reportRegisters(db: MarketDb): Promise<string[]> {
+  const index = '[deviceCode+businessDate+seq]';
+  const codes: string[] = [];
+  let next = await db.sales.orderBy(index).first();
+  while (next) {
+    codes.push(next.deviceCode);
+    // Past every day of this register. One bound only: a key that holds the same array twice
+    // is refused as a cycle.
+    next = await db.sales.where(index).above([next.deviceCode, Dexie.maxKey]).first();
+  }
+  return codes;
 }
 
 function byAmount(

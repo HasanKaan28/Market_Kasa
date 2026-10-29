@@ -3,6 +3,7 @@ import { clearStoredCarts } from '@/pos/held';
 import { PosScreen } from '@/pos/PosScreen';
 import { CustomersScreen } from '@/customers/CustomersScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
+import { ReportsScreen } from '@/reports/ReportsScreen';
 import { StockScreen } from '@/stock/StockScreen';
 import { SuppliersScreen } from '@/suppliers/SuppliersScreen';
 import { createAppData } from './appData';
@@ -32,6 +33,8 @@ export function App(): JSX.Element {
           <CustomersScreen />
         ) : route === 'suppliers' ? (
           <SuppliersScreen />
+        ) : route === 'reports' ? (
+          <ReportsScreen />
         ) : (
           <PosScreen />
         )}

@@ -40,9 +40,9 @@ function cellOf({ product, stockMilli, categoryName }: ProductRow, field: Import
     case 'barcode':
       return product.barcode ? `="${product.barcode}"` : '';
     case 'name':
-      return text(product.name);
+      return csvText(product.name);
     case 'category':
-      return text(categoryName ?? '');
+      return csvText(categoryName ?? '');
     case 'unit':
       return UNIT_NAMES[product.unit];
     case 'sellPrice':
@@ -61,7 +61,8 @@ function cellOf({ product, stockMilli, categoryName }: ProductRow, field: Import
 }
 
 /** Free text, made safe: a formula start gets an apostrophe, and quotes wrap what needs them. */
-function text(value: string): string {
+/** A text cell: kept from running as a formula, and quoted when it holds a delimiter. */
+export function csvText(value: string): string {
   const safe = FORMULA_START.test(value) ? `'${value}` : value;
   return /[";\r\n]|^\s|\s$/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
