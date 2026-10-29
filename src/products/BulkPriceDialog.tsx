@@ -1,4 +1,5 @@
 import { useState, type JSX } from 'react';
+import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, TextField } from '@/design';
@@ -53,6 +54,7 @@ export function BulkPriceDialog({
   onDone,
 }: BulkPriceDialogProps): JSX.Element {
   const { db } = useData();
+  const actor = useActor();
   const [target, setTarget] = useState<PriceChange['target']>('sellPrice');
   const [direction, setDirection] = useState<1 | -1>(1);
   const [by, setBy] = useState<PriceChange['by']>('percent');
@@ -74,7 +76,7 @@ export function BulkPriceDialog({
     setBusy(true);
     try {
       const ids = changing.map(({ product }) => product.id);
-      const count = await bulkUpdatePrices(db, ids, outcome.change, new Date());
+      const count = await bulkUpdatePrices(db, ids, outcome.change, new Date(), actor);
       onDone(`${count} ürünün fiyatı değişti.`);
     } catch {
       setFailed(true);

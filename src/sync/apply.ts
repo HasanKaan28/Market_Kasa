@@ -14,6 +14,7 @@ const EVENT_TABLES: ReadonlySet<SyncTable> = new Set([
   'supplierLedger',
   'cashMovements',
   'cashSessions',
+  'auditLog',
 ]);
 const ENTITY_TABLES: ReadonlySet<SyncTable> = new Set([
   'products',
@@ -53,6 +54,7 @@ export async function applyServerRows(db: MarketDb, rows: readonly ServerRow[]):
     db.cashSessions,
     db.staff,
     db.settings,
+    db.auditLog,
     db.outbox,
     db.meta,
   ];

@@ -7,6 +7,7 @@ import { useSession } from '@/app/session';
 import { listStaff } from '@/data/staff';
 import { Button, ToastRegion, useToast } from '@/design';
 import { ROLE_LABELS } from '@/domain/permissions';
+import { AuditLog } from './AuditLog';
 import { MarketSection, ReceiptSection, RegisterSection } from './MarketSections';
 import { StaffDialog } from './StaffDialog';
 
@@ -88,6 +89,7 @@ export function SettingsScreen(): JSX.Element {
             </ul>
           )}
         </section>
+        <AuditLog />
       </AppShell>
       {dialog?.kind === 'new' && people !== undefined ? (
         <StaffDialog

@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type JSX, type ReactNode } from 'react';
+import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { saveDeviceSettings } from '@/app/device';
 import { useMarketSettings } from '@/app/marketSettings';
@@ -49,6 +50,7 @@ export function SettingsSection({
 /** The settings every register of the market shares: when the business day turns. */
 export function MarketSection({ onDone }: { onDone(message: string): void }): JSX.Element {
   const { db } = useData();
+  const actor = useActor();
   const { cutoffMinutes } = useMarketSettings();
   const [chosen, setChosen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -58,7 +60,7 @@ export function MarketSection({ onDone }: { onDone(message: string): void }): JS
     event.preventDefault();
     setSaving(true);
     try {
-      await saveMarketSettings(db, { cutoffMinutes: Number(value) }, new Date());
+      await saveMarketSettings(db, { cutoffMinutes: Number(value) }, new Date(), actor);
       setChosen(null);
       onDone('Market ayarı kaydedildi.');
     } finally {

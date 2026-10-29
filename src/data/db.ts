@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type {
+  AuditRecord,
   CashMovementRecord,
   CashSessionRecord,
   CategoryRecord,
@@ -43,6 +44,7 @@ export class MarketDb extends Dexie {
   declare cashMovements: Table<CashMovementRecord, string>;
   declare staff: Table<StaffRecord, string>;
   declare settings: Table<MarketSettingsRecord, string>;
+  declare auditLog: Table<AuditRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -101,6 +103,8 @@ export class MarketDb extends Dexie {
     this.version(11).stores({ staff: 'id, name, updatedAt' });
     // v12: the settings every register of the market shares (M6b).
     this.version(12).stores({ settings: 'id' });
+    // v13: who changed what (M6b).
+    this.version(13).stores({ auditLog: 'id, occurredAt' });
   }
 }
 

@@ -192,6 +192,23 @@ describe('applyServerRows', () => {
     expect(await db.supplierLedger.toArray()).toEqual([entry]);
   });
 
+  it('applies pulled audit entries once', async () => {
+    const entry = {
+      id: 'a1',
+      deviceCode: 'K2',
+      action: 'settings.update',
+      entity: 'settings',
+      entityId: 'market',
+      before: { cutoffMinutes: 0 },
+      after: { cutoffMinutes: 60 },
+      occurredAt: at.toISOString(),
+      businessDate: '2026-10-29',
+    };
+    const pulled: ServerRow = { table: 'auditLog', id: 'a1', serverSeq: 16, row: entry };
+    await applyServerRows(db, [pulled, pulled]);
+    expect(await db.auditLog.toArray()).toEqual([entry]);
+  });
+
   it('applies pulled settings', async () => {
     const row = {
       id: 'market',

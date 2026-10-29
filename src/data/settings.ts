@@ -1,4 +1,5 @@
 import { isValidCutoff } from '@/domain/businessDate';
+import { addAudit, type Actor } from './audit';
 import type { MarketDb } from './db';
 import { appendOutbox } from './outbox';
 import { changedFields, toPatch } from './records';
@@ -24,13 +25,29 @@ export async function saveMarketSettings(
   db: MarketDb,
   input: MarketSettings,
   at: Date,
+  actor?: Actor,
 ): Promise<MarketSettings> {
   if (!isValidCutoff(input.cutoffMinutes)) {
     throw new RangeError(`A day cutoff is a whole 0 to 720 minutes, got ${input.cutoffMinutes}`);
   }
   const stamp = at.toISOString();
-  await db.transaction('rw', db.settings, db.outbox, async () => {
+  await db.transaction('rw', db.settings, db.outbox, db.auditLog, async () => {
     const current = await db.settings.get(ID);
+    const was = current?.cutoffMinutes ?? 0;
+    if (actor && was !== input.cutoffMinutes) {
+      await addAudit(
+        db,
+        {
+          action: 'settings.update',
+          entity: 'settings',
+          entityId: ID,
+          before: { cutoffMinutes: was },
+          after: { cutoffMinutes: input.cutoffMinutes },
+        },
+        actor,
+        at,
+      );
+    }
     if (!current) {
       const record: MarketSettingsRecord = {
         id: ID,

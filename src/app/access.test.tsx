@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AppData } from '@/app/appData';
 import { createCustomer } from '@/data/customers';
 import { createProduct } from '@/data/products';
@@ -82,7 +82,7 @@ describe('access', () => {
   });
 
   it('asks a permitted person to approve a discount', async () => {
-    const { data, ayse } = await team();
+    const { data, ayse, mehmet } = await team();
     signedIn(ayse.id);
     await register(data);
     await userEvent.click(screen.getByRole('button', { name: 'İndirim' }));
@@ -98,6 +98,16 @@ describe('access', () => {
     await userEvent.type(within(dialog).getByLabelText('PIN'), '2222');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Onayla' }));
     expect(await screen.findByRole('dialog', { name: 'Sepet indirimi' })).toBeInTheDocument();
+    // The approval is on record: who asked, who approved, for what.
+    await vi.waitFor(async () =>
+      expect(await data.db.auditLog.toArray()).toMatchObject([
+        {
+          action: 'approval',
+          staffId: ayse.id,
+          after: { permission: 'discount', approverId: mehmet.id },
+        },
+      ]),
+    );
   });
 
   it('sells over the credit limit only with approval', async () => {

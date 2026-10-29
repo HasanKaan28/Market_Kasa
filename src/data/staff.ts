@@ -1,5 +1,6 @@
 import { PERMISSIONS, ROLES, type Permission, type Role } from '@/domain/permissions';
 import { hashPin, isValidPin, verifyPin } from '@/domain/pin';
+import { addAudit, auditChange, type Actor } from './audit';
 import type { MarketDb } from './db';
 import { LastOwnerError, RecordNotFoundError } from './errors';
 import { newId } from './ids';
@@ -35,7 +36,12 @@ const lockKey = (staffId: string) => `pinLock:${staffId}`;
  * Adds a person with their PIN, kept only as a hash. While the market has no active owner, the
  * person added must be one: the first person set up is the owner.
  */
-export async function createStaff(db: MarketDb, input: NewStaff, at: Date): Promise<StaffRecord> {
+export async function createStaff(
+  db: MarketDb,
+  input: NewStaff,
+  at: Date,
+  actor?: Actor,
+): Promise<StaffRecord> {
   const name = requireName(input.name);
   assertRole(input.role);
   const permissions = cleanPermissions(input.permissions);
@@ -53,12 +59,25 @@ export async function createStaff(db: MarketDb, input: NewStaff, at: Date): Prom
     createdAt: stamp,
     updatedAt: stamp,
   });
-  await db.transaction('rw', db.staff, db.outbox, async () => {
+  await db.transaction('rw', db.staff, db.outbox, db.auditLog, async () => {
     if (record.role !== 'owner' && (await activeOwners(db)).length === 0) {
       throw new RangeError('The first person set up is the owner');
     }
     await db.staff.add(record);
     await appendOutbox(db, { kind: 'insert', table: 'staff', recordId: record.id, record }, at);
+    if (actor) {
+      const after = withoutUndefined({
+        name: record.name,
+        role: record.role,
+        permissions: record.permissions,
+      });
+      await addAudit(
+        db,
+        { action: 'staff.create', entity: 'staff', entityId: record.id, after },
+        actor,
+        at,
+      );
+    }
   });
   return record;
 }
@@ -69,6 +88,7 @@ export async function updateStaff(
   id: string,
   patch: StaffPatch,
   at: Date,
+  actor?: Actor,
 ): Promise<StaffRecord> {
   const changes: StaffPatch = {};
   if (patch.name !== undefined) {
@@ -82,12 +102,22 @@ export async function updateStaff(
     const permissions = cleanPermissions(patch.permissions);
     changes.permissions = permissions;
   }
-  return db.transaction('rw', db.staff, db.outbox, async () => {
+  return db.transaction('rw', db.staff, db.outbox, db.auditLog, async () => {
     const current = await requireStaff(db, id);
     if (changes.role !== undefined && changes.role !== 'owner') {
       await assertNotLastOwner(db, current);
     }
-    return save(db, current, changes, at);
+    const change = auditChange(current, changes, ['name', 'role', 'permissions']);
+    const updated = await save(db, current, changes, at);
+    if (actor && change) {
+      await addAudit(
+        db,
+        { action: 'staff.update', entity: 'staff', entityId: id, ...change },
+        actor,
+        at,
+      );
+    }
+    return updated;
   });
 }
 
@@ -97,37 +127,63 @@ export async function setStaffPin(
   id: string,
   pin: string,
   at: Date,
+  actor?: Actor,
 ): Promise<StaffRecord> {
   const hashed = await hashPin(requirePin(pin));
-  return db.transaction('rw', db.staff, db.outbox, db.meta, async () => {
+  return db.transaction('rw', db.staff, db.outbox, db.meta, db.auditLog, async () => {
     const current = await requireStaff(db, id);
     await db.meta.delete(lockKey(id));
-    return save(
+    const updated = await save(
       db,
       current,
       { pinHash: hashed.hash, pinSalt: hashed.salt, pinIterations: hashed.iterations },
       at,
     );
+    if (actor) {
+      await addAudit(db, { action: 'staff.pin', entity: 'staff', entityId: id }, actor, at);
+    }
+    return updated;
   });
 }
 
 /** Archives a person who no longer works here; the last active owner stays. */
-export async function archiveStaff(db: MarketDb, id: string, at: Date): Promise<StaffRecord> {
-  return db.transaction('rw', db.staff, db.outbox, async () => {
+export async function archiveStaff(
+  db: MarketDb,
+  id: string,
+  at: Date,
+  actor?: Actor,
+): Promise<StaffRecord> {
+  return db.transaction('rw', db.staff, db.outbox, db.auditLog, async () => {
     const current = await requireStaff(db, id);
     if (current.archivedAt) {
       return current;
     }
     await assertNotLastOwner(db, current);
-    return save(db, current, { archivedAt: at.toISOString() }, at);
+    const updated = await save(db, current, { archivedAt: at.toISOString() }, at);
+    if (actor) {
+      await addAudit(db, { action: 'staff.archive', entity: 'staff', entityId: id }, actor, at);
+    }
+    return updated;
   });
 }
 
 /** Takes a person back. */
-export async function restoreStaff(db: MarketDb, id: string, at: Date): Promise<StaffRecord> {
-  return db.transaction('rw', db.staff, db.outbox, async () => {
+export async function restoreStaff(
+  db: MarketDb,
+  id: string,
+  at: Date,
+  actor?: Actor,
+): Promise<StaffRecord> {
+  return db.transaction('rw', db.staff, db.outbox, db.auditLog, async () => {
     const current = await requireStaff(db, id);
-    return current.archivedAt ? save(db, current, { archivedAt: undefined }, at) : current;
+    if (!current.archivedAt) {
+      return current;
+    }
+    const updated = await save(db, current, { archivedAt: undefined }, at);
+    if (actor) {
+      await addAudit(db, { action: 'staff.restore', entity: 'staff', entityId: id }, actor, at);
+    }
+    return updated;
   });
 }
 

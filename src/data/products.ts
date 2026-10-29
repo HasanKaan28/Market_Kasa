@@ -1,5 +1,6 @@
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { assertVatRate, MAX_UNIT_PRICE, type VatRate } from '@/domain/pricing';
+import { addAudit, auditChange, type Actor } from './audit';
 import type { MarketDb } from './db';
 import { DuplicateBarcodeError, RecordNotFoundError } from './errors';
 import { newId } from './ids';
@@ -82,11 +83,15 @@ export async function updateProduct(
   id: string,
   patch: ProductPatch,
   at: Date,
+  actor?: Actor,
 ): Promise<ProductRecord> {
   const stamp = at.toISOString();
   const changes = validateFields(patch);
+  // A price change made by a person is logged; the log joins the transaction only then, so this
+  // still runs inside callers whose transactions do not include it.
+  const tables = [db.products, db.outbox, ...(actor ? [db.auditLog] : [])];
 
-  return db.transaction('rw', db.products, db.outbox, async () => {
+  return db.transaction('rw', tables, async () => {
     const current = await db.products.get(id);
     if (!current) {
       throw new RecordNotFoundError('Product', id);
@@ -105,6 +110,15 @@ export async function updateProduct(
       { kind: 'patch', table: 'products', recordId: id, patch: toPatch(changed, stamp) },
       at,
     );
+    const price = auditChange(current, changed, ['sellPrice', 'buyPrice']);
+    if (actor && price) {
+      await addAudit(
+        db,
+        { action: 'product.price', entity: 'product', entityId: id, ...price },
+        actor,
+        at,
+      );
+    }
     return updated;
   });
 }
@@ -167,9 +181,7 @@ export async function productsById(
   ids: readonly string[],
 ): Promise<Map<string, ProductRecord>> {
   const products = await db.products.bulkGet([...ids]);
-  return new Map(
-    products.flatMap((product) => (product ? [[product.id, product] as const] : [])),
-  );
+  return new Map(products.flatMap((product) => (product ? [[product.id, product] as const] : [])));
 }
 
 /**

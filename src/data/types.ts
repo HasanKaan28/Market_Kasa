@@ -318,6 +318,32 @@ export type MarketSettingsRecord = {
   updatedAt: string;
 };
 
+export type AuditAction =
+  | 'staff.create'
+  | 'staff.update'
+  | 'staff.pin'
+  | 'staff.archive'
+  | 'staff.restore'
+  | 'settings.update'
+  | 'product.price'
+  | 'approval';
+
+/** One management action: who did it, on which record, and what changed (DESIGN §6.3). */
+export type AuditRecord = {
+  id: string;
+  deviceCode: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
+  action: AuditAction;
+  entity: 'staff' | 'settings' | 'product' | 'approval';
+  entityId?: string;
+  /** The changed fields as they were; never a PIN or its hash. */
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  occurredAt: string;
+  businessDate: string;
+};
+
 export type OutboxTable =
   | 'products'
   | 'customers'
@@ -334,7 +360,8 @@ export type OutboxTable =
   | 'cashMovements'
   | 'cashSessions'
   | 'staff'
-  | 'settings';
+  | 'settings'
+  | 'auditLog';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }

@@ -1,3 +1,4 @@
+import type { Actor } from '@/data/audit';
 import type { MarketDb } from '@/data/db';
 import { updateProduct } from '@/data/products';
 import { divRoundHalfUp, formatTRY, type Kurus } from '@/domain/money';
@@ -37,8 +38,10 @@ export async function bulkUpdatePrices(
   productIds: readonly string[],
   change: PriceChange,
   at: Date,
+  actor?: Actor,
 ): Promise<number> {
-  return db.transaction('rw', db.products, db.outbox, async () => {
+  const tables = [db.products, db.outbox, ...(actor ? [db.auditLog] : [])];
+  return db.transaction('rw', tables, async () => {
     let changed = 0;
     for (const id of productIds) {
       const product = await db.products.get(id);
@@ -48,7 +51,7 @@ export async function bulkUpdatePrices(
       }
       const next = changedPrice(product[change.target], change);
       if (next !== product[change.target]) {
-        await updateProduct(db, id, { [change.target]: next }, at);
+        await updateProduct(db, id, { [change.target]: next }, at, actor);
         changed += 1;
       }
     }

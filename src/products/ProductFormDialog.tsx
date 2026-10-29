@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type JSX } from 'react';
+import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { listCategories } from '@/data/categories';
 import { DuplicateBarcodeError } from '@/data/errors';
@@ -64,6 +65,7 @@ export function ProductFormDialog({
   onProductSaved,
 }: ProductFormDialogProps): JSX.Element {
   const { db } = useData();
+  const actor = useActor();
   const [opened] = useState(() => draftOf(product, barcode));
   const [draft, setDraft] = useState(opened);
   const [errors, setErrors] = useState<Errors>({});
@@ -135,7 +137,7 @@ export function ProductFormDialog({
         if (Object.keys(patch).length === 0) {
           return 'Değişiklik yok.';
         }
-        await updateProduct(db, product.id, patch, new Date());
+        await updateProduct(db, product.id, patch, new Date(), actor);
         onProductSaved?.(product.id);
         return 'Ürün kaydedildi.';
       }

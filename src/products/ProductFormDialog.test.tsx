@@ -67,7 +67,8 @@ describe('ProductFormDialog', () => {
     await userEvent.type(price, '45');
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Ürün kaydedildi.'));
-    const last = (await pendingOps(data.db)).at(-1);
+    // The price change is also logged; the product's own change is its last patch.
+    const last = (await pendingOps(data.db)).filter((op) => op.table === 'products').at(-1);
     expect(last).toMatchObject({ kind: 'patch', recordId: product.id });
     expect(last?.kind === 'patch' && last.patch).toEqual({
       sellPrice: 4500,

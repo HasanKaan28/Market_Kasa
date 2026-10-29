@@ -1,10 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
+import { useActor } from '@/app/actor';
 import { ApprovalDialog } from '@/app/ApprovalDialog';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useData, useSyncStatus } from '@/app/appData';
 import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
+import { recordApproval } from '@/data/audit';
 import { CreditLimitError } from '@/data/errors';
 import { findProductByBarcode } from '@/data/products';
 import { saleStatus } from '@/data/returns';
@@ -60,6 +62,7 @@ export function PosScreen(): JSX.Element {
   const { db, settings, runner } = useData();
   const session = useSession();
   const { staff } = session;
+  const actor = useActor();
   const { cutoffMinutes } = useMarketSettings();
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
@@ -412,7 +415,13 @@ export function PosScreen(): JSX.Element {
           open
           permission={dialog.permission}
           onClose={close}
-          onApproved={() => {
+          onApproved={(approver) => {
+            void recordApproval(
+              db,
+              { permission: dialog.permission, approverId: approver.id },
+              new Date(),
+              actor,
+            );
             setDialog(null);
             dialog.next();
           }}

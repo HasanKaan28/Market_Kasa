@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Screens } from '@/app/Screens';
 import { SessionProvider } from '@/app/SessionProvider';
 import { loadMarketSettings } from '@/data/settings';
-import { checkPin, createStaff } from '@/data/staff';
+import { checkPin, createStaff, updateStaff } from '@/data/staff';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 
 const before = () => new Date(Date.now() - 60_000);
@@ -119,5 +119,18 @@ describe('SettingsScreen', () => {
       deviceName: 'Ön kasa',
       deviceCode: 'K2',
     });
+  });
+  it('shows the latest entries to the owner', async () => {
+    const { data, kaan, ayse } = await team();
+    const actor = { deviceCode: 'K1', staffId: kaan.id };
+    await updateStaff(data.db, ayse.id, { role: 'manager' }, new Date(), actor);
+    await settingsAs(data, kaan.id);
+    const log = await screen.findByRole('region', { name: 'İz kaydı' });
+    expect(await within(log).findByText('Ayşe: rol Kasiyer → Yönetici')).toBeInTheDocument();
+    // A change made on the screen is logged as the person signed in.
+    await userEvent.selectOptions(await screen.findByLabelText('Gün dönümü'), '02:00');
+    await userEvent.click(screen.getByRole('button', { name: 'Market ayarını kaydet' }));
+    expect(await within(log).findByText('Gün dönümü 00:00 → 02:00')).toBeInTheDocument();
+    expect(within(log).getAllByText('Kaan')).toHaveLength(2);
   });
 });

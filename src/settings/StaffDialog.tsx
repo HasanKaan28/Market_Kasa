@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type JSX } from 'react';
+import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { LastOwnerError } from '@/data/errors';
 import { archiveStaff, createStaff, restoreStaff, setStaffPin, updateStaff } from '@/data/staff';
@@ -39,6 +40,7 @@ export function StaffDialog({
   onDone,
 }: StaffDialogProps): JSX.Element {
   const { db } = useData();
+  const actor = useActor();
   const [name, setName] = useState(person?.name ?? '');
   const [role, setRole] = useState<Role>(person?.role ?? (first ? 'owner' : 'cashier'));
   const [overrides, setOverrides] = useState<Overrides>(person?.permissions ?? {});
@@ -89,6 +91,7 @@ export function StaffDialog({
           db,
           { name, role, pin, permissions: overridesFor(role, overrides) },
           new Date(),
+          actor,
         );
         onDone(`${created.name} eklendi.`, created);
       });
@@ -104,6 +107,7 @@ export function StaffDialog({
         person.id,
         { name, role, permissions: overridesFor(role, overrides) },
         new Date(),
+        actor,
       );
       onDone(`${name.trim()} kaydedildi.`);
     });
@@ -114,7 +118,7 @@ export function StaffDialog({
       return;
     }
     void run(async () => {
-      await setStaffPin(db, person.id, pin, new Date());
+      await setStaffPin(db, person.id, pin, new Date(), actor);
       onDone(`PIN değiştirildi · ${person.name}`);
     });
   }
@@ -125,10 +129,10 @@ export function StaffDialog({
     }
     void run(async () => {
       if (person.archivedAt) {
-        await restoreStaff(db, person.id, new Date());
+        await restoreStaff(db, person.id, new Date(), actor);
         onDone(`${person.name} geri alındı.`);
       } else {
-        await archiveStaff(db, person.id, new Date());
+        await archiveStaff(db, person.id, new Date(), actor);
         onDone(`${person.name} pasife alındı.`);
       }
     });
