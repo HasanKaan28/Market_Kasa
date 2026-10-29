@@ -7,7 +7,7 @@ import { stockOf } from '@/data/stock';
 import { isVoided } from '@/data/voids';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { cartReducer, emptyCart, loadCart } from './cart';
-import { checkout } from './checkout';
+import { checkout, singlePayment } from './checkout';
 import { PosScreen } from './PosScreen';
 
 const milk = { barcode: '8690000000017', name: 'Süt', sellPrice: 4250, vatRate: 1 } as const;
@@ -106,7 +106,7 @@ describe('PosScreen', () => {
     await checkout(data.db, {
       cart: { ...saved, lines: doubled },
       deviceCode: 'K1',
-      method: 'card',
+      payments: [{ method: 'card', amount: 8500 }],
       at: new Date(),
     });
     fireEvent.keyDown(window, { key: 'F4' });
@@ -193,7 +193,12 @@ describe('PosScreen', () => {
     const data = createTestData();
     const created = await createProduct(data.db, milk, new Date());
     const cart = cartReducer(emptyCart(), { type: 'add', product: created });
-    await checkout(data.db, { cart, deviceCode: 'K1', method: 'cash', at: new Date() });
+    await checkout(data.db, {
+      cart,
+      deviceCode: 'K1',
+      payments: singlePayment(cart, 'cash'),
+      at: new Date(),
+    });
     localStorage.setItem('mk2.held', JSON.stringify([{ cart, heldAt: new Date().toISOString() }]));
     await renderWithData(<PosScreen />, data);
     await userEvent.click(screen.getByRole('button', { name: 'Bekleyenler (1)' }));

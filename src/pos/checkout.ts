@@ -1,14 +1,15 @@
 import type { MarketDb } from '@/data/db';
 import { CreditLimitError, PaymentMismatchError } from '@/data/errors';
 import { recordSale } from '@/data/sales';
-import type { PaymentMethod, SaleRecord } from '@/data/types';
+import type { Payment, PaymentMethod, SaleRecord } from '@/data/types';
 import type { Kurus } from '@/domain/money';
 import { cartTotals, type Cart } from './cart';
 
 export type CheckoutInput = {
   cart: Cart;
   deviceCode: string;
-  method: PaymentMethod;
+  /** One or more parts that add up to the total (a split sale has several). */
+  payments: Payment[];
   customerId?: string;
   cashGiven?: Kurus;
   at: Date;
@@ -28,19 +29,33 @@ export class StaleCartError extends Error {
 // Round amounts a customer hands over: the next ₺10, ₺50, ₺100 and ₺500 above the total.
 const CASH_STEPS: readonly Kurus[] = [1000, 5000, 10000, 50000];
 
-/** Records the cart as one sale paid by one method. The cart's id makes a retry harmless. */
+/** The whole total paid one way. */
+export function singlePayment(cart: Cart, method: PaymentMethod): Payment[] {
+  return [{ method, amount: cartTotals(cart).total }];
+}
+
+/**
+ * Records the cart, with its discounts, as one sale. The cart's id makes a retry harmless.
+ * Cash given only counts against a cash part, and the customer only for a credit part.
+ */
 export async function checkout(
   db: MarketDb,
-  { cart, deviceCode, method, customerId, cashGiven, at }: CheckoutInput,
+  { cart, deviceCode, payments, customerId, cashGiven, at }: CheckoutInput,
 ): Promise<SaleRecord> {
+  const paidBy = (method: PaymentMethod) => payments.some((payment) => payment.method === method);
   const sale = await recordSale(db, {
     id: cart.id,
     deviceCode,
     at,
-    lines: cart.lines.map(({ productId, qtyMilli }) => ({ productId, qtyMilli })),
-    payments: [{ method, amount: cartTotals(cart).total }],
-    ...(method === 'cash' && cashGiven !== undefined ? { cashGiven } : {}),
-    ...(method === 'credit' && customerId !== undefined ? { customerId } : {}),
+    lines: cart.lines.map(({ productId, qtyMilli, lineDiscount }) => ({
+      productId,
+      qtyMilli,
+      lineDiscount,
+    })),
+    cartDiscount: cart.cartDiscount,
+    payments,
+    ...(paidBy('cash') && cashGiven !== undefined ? { cashGiven } : {}),
+    ...(paidBy('credit') && customerId !== undefined ? { customerId } : {}),
   });
   if (!sameLines(sale, cart)) {
     throw new StaleCartError(sale.receiptNo);

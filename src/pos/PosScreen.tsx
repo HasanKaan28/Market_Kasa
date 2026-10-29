@@ -3,12 +3,12 @@ import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
 import { findProductByBarcode } from '@/data/products';
-import type { PaymentMethod, ProductRecord, SaleRecord } from '@/data/types';
+import type { Payment, ProductRecord, SaleRecord } from '@/data/types';
 import { Button, ToastRegion, useToast } from '@/design';
 import { formatTRY, type Kurus } from '@/domain/money';
 import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from './cart';
 import { CartPanel } from './CartPanel';
-import { checkout, checkoutErrorMessage, StaleCartError } from './checkout';
+import { checkout, checkoutErrorMessage, singlePayment, StaleCartError } from './checkout';
 import { CustomerPicker } from './CustomerPicker';
 import { HELD_STORAGE_KEY, holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld } from './held';
 import { HeldCartsDialog } from './HeldCartsDialog';
@@ -92,13 +92,13 @@ export function PosScreen(): JSX.Element {
     }
   }
 
-  async function pay(method: PaymentMethod, extra: { cashGiven?: Kurus; customerId?: string }) {
+  async function pay(payments: Payment[], extra: { cashGiven?: Kurus; customerId?: string }) {
     setBusy(true);
     try {
       const sale = await checkout(db, {
         cart,
         deviceCode: settings.deviceCode,
-        method,
+        payments,
         at: new Date(),
         ...extra,
       });
@@ -210,7 +210,7 @@ export function PosScreen(): JSX.Element {
           total={cartTotals(cart).total}
           busy={busy}
           onClose={close}
-          onConfirm={(cashGiven) => void pay(paymentMethod, { cashGiven })}
+          onConfirm={(cashGiven) => void pay(singlePayment(cart, paymentMethod), { cashGiven })}
         />
       ) : null}
       {dialog?.kind === 'credit' ? (
@@ -218,7 +218,9 @@ export function PosScreen(): JSX.Element {
           open
           busy={busy}
           onClose={close}
-          onPick={(customer) => void pay('credit', { customerId: customer.id })}
+          onPick={(customer) =>
+            void pay(singlePayment(cart, 'credit'), { customerId: customer.id })
+          }
         />
       ) : null}
       {dialog?.kind === 'newProduct' ? (
