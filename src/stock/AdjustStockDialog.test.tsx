@@ -72,4 +72,20 @@ describe('AdjustStockDialog', () => {
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('Stok düzeltildi.'));
     expect(await stockOf(data.db, cups.id)).toBe(2000);
   });
+
+  it('defaults the reason to the direction', async () => {
+    const data = createTestData();
+    const cups = await createProduct(data.db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    await renderWithData(
+      <AdjustStockDialog open product={cups} onClose={vi.fn()} onDone={vi.fn()} />,
+      data,
+    );
+    const reason = screen.getByLabelText('Neden');
+    expect(reason).toHaveDisplayValue('Bulunan');
+    await userEvent.click(screen.getByRole('radio', { name: 'Çıkar' }));
+    expect(reason).toHaveDisplayValue('Fire');
+    await userEvent.selectOptions(reason, 'Kayıp');
+    await userEvent.click(screen.getByRole('radio', { name: 'Ekle' }));
+    expect(reason).toHaveDisplayValue('Kayıp');
+  });
 });

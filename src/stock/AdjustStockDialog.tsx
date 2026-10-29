@@ -33,10 +33,13 @@ export function AdjustStockDialog({
   const { db } = useData();
   const [direction, setDirection] = useState<1 | -1>(1);
   const [amount, setAmount] = useState('');
-  const [reason, setReason] = useState<AdjustReason>('waste');
+  // Until one is picked, the reason follows the direction: what comes in was found, what goes
+  // out was wasted. A picked reason stays when the direction changes.
+  const [pickedReason, setReason] = useState<AdjustReason>();
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
+  const reason = pickedReason ?? (direction === 1 ? 'found' : 'waste');
   const current = useLiveQuery(() => stockOf(db, product.id), [db, product.id]);
 
   // A piece product whose stock was left fractional takes the fraction that makes it whole.

@@ -111,6 +111,9 @@ async function detailOf(db: MarketDb, movement: StockMovementRecord): Promise<st
     }
     case 'purchase':
       return ref ? ((await db.purchases.get(ref))?.note ?? '') : '';
+    // A shelf count names its note; an opening count has no count record.
+    case 'count':
+      return ref ? ((await db.stockCounts.get(ref))?.note ?? '') : '';
     default:
       return movement.note ?? '';
   }

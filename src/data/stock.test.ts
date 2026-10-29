@@ -94,4 +94,29 @@ describe('stock', () => {
       [10000, 10000],
     ]);
   });
+
+  it('reads only the newest movements of one product', async () => {
+    const cups = await createProduct(db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    const tea = await createProduct(db, { name: 'Çay', sellPrice: 9000, vatRate: 1 }, at);
+    const t = (minute: number) => new Date(at.getTime() + minute * 60_000);
+    for (const [n, delta] of [1000, 2000, 3000].entries()) {
+      await recordStockMovement(db, { productId: cups.id, delta, kind: 'count', at: t(n) });
+      await recordStockMovement(db, { productId: tea.id, delta: 500, kind: 'count', at: t(n) });
+    }
+    const rows = await listMovements(db, cups.id, 2);
+    expect(rows.map(({ movement, balanceMilli }) => [movement.delta, balanceMilli])).toEqual([
+      [3000, 6000],
+      [2000, 3000],
+    ]);
+  });
+
+  it('dates an adjustment by the business day cutoff', async () => {
+    const cups = await createProduct(db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    const movement = await adjustStock(
+      db,
+      { productId: cups.id, deltaMilli: 1000, reason: 'found', cutoffMinutes: 240 },
+      new Date('2026-10-29T00:30:00Z'),
+    );
+    expect(movement.businessDate).toBe('2026-10-28');
+  });
 });

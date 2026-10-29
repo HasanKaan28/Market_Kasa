@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import { businessDate } from '@/domain/businessDate';
 import { stockLevel } from '@/domain/ledger';
 import { assertSafeInteger } from '@/domain/money';
@@ -90,7 +91,13 @@ export async function recomputeStock(db: MarketDb, productId: string): Promise<n
  */
 export async function adjustStock(
   db: MarketDb,
-  input: { productId: string; deltaMilli: number; reason: AdjustReason; note?: string },
+  input: {
+    productId: string;
+    deltaMilli: number;
+    reason: AdjustReason;
+    note?: string;
+    cutoffMinutes?: number;
+  },
   at: Date,
 ): Promise<StockMovementRecord> {
   return db.transaction(
@@ -120,23 +127,33 @@ export async function adjustStock(
         kind: 'manual',
         note: note ? `${ADJUST_REASONS[input.reason]}: ${note}` : ADJUST_REASONS[input.reason],
         at,
+        cutoffMinutes: input.cutoffMinutes,
       });
     },
   );
 }
 
-/** A product's movements, newest first, each with the stock it left behind. */
+/**
+ * A product's newest movements, newest first, each with the stock it left behind. Only those
+ * are read, by product and time, and in one read with the stock so the two agree.
+ */
 export async function listMovements(
   db: MarketDb,
   productId: string,
   limit: number = DEFAULT_MOVEMENT_LIMIT,
 ): Promise<{ movement: StockMovementRecord; balanceMilli: number }[]> {
-  const movements = await db.stockMovements.where('productId').equals(productId).toArray();
-  movements.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id));
-  let balance = await stockOf(db, productId);
-  return movements.slice(0, limit).map((movement) => {
-    const row = { movement, balanceMilli: balance };
-    balance -= movement.delta;
-    return row;
+  return db.transaction('r', db.stockMovements, db.stockLevels, async () => {
+    const movements = await db.stockMovements
+      .where('[productId+occurredAt]')
+      .between([productId, Dexie.minKey], [productId, Dexie.maxKey])
+      .reverse()
+      .limit(limit)
+      .toArray();
+    let balance = await stockOf(db, productId);
+    return movements.map((movement) => {
+      const row = { movement, balanceMilli: balance };
+      balance -= movement.delta;
+      return row;
+    });
   });
 }

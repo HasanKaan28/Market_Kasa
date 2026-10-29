@@ -78,7 +78,7 @@ export function criticalCount(
 }
 
 /** A level of 0 means the product is never critical. */
-function isCritical(product: ProductRecord, stockMilli: number): boolean {
+export function isCritical(product: ProductRecord, stockMilli: number): boolean {
   return product.criticalLevelMilli > 0 && stockMilli <= product.criticalLevelMilli;
 }
 

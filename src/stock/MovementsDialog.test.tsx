@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { recordCount } from '@/data/counts';
 import { createProduct } from '@/data/products';
 import { recordPurchase } from '@/data/purchases';
 import { recordSale } from '@/data/sales';
@@ -51,6 +52,36 @@ describe('MovementsDialog', () => {
       ['Düzeltme', '−1 adet', '12 adet', 'Fire'],
       ['Satış', '−2 adet', '13 adet', sale.receiptNo],
       ['Mal kabul', '+5 adet', '15 adet', 'İrsaliye 7'],
+      ['Sayım', '+10 adet', '10 adet', ''],
+    ]);
+  });
+
+  it('names the count a movement came from', async () => {
+    const data = createTestData();
+    const cups = await createProduct(
+      data.db,
+      { name: 'Bardak', sellPrice: 500, vatRate: 20 },
+      at,
+      { openingStockMilli: 10000 },
+    );
+    await recordCount(
+      data.db,
+      { deviceCode: 'K1', lines: [{ productId: cups.id, countedMilli: 8000 }], note: 'Raf 3' },
+      minute(1),
+    );
+    await renderWithData(<MovementsDialog open product={cups} onClose={vi.fn()} />, data);
+    const table = await screen.findByRole('table', { name: 'Stok hareketleri' });
+    const rows = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) =>
+        within(row)
+          .getAllByRole('cell')
+          .slice(1)
+          .map((cell) => cell.textContent),
+      );
+    expect(rows).toEqual([
+      ['Sayım', '−2 adet', '8 adet', 'Raf 3'],
       ['Sayım', '+10 adet', '10 adet', ''],
     ]);
   });

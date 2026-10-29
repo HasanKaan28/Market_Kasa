@@ -4,6 +4,7 @@ import { useData } from '@/app/appData';
 import type { ProductRecord } from '@/data/types';
 import { Button } from '@/design';
 import { formatStock } from '@/pos/format';
+import { isCritical } from '@/products/productList';
 
 export type CriticalStockProps = {
   /** Puts a product on the goods receipt being prepared. */
@@ -23,7 +24,7 @@ export function CriticalStock({ onReceive }: CriticalStockProps): JSX.Element {
     const stock = new Map(levels.map((level) => [level.productId, level.qtyMilli]));
     return products
       .map((product) => ({ product, stockMilli: stock.get(product.id) ?? 0 }))
-      .filter(({ product, stockMilli }) => stockMilli <= product.criticalLevelMilli)
+      .filter(({ product, stockMilli }) => isCritical(product, stockMilli))
       .sort(
         (a, b) =>
           a.stockMilli -
