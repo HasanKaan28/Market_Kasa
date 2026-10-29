@@ -69,7 +69,6 @@ describe('PosScreen', () => {
       new Date(),
     );
     localStorage.setItem('mk2.staff', ayse.id);
-    await createProduct(data.db, milk, new Date());
     await renderWithData(
       <SessionProvider>
         <PosScreen />
@@ -77,6 +76,9 @@ describe('PosScreen', () => {
       data,
     );
     expect(await screen.findByText('Ayşe')).toBeInTheDocument();
+    // The register mounts once the session has loaded; the product comes after, so the scanner
+    // is listening by the time it is scanned.
+    await createProduct(data.db, milk, new Date());
     scan(milk.barcode);
     expect(await screen.findByText('1 kalem')).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'F2' });

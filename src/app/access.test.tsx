@@ -47,6 +47,8 @@ async function register(data: AppData) {
     data,
   );
   expect(await screen.findByText('Ayşe')).toBeInTheDocument();
+  // Created once the register is up, so its scanner is listening when the code comes.
+  await createProduct(data.db, milk, before());
   scan(milk.barcode);
   expect(await screen.findByText('1 kalem')).toBeInTheDocument();
 }
@@ -82,7 +84,6 @@ describe('access', () => {
   it('asks a permitted person to approve a discount', async () => {
     const { data, ayse } = await team();
     signedIn(ayse.id);
-    await createProduct(data.db, milk, before());
     await register(data);
     await userEvent.click(screen.getByRole('button', { name: 'İndirim' }));
     const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
@@ -102,7 +103,6 @@ describe('access', () => {
   it('sells over the credit limit only with approval', async () => {
     const { data, ayse } = await team();
     signedIn(ayse.id);
-    await createProduct(data.db, milk, before());
     await createCustomer(data.db, { name: 'Ahmet Yılmaz', creditLimit: 1000 }, before());
     await register(data);
     await userEvent.click(screen.getByRole('button', { name: 'Veresiye' }));
