@@ -3,7 +3,7 @@ import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { SaleReturnedError, SaleVoidedError } from '@/data/errors';
-import type { SaleRecord, SaleVoidRecord } from '@/data/types';
+import type { Payment, SaleRecord, SaleVoidRecord } from '@/data/types';
 import { voidSale } from '@/data/voids';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
@@ -59,8 +59,9 @@ export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): 
       <form noValidate className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
         <p className="text-text-2">
           <span className="font-mono text-text">{sale.receiptNo}</span>
-          {` · ${formatTRY(sale.total)}. Stok ve veresiye geri alınır.`}
+          {` · ${formatTRY(sale.total)}`}
         </p>
+        <p className="text-text-2">{givenBack(sale)}</p>
         <TextField
           label="İptal nedeni"
           autoComplete="off"
@@ -75,6 +76,25 @@ export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): 
       </form>
     </Dialog>
   );
+}
+
+/** What a void puts back, by the ways the sale was paid. */
+function givenBack(sale: SaleRecord): string {
+  const paid = (method: Payment['method']) =>
+    sale.payments
+      .filter((payment) => payment.method === method)
+      .reduce((sum, p) => sum + p.amount, 0);
+  const cash = paid('cash');
+  const card = paid('card');
+  const credit = paid('credit');
+  return [
+    'Stok geri alınır.',
+    cash > 0 ? `Nakit ${formatTRY(cash)} kasadan geri verilir.` : null,
+    card > 0 ? `Kart ${formatTRY(card)} karta iade edilir.` : null,
+    credit > 0 ? `Veresiye ${formatTRY(credit)} borçtan düşülür.` : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' ');
 }
 
 function voidErrorMessage(error: unknown): string {

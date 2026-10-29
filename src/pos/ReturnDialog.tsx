@@ -7,10 +7,10 @@ import { useSession } from '@/app/session';
 import { ReturnExceedsSaleError } from '@/data/errors';
 import { planRefund, quantitiesOf, recordReturn, refundsOf } from '@/data/returns';
 import type { Payment, PaymentMethod, ReturnRecord, SaleRecord } from '@/data/types';
-import { Button, Dialog } from '@/design';
+import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { refundShare } from '@/domain/returns';
-import { formatLineQty } from './format';
+import { formatLineQty, parseQuantity } from './format';
 
 export type ReturnDialogProps = {
   open: boolean;
@@ -47,6 +47,8 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
   );
   const returned = earlier ? quantitiesOf(earlier) : undefined;
   const [chosen, setChosen] = useState<Record<string, number>>({});
+  // What was typed for each weighed line; pieces are counted with the buttons instead.
+  const [typedKg, setTypedKg] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
@@ -62,6 +64,21 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
     const already = returned?.get(line.productId) ?? 0;
     return qty > 0 ? sum + refundShare(line.net, line.qtyMilli, already, qty) : sum;
   }, 0);
+  const kgProblem = (productId: string, soldMilli: number): string | undefined => {
+    const typed = typedKg[productId]?.trim() ?? '';
+    if (typed === '') {
+      return undefined;
+    }
+    const qty = parseQuantity(typed, 'kg');
+    if (qty === null) {
+      return 'Geçerli bir miktar girin.';
+    }
+    const left = remaining(productId, soldMilli);
+    return qty > left ? `En çok ${formatLineQty(left, 'kg')} iade edilebilir.` : undefined;
+  };
+  const typedWrong = sale.lines.some(
+    (line) => line.unit === 'kg' && kgProblem(line.productId, line.qtyMilli) !== undefined,
+  );
   const lines = sale.lines
     .map((line) => ({
       productId: line.productId,
@@ -122,25 +139,47 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
                   {`Satılan ${formatLineQty(line.qtyMilli, line.unit)} · İade edilebilir ${formatLineQty(left, line.unit)}`}
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Azalt · ${line.name}`}
-                disabled={qty === 0}
-                icon={<Minus aria-hidden="true" size={18} />}
-                onClick={() => step(line.productId, line.qtyMilli, -ONE)}
-              />
-              <span className="min-w-10 text-center font-mono">
-                {formatLineQty(qty, line.unit)}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Artır · ${line.name}`}
-                disabled={qty >= left}
-                icon={<Plus aria-hidden="true" size={18} />}
-                onClick={() => step(line.productId, line.qtyMilli, ONE)}
-              />
+              {line.unit === 'kg' ? (
+                <div className="w-36">
+                  <TextField
+                    label={`İade (kg) · ${line.name}`}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={typedKg[line.productId] ?? ''}
+                    error={kgProblem(line.productId, line.qtyMilli)}
+                    onChange={(event) => {
+                      const text = event.target.value;
+                      setTypedKg((current) => ({ ...current, [line.productId]: text }));
+                      setChosen((current) => ({
+                        ...current,
+                        [line.productId]: parseQuantity(text, 'kg') ?? 0,
+                      }));
+                    }}
+                  />
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Azalt · ${line.name}`}
+                    disabled={qty === 0}
+                    icon={<Minus aria-hidden="true" size={18} />}
+                    onClick={() => step(line.productId, line.qtyMilli, -ONE)}
+                  />
+                  <span className="min-w-10 text-center font-mono">
+                    {formatLineQty(qty, line.unit)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Artır · ${line.name}`}
+                    disabled={qty >= left}
+                    icon={<Plus aria-hidden="true" size={18} />}
+                    onClick={() => step(line.productId, line.qtyMilli, ONE)}
+                  />
+                </>
+              )}
             </li>
           );
         })}
@@ -172,7 +211,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
       <Button
         variant="primary"
         size="lg"
-        disabled={lines.length === 0 || saving || plan === null}
+        disabled={lines.length === 0 || saving || plan === null || typedWrong}
         onClick={() => void save()}
       >
         İadeyi kaydet

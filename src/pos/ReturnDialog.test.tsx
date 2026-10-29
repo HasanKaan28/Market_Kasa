@@ -44,6 +44,38 @@ describe('ReturnDialog', () => {
     ).toBeInTheDocument();
   });
 
+  it('returns half a kilo', async () => {
+    const data = createTestData();
+    const cheese = await createProduct(
+      data.db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 8000, vatRate: 1 },
+      at,
+    );
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at,
+      lines: [{ productId: cheese.id, qtyMilli: 1250 }],
+      payments: [{ method: 'cash', amount: 10000 }],
+    });
+    const onReturned = vi.fn();
+    await renderWithData(
+      <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={onReturned} />,
+      data,
+    );
+    const amount = await screen.findByLabelText('İade (kg) · Peynir');
+    await userEvent.type(amount, '1,5');
+    expect(await screen.findByText('En çok 1,25 kg iade edilebilir.')).toBeInTheDocument();
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '0,5');
+    expect(screen.getByTestId('refund')).toHaveTextContent('₺40,00');
+    await userEvent.click(screen.getByRole('button', { name: 'İadeyi kaydet' }));
+    await vi.waitFor(() =>
+      expect(onReturned).toHaveBeenCalledWith(
+        expect.objectContaining({ lines: [expect.objectContaining({ qtyMilli: 500 })] }),
+      ),
+    );
+  });
+
   it('returns the chosen quantity and shows the refund', async () => {
     const data = createTestData();
     const { sale } = await sold(data.db, 'Ayran', 2250, 3);

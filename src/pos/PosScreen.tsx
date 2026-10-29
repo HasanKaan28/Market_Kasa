@@ -423,7 +423,11 @@ export function PosScreen(): JSX.Element {
           open
           sale={dialog.sale}
           onClose={() => setDialog({ kind: 'receipts' })}
-          onVoided={() => finish(`Satış iptal edildi · ${dialog.sale.receiptNo}`)}
+          onVoided={() =>
+            finish(
+              `Satış iptal edildi · ${dialog.sale.receiptNo} · ${formatTRY(dialog.sale.total)}`,
+            )
+          }
         />
       ) : null}
       {dialog?.kind === 'return' ? (

@@ -36,6 +36,30 @@ describe('VoidDialog', () => {
     expect(await data.db.saleVoids.count()).toBe(1);
   });
 
+  it('says what a void gives back', async () => {
+    const data = createTestData();
+    const milk = await createProduct(data.db, { name: 'Süt', sellPrice: 4000, vatRate: 1 }, at);
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at,
+      lines: [{ productId: milk.id, qtyMilli: 1000 }],
+      payments: [
+        { method: 'cash', amount: 3000 },
+        { method: 'card', amount: 1000 },
+      ],
+    });
+    await renderWithData(
+      <VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />,
+      data,
+    );
+    expect(
+      await screen.findByText(
+        'Stok geri alınır. Nakit ₺30,00 kasadan geri verilir. Kart ₺10,00 karta iade edilir.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/[Vv]eresiye/)).not.toBeInTheDocument();
+  });
+
   it('asks for a reason', async () => {
     const data = createTestData();
     const { sale } = await soldMilk(data.db);

@@ -252,7 +252,9 @@ describe('PosScreen', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Satışı iptal et' }));
     await userEvent.type(await screen.findByLabelText('İptal nedeni'), 'Yanlış ürün');
     await userEvent.click(screen.getByRole('button', { name: 'İptal et' }));
-    expect(await screen.findByText(`Satış iptal edildi · ${sale.receiptNo}`)).toBeInTheDocument();
+    expect(
+      await screen.findByText(`Satış iptal edildi · ${sale.receiptNo} · ₺42,50`),
+    ).toBeInTheDocument();
     expect(await isVoided(data.db, sale.id)).toBe(true);
   });
 
@@ -388,7 +390,7 @@ describe('PosScreen', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Satışı iptal et' }));
     await userEvent.type(await screen.findByLabelText('İptal nedeni'), 'Yanlış ürün');
     await userEvent.click(screen.getByRole('button', { name: 'İptal et' }));
-    await screen.findByText(`Satış iptal edildi · ${sale.receiptNo}`);
+    await screen.findByText(new RegExp(`Satış iptal edildi · ${sale.receiptNo}`));
     expect(print).not.toHaveBeenCalled();
     print.mockRestore();
   });
