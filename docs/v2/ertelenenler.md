@@ -105,9 +105,17 @@ M4a veresiyeyi getirir: Müşteriler ekranı, tahsilat, düzeltme, ekstre ve Wha
 - Küçükler: iki alan testi `describe('stockLevel')` altında; yazdırma CSS'i ve sınıf adı hâlâ "receipt" diyor; hatırlatma ve ekstre sıralama eşitlikleri ve `customerSummaries`'te gün dönümü test edilmiyor. (M4a)
  M4b'nin planı taslak olarak yazıldı ([2026-10-29-m4b-tedarikciler.md](plans/2026-10-29-m4b-tedarikciler.md)) ve aşağıdaki maddeleri alır:
 
-- **M4b:** Görev 1–2 uygulandı (tedarikçi verisi, mal kabulün tedarikçiye ve açık hesaba bağlanması); Görev 3–4 (Tedarikçiler ekranı, KDV hariç fiyat ve bedelsiz mal) bekliyor.
-- **M4b:** Tedarikçiler, tedarikçi cari ve ödemeleri (nakit, banka, kart, çek), alış faturasının tedarikçiye bağlanması (DESIGN §6.2, §6.3, §10).
-- **M4b:** Bedelsiz gelen mal ve KDV hariç fatura fiyatı (tedarikçi faturası). (M3c)
+- M4b tedarikçileri getirir: Tedarikçiler ekranı, tedarikçi carisi (ödeme, düzeltme), mal kabulün tedarikçiye ve açık hesaba bağlanması, KDV hariç alış fiyatı, bedelsiz mal. Plan sahibin onayını bekliyor. İncelemesinden kalan küçük maddeler (M4 cilası):
+- Çevrimdışı iki kasada aynı adla eklenen tedarikçiler eşitlemeden sonra düzenlenemiyor (ad her kayıtta yeniden denetleniyor). (M4b)
+- Fiyatı bilinmeyen ürünlerle açık hesap mal kabulü ₺0 kaydediliyor, fatura yazmıyor ve uyarmıyor. (M4b)
+- Tedarikçi ödemesinin üst sınırı birim fiyat sabitini (`MAX_UNIT_PRICE`) kullanıyor. (M4b)
+- "KDV hariç" açıkken dokunulmamış fiyat kutuları KDV dahil olduklarını söylemiyor. (M4b)
+- Aynı tedarikçiden aynı fatura numarası için uyarı yok; nakit ve kartla ödenen mal kabuller tedarikçi ekstresinde görünmüyor. (M4b)
+
+## M5 · Raporlar ve kasa
+
+- Tedarikçiye ve müşteriye nakit ödeme ya da tahsilat kasa hareketine yazılmıyor (DESIGN §10). (M4b)
+- `PurchaseRecord.payment` tipte zorunlu ama eski satırlarda yok; M5 okumadan önce isteğe bağlı yapılmalı (yoksa nakit). (M4b)
 
 ## M6 · Yönetim
 
@@ -115,6 +123,7 @@ M4a veresiyeyi getirir: Müşteriler ekranı, tahsilat, düzeltme, ekstre ve Wha
 - Gün dönümü ayarı: ekranlar ayar geçirmiyor; borç yaşı kayıtlı `businessDate` yerine `occurredAt`'ten yeniden hesaplanıyor. Ayar gelince ikisi birlikte düzeltilmeli; ayar girildiği yerde 0–720 dakika denetlenmeli. (M4a)
 - Ürünleri ve kategorileri her kasiyer ekleyip silebiliyor (roller); yönetim ekranları için yan menü (§13). (M3a)
 - Mal kabulü ve stok düzeltmesini her kasiyer yapabiliyor (§8.5, roller). (M3c)
+- Tedarikçi işlemlerini her kasiyer yapabiliyor (§8.5); tedarikçi ve müşteri arşivden geri getirilemiyor. (M4b)
 - İçe aktarma, dışa aktarma ve toplu fiyatı her kasiyer yapabiliyor; §8.5'e göre dışa aktarma yalnız sahibe açık olmalı. (M3b)
 
 ## M7 · e-Arşiv

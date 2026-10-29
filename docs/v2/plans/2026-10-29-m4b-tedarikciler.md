@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Durum:** Kullanıcı yokken yazıldı. Görev 1–2 uygulandı (`3bc6ace`, `d0d4f7f`); Görev 3–4 ve son inceleme bekliyor. Gözden geçirilip onaylanınca tamamlanır.
+> **Durum:** Kullanıcı yokken yazıldı ve uygulandı; son incelemesi yapıldı ve bulguları düzeltildi. Plan sahibin onayını bekliyor (özellikle tedarikçi carisine eklenen "Düzeltme" türü).
 
 **Goal:** Market sahibi tedarikçilerini kaydeder (ad, telefon, vergi no, vergi dairesi). Mal kabul bir tedarikçiye ve fatura numarasına bağlanır; ödeme nakit, kart ya da açık hesap olur. Açık hesap tedarikçinin carisine borç yazar. "Tedarikçiler" ekranında her tedarikçinin bakiyesi, ekstresi ve ödemeleri (nakit, banka, kart, çek) görünür; ekstre yazdırılır. Mal kabulde KDV hariç fatura fiyatı ve bedelsiz gelen mal girilebilir.
 
@@ -86,3 +86,25 @@
   - Mal kabulde "Alış fiyatları KDV hariç" seçeneği: yazılan alış fiyatı `withVat(price, vatRate)` ile dahile çevrilir (kuruşa yarım yukarı) ve öyle kaydedilir; satır tutarı dahil fiyatla hesaplanır.
   - Bedelsiz satır: "Bedelsiz" işaretli satır ₺0 maliyetle stoğa girer, ürünün alış fiyatını değiştirmez.
 - [ ] **Step 1–5:** `it('turns a VAT-exclusive price into the price paid')`, `it('takes free goods into stock at no cost')`. Commit — `git commit -m "feat(stock): VAT-exclusive invoice prices and free goods"`
+
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `3bc6ace`, `d0d4f7f`, `e091105`, `fdcdb5e` (4 görev), inceleme düzeltmeleri `ef4b784`. Son durumda 589 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): kritik yok, 7 önemli, 6 küçük bulgu. Önemlilerin hepsi düzeltildi. Küçüklerden biri önemliye yükseltilip düzeltildi; kalanlar ertelendi.
+  - **I1:** Arşivlenmiş ama başka kasadan açık hesap mal gelmiş tedarikçiye ödeme yapılamıyordu. Artık yapılıyor.
+  - **I2:** Tedarikçide fazla ödeme "Alacak" diye yazılıyordu, müşteridekinin tersi anlamında. Artık ekranda ve yazdırılan ekstrede "Fazla ödeme" yazıyor.
+  - **I3:** Alış fiyatına 0 yazmak ürünün bilinen alış fiyatını siliyordu. Artık 0 bedelsiz sayılıyor; mal kabul hiçbir zaman alış fiyatını 0 yapmıyor.
+  - **I4:** KDV hariç fiyatta satır tutarı kâğıt faturadan sapıyordu (birim fiyat önce yuvarlanıyordu). Artık KDV satır toplamına ekleniyor, fatura gibi.
+  - **I5:** Tedarikçi carisinde düzeltme ve açılış bakiyesi yoktu. Neden zorunlu bir "Düzeltme" eklendi (DESIGN §6.1'deki karşı kayıt; §6.3'teki tür listesini genişletir, onay bekler).
+  - **I6:** Mal kabul yalnız ilk 50 tedarikçiyi listeliyordu. Artık hepsini listeliyor.
+  - **I7:** Bazı kuralların ikiz korumaları test edilmiyordu; hepsi test edildi, bozma denemeleri kırmızı.
+  - **Küçük 3 (önemliye yükseltildi):** Bedelsiz satırın kapalı fiyat kutusunda hatalı metin kalırsa satır kaydedilemiyordu. Artık o kutu okunmuyor.
+- **Bozma denemeleri:** 29 deneme, hepsi kırmızı. İçlerinden biri önce hayatta kaldı (arşivlenen tedarikçinin seçimden düşmesi): test yalnız ekrandaki seçimi ölçüyordu, artık kaydı ölçüyor.
+- **Kararlar:**
+  - Tedarikçi varlık tablosudur, tedarikçi carisi olay tablosudur (Dexie v9).
+  - Açık hesap mal kabulü faturasını aynı transaction'da yazar; yalnız bedelsiz maldan oluşan açık hesap mal kabulü fatura yazmaz.
+  - Tedarikçi mal kabulden değil Tedarikçiler ekranından eklenir.
+  - "KDV hariç" yalnız bu mal kabulde yazılan alış fiyatlarına uygulanır.
+  - Aynı ad (Türkçe harf farkları dahil) ikinci kez eklenemez.
+- **Doğrulama:** Production build Chromium'da denendi. "Eti Gida" eklendi; Tereyağı açık hesapla alındı ve tedarikçi bakiyesi ₺90,00 oldu. Bankayla ödeme bakiyeyi ₺0,00 yaptı; ekstrede "Mal kabul" ve "Ödeme (banka)" göründü. 375 px'te pencere sığdı; beş öğeli menü iki satıra kayıyor.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M4 cilası, M5 ve M6 bölümlerinde.
