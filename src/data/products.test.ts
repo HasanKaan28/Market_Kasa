@@ -8,6 +8,7 @@ import {
   createProduct,
   deleteProduct,
   findProductByBarcode,
+  listProductsInCategory,
   listQuickProducts,
   restoreProduct,
   searchProducts,
@@ -57,6 +58,19 @@ describe('products', () => {
     expect(pen.barcode).toBe('BRK-0042');
     expect((await findProductByBarcode(db, ' brk-0042 '))?.id).toBe(pen.id);
     expect(await findProductByBarcode(db, 'brk 42')).toBeUndefined();
+  });
+
+  it("lists a category's live products by name", async () => {
+    const inBakery = { sellPrice: 2000, vatRate: 1, categoryId: 'c-bakery' } as const;
+    await createProduct(db, { ...inBakery, name: 'Poğaça' }, at);
+    await createProduct(db, { ...inBakery, name: 'Açma' }, at);
+    const gone = await createProduct(db, { ...inBakery, name: 'Eski' }, at);
+    await deleteProduct(db, gone.id, at);
+    await createProduct(db, { name: 'Süt', sellPrice: 4250, vatRate: 1, categoryId: 'c-milk' }, at);
+    expect((await listProductsInCategory(db, 'c-bakery')).map((p) => p.name)).toEqual([
+      'Açma',
+      'Poğaça',
+    ]);
   });
 
   it('finds a deleted product by its barcode only when asked', async () => {

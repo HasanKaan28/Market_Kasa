@@ -195,6 +195,17 @@ export async function searchProducts(
   return matches.sort((a, b) => a.name.localeCompare(b.name, 'tr')).slice(0, limit);
 }
 
+/** A category's live products, by name: the register's grid for that group. */
+export async function listProductsInCategory(
+  db: MarketDb,
+  categoryId: string,
+): Promise<ProductRecord[]> {
+  const inCategory = await db.products
+    .filter((product) => product.categoryId === categoryId && !product.deletedAt)
+    .toArray();
+  return inCategory.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+}
+
 /** Products marked for the quick grid, by name; deleted ones excluded. */
 export async function listQuickProducts(db: MarketDb): Promise<ProductRecord[]> {
   const quick = await db.products
