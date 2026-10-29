@@ -9,7 +9,7 @@ import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { formatDateTime, PAYMENT_LABELS } from './format';
 import { buildReceipt } from './receipt';
-import type { ReceiptSettings } from './receiptSettings';
+import { receiptContext, type ReceiptSettings } from './receiptSettings';
 import { whatsappLink, whatsappText } from './receiptText';
 import { ReceiptView } from './ReceiptView';
 
@@ -139,10 +139,7 @@ function ReceiptDetail({
   const canReturn = status !== undefined && !status.voided && !fullyReturned;
   const canVoid = status !== undefined && !status.voided && status.returned.size === 0;
   const model = buildReceipt(sale, {
-    marketName: device.marketName,
-    deviceName: device.deviceName,
-    header: settings.header,
-    footer: settings.footer,
+    ...receiptContext(device, settings),
     customerName: customer?.name,
     status: { voided: status?.voided ?? false, returnedAny: (status?.returned.size ?? 0) > 0 },
   });

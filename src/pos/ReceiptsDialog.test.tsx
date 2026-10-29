@@ -213,6 +213,25 @@ describe('ReceiptsDialog', () => {
     open.mockRestore();
   });
 
+  it('titles the receipt with the shop name', async () => {
+    const { data } = await renderWithData(
+      <ReceiptsDialog
+        open
+        settings={{ ...DEFAULT_RECEIPT_SETTINGS, shopName: 'Kurşunlu Market' }}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
+    );
+    await twoSales(data.db);
+    await userEvent.click(await screen.findByRole('button', { name: /K1-20261029-0001/ }));
+    const receipt = await screen.findByRole('article', { name: 'Fiş K1-20261029-0001' });
+    expect(receipt).toHaveTextContent('Kurşunlu Market');
+    expect(receipt).not.toHaveTextContent('Market Kasa');
+  });
+
   it('offers printing only when it is on', async () => {
     const onPrint = vi.fn();
     const { data } = await renderWithData(

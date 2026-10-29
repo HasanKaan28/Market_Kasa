@@ -1,8 +1,13 @@
+import type { DeviceSettings } from '@/app/device';
+import type { ReceiptContext } from './receipt';
+
 /** How this device prints receipts (DESIGN §12); kept on the device, not synced. */
 export type ReceiptSettings = {
   printing: boolean;
   autoPrint: boolean;
   paperWidth: 58 | 80;
+  /** The receipt's top line; empty means the market's own name. */
+  shopName: string;
   header: string;
   footer: string;
 };
@@ -12,6 +17,7 @@ export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
   printing: false,
   autoPrint: false,
   paperWidth: 80,
+  shopName: '',
   header: '',
   footer: '',
 };
@@ -41,6 +47,24 @@ export function saveReceiptSettings(
   }
 }
 
+/** What a receipt takes from this device's settings: its top line, register, header and footer. */
+export function receiptContext(
+  device: DeviceSettings,
+  settings: ReceiptSettings,
+): Pick<ReceiptContext, 'marketName' | 'deviceName' | 'header' | 'footer'> {
+  return {
+    marketName: settings.shopName || device.marketName,
+    deviceName: device.deviceName,
+    header: settings.header,
+    footer: settings.footer,
+  };
+}
+
+/** The first line only, trimmed and at most 48 characters: what fits the receipt's top line. */
+export function shortLine(text: string): string {
+  return shortText((text.split('\n')[0] ?? '').trim());
+}
+
 /** At most three lines of 48 characters: what fits a receipt header or footer. */
 export function shortText(text: string): string {
   return text
@@ -54,7 +78,10 @@ function readSettings(value: unknown): ReceiptSettings | null {
   if (typeof value !== 'object' || value === null) {
     return null;
   }
-  const { printing, autoPrint, paperWidth, header, footer } = value as Record<string, unknown>;
+  const { printing, autoPrint, paperWidth, shopName, header, footer } = value as Record<
+    string,
+    unknown
+  >;
   if (
     typeof printing !== 'boolean' ||
     typeof autoPrint !== 'boolean' ||
@@ -68,6 +95,8 @@ function readSettings(value: unknown): ReceiptSettings | null {
     printing,
     autoPrint: printing && autoPrint,
     paperWidth,
+    // Settings saved before the shop name existed have none.
+    shopName: typeof shopName === 'string' ? shortLine(shopName) : '',
     header: shortText(header),
     footer: shortText(footer),
   };

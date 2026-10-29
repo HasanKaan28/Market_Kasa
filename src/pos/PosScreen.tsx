@@ -24,7 +24,12 @@ import { ProductPanel } from './ProductPanel';
 import { buildReceipt } from './receipt';
 import { ReceiptsDialog } from './ReceiptsDialog';
 import { ReceiptSettingsDialog } from './ReceiptSettingsDialog';
-import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from './receiptSettings';
+import {
+  loadReceiptSettings,
+  receiptContext,
+  saveReceiptSettings,
+  type ReceiptSettings,
+} from './receiptSettings';
 import { ReturnDialog } from './ReturnDialog';
 import { SplitPaymentDialog } from './SplitPaymentDialog';
 import { VoidDialog } from './VoidDialog';
@@ -176,10 +181,7 @@ export function PosScreen(): JSX.Element {
       sale.customerId ? db.customers.get(sale.customerId) : undefined,
     ]);
     const model = buildReceipt(sale, {
-      marketName: settings.marketName,
-      deviceName: settings.deviceName,
-      header: receiptSettings.header,
-      footer: receiptSettings.footer,
+      ...receiptContext(settings, receiptSettings),
       customerName: customer?.name,
       status: { voided: status.voided, returnedAny: status.returned.size > 0 },
     });
@@ -349,6 +351,7 @@ export function PosScreen(): JSX.Element {
         <ReceiptSettingsDialog
           open
           settings={receiptSettings}
+          marketName={settings.marketName}
           onClose={() => setDialog({ kind: 'receipts' })}
           onSave={saveSettings}
         />

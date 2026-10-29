@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_DEVICE } from '@/app/device';
 import {
   DEFAULT_RECEIPT_SETTINGS,
   loadReceiptSettings,
+  receiptContext,
   saveReceiptSettings,
   type ReceiptSettings,
 } from './receiptSettings';
@@ -31,6 +33,7 @@ describe('receipt settings', () => {
       printing: true,
       autoPrint: true,
       paperWidth: 58,
+      shopName: 'Kurşunlu Market',
       header: 'Atatürk Cad. 5',
       footer: 'Teşekkürler',
     };
@@ -43,10 +46,38 @@ describe('receipt settings', () => {
       stored({
         ...DEFAULT_RECEIPT_SETTINGS,
         autoPrint: true,
+        shopName: ' Kurşunlu Market \nikinci satır',
         header: ['1', '2', '3', '4'].join('\n'),
         footer: 'x'.repeat(60),
       }),
     );
-    expect(loaded).toMatchObject({ autoPrint: false, header: '1\n2\n3', footer: 'x'.repeat(48) });
+    expect(loaded).toMatchObject({
+      autoPrint: false,
+      shopName: 'Kurşunlu Market',
+      header: '1\n2\n3',
+      footer: 'x'.repeat(48),
+    });
+  });
+
+  it('keeps settings saved before the shop name existed', () => {
+    const saved = {
+      printing: true,
+      autoPrint: true,
+      paperWidth: 58,
+      header: 'Atatürk Cad. 5',
+      footer: '',
+    };
+    expect(loadReceiptSettings(stored(saved))).toEqual({ ...saved, shopName: '' });
+  });
+
+  it('titles the receipt with the shop name, else the market name', () => {
+    const named = { ...DEFAULT_RECEIPT_SETTINGS, shopName: 'Kurşunlu Market', header: 'Adres' };
+    expect(receiptContext(DEFAULT_DEVICE, named)).toEqual({
+      marketName: 'Kurşunlu Market',
+      deviceName: 'Kasa 1',
+      header: 'Adres',
+      footer: '',
+    });
+    expect(receiptContext(DEFAULT_DEVICE, DEFAULT_RECEIPT_SETTINGS).marketName).toBe('Market Kasa');
   });
 });

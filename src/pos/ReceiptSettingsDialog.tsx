@@ -1,10 +1,12 @@
 import { useId, useState, type FormEvent, type JSX } from 'react';
-import { Button, Dialog } from '@/design';
-import { shortText, type ReceiptSettings } from './receiptSettings';
+import { Button, Dialog, TextField } from '@/design';
+import { shortLine, shortText, type ReceiptSettings } from './receiptSettings';
 
 export type ReceiptSettingsDialogProps = {
   open: boolean;
   settings: ReceiptSettings;
+  /** The market's own name: what the receipt's top line shows while no shop name is set. */
+  marketName: string;
   onClose(): void;
   onSave(settings: ReceiptSettings): void;
 };
@@ -14,6 +16,7 @@ const WIDTHS: readonly ReceiptSettings['paperWidth'][] = [58, 80];
 export function ReceiptSettingsDialog({
   open,
   settings,
+  marketName,
   onClose,
   onSave,
 }: ReceiptSettingsDialogProps): JSX.Element {
@@ -26,6 +29,7 @@ export function ReceiptSettingsDialog({
     onSave({
       ...draft,
       autoPrint: draft.printing && draft.autoPrint,
+      shopName: shortLine(draft.shopName),
       header: shortText(draft.header.trim()),
       footer: shortText(draft.footer.trim()),
     });
@@ -81,10 +85,17 @@ export function ReceiptSettingsDialog({
             ))}
           </div>
         </fieldset>
+        <TextField
+          label="Dükkân adı"
+          hint="Fişin en üstüne yazılır."
+          placeholder={marketName}
+          value={draft.shopName}
+          onChange={(event) => setDraft({ ...draft, shopName: event.target.value })}
+        />
         <TextArea
           id={headerId}
           label="Fiş başlığı"
-          hint="Adres, telefon; en fazla 3 satır."
+          hint="Adın altına yazılır: adres, telefon; en fazla 3 satır."
           value={draft.header}
           onChange={(header) => setDraft({ ...draft, header })}
         />
