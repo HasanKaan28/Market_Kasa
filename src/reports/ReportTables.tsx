@@ -72,6 +72,20 @@ export function ReportTables({ summary }: { summary: Summary }): JSX.Element {
           }))}
         />
       ) : null}
+      {summary.byStaff.some((row) => row.staffId !== undefined) ? (
+        <ReportTable
+          caption="Personel"
+          columns={[
+            { label: 'Kişi' },
+            { label: 'Satış', numeric: true },
+            { label: 'Tutar', numeric: true },
+          ]}
+          rows={summary.byStaff.map((row) => ({
+            key: row.staffId ?? '',
+            cells: [row.name, String(row.salesCount), formatAmount(row.total)],
+          }))}
+        />
+      ) : null}
     </div>
   );
 }

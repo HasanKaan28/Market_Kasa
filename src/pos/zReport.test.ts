@@ -36,6 +36,7 @@ const record: CashSessionRecord = {
     categories: [],
     bestSellers: [],
     byDevice: [{ deviceCode: 'K1', salesCount: 12, net: 50500 }],
+    byStaff: [],
   },
   businessDate: '2026-10-29',
 };

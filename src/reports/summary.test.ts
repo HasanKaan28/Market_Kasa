@@ -3,6 +3,7 @@ import { createCategory } from '@/data/categories';
 import { createCustomer } from '@/data/customers';
 import type { MarketDb } from '@/data/db';
 import { createProduct } from '@/data/products';
+import { createStaff } from '@/data/staff';
 import { recordReturn } from '@/data/returns';
 import { recordSale } from '@/data/sales';
 import type { Payment, ReturnRecord } from '@/data/types';
@@ -213,6 +214,36 @@ describe('buildSummary', () => {
     expect((await loadSummary(db, { from: date(29), to: date(29) })).byDevice).toEqual([
       { deviceCode: 'K1', salesCount: 0, net: -3000 },
       { deviceCode: 'K2', salesCount: 1, net: 6000 },
+    ]);
+  });
+
+  it('sums sales by who made them', async () => {
+    const { tea, sell } = await setup();
+    const ayse = await createStaff(db, { name: 'Kaan', role: 'owner', pin: '4821' }, day(1)).then(
+      () => createStaff(db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, day(1)),
+    );
+    const byAyse = (at: Date, pieces: number) =>
+      recordSale(db, {
+        deviceCode: 'K1',
+        at,
+        staffId: ayse.id,
+        lines: [{ productId: tea.id, qtyMilli: pieces * 1000 }],
+        payments: [{ method: 'cash', amount: pieces * 9000 }],
+      });
+    await byAyse(day(29, 1), 1);
+    await byAyse(day(29, 2), 2);
+    const voided = await byAyse(day(29, 3), 1);
+    await voidSale(db, { saleId: voided.id, reason: 'Yanlış', deviceCode: 'K1', at: day(29, 4) });
+    // A sale rung up before any staff were set up.
+    await sell(
+      day(29, 5),
+      [{ productId: tea.id, qtyMilli: 1000 }],
+      [{ method: 'cash', amount: 9000 }],
+    );
+    const summary = await loadSummary(db, { from: date(29), to: date(29) });
+    expect(summary.byStaff).toEqual([
+      { staffId: ayse.id, name: 'Ayşe', salesCount: 2, total: 27000 },
+      { name: 'Personelsiz', salesCount: 1, total: 9000 },
     ]);
   });
 

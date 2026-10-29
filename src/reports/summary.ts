@@ -55,6 +55,8 @@ export type Summary = {
     net: Kurus;
   }[];
   byDevice: { deviceCode: string; salesCount: number; net: Kurus }[];
+  /** The sales each person rang up and kept (not voided in the range), largest first. */
+  byStaff: { staffId?: string; name: string; salesCount: number; total: Kurus }[];
 };
 
 export type SummaryInput = {
@@ -66,10 +68,13 @@ export type SummaryInput = {
   salesById: ReadonlyMap<string, SaleRecord>;
   products: readonly ProductRecord[];
   categories: readonly CategoryRecord[];
+  /** Who works here, to name the people in the staff breakdown. */
+  staff?: readonly { id: string; name: string }[];
 };
 
 const BEST_SELLERS = 10;
 const UNCATEGORISED = 'Kategorisiz';
+const UNSTAFFED = 'Personelsiz';
 const byName = new Intl.Collator('tr');
 
 /**
@@ -84,8 +89,10 @@ export function buildSummary({
   salesById,
   products,
   categories,
+  staff = [],
 }: SummaryInput): Summary {
   const inRange = new Set(sales.map((sale) => sale.id));
+  const staffName = new Map(staff.map((person) => [person.id, person.name]));
   const voided = new Set(voids.map((saleVoid) => saleVoid.saleId));
   const byMethod: Record<PaymentMethod, Kurus> = { cash: 0, card: 0, credit: 0 };
   const vat = new Map<VatRate, { base: Kurus; vat: Kurus }>();
@@ -94,6 +101,7 @@ export function buildSummary({
     { name: string; unit?: ProductUnit; qtyMilli: number; net: Kurus }
   >();
   const devices = new Map<string, { salesCount: number; net: Kurus }>();
+  const sellers = new Map<string, { salesCount: number; total: Kurus }>();
   let gross = 0;
   let discounts = 0;
   let cost = 0;
@@ -142,6 +150,11 @@ export function buildSummary({
     const register = device(sale.deviceCode);
     register.salesCount += 1;
     register.net += sale.total;
+    const seller = sellers.get(sale.staffId ?? '') ?? { salesCount: 0, total: 0 };
+    sellers.set(sale.staffId ?? '', {
+      salesCount: seller.salesCount + 1,
+      total: seller.total + sale.total,
+    });
   }
 
   let voidTotal = 0;
@@ -239,6 +252,13 @@ export function buildSummary({
     byDevice: [...devices]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([deviceCode, totals]) => ({ deviceCode, ...totals })),
+    byStaff: [...sellers]
+      .map(([staffId, totals]) => ({
+        ...(staffId ? { staffId } : {}),
+        name: staffId ? (staffName.get(staffId) ?? 'Silinmiş personel') : UNSTAFFED,
+        ...totals,
+      }))
+      .sort((a, b) => b.total - a.total || byName.compare(a.name, b.name)),
   };
 }
 
@@ -287,12 +307,13 @@ export async function loadSummary(
   db: MarketDb,
   { from, to, deviceCode }: { from: string; to: string; deviceCode?: string },
 ): Promise<Summary> {
-  const [records, products, categories] = await Promise.all([
+  const [records, products, categories, staff] = await Promise.all([
     loadRange(db, { index: 'businessDate', from, to, ...(deviceCode ? { deviceCode } : {}) }),
     db.products.toArray(),
     db.categories.toArray(),
+    db.staff.toArray(),
   ]);
-  return buildSummary({ ...records, products, categories });
+  return buildSummary({ ...records, products, categories, staff });
 }
 
 /** Every register that has rung up a sale, in order: one index step per register, not per sale. */

@@ -167,15 +167,17 @@ export async function closeCashSession(
     db.returns,
     db.products,
     db.categories,
+    db.staff,
     db.outbox,
   ];
   return db.transaction('rw', tables, async () => {
     const { cash, records } = await countDrawer(db, deviceCode, at, cutoffMinutes);
-    const [products, categories] = await Promise.all([
+    const [products, categories, staff] = await Promise.all([
       db.products.toArray(),
       db.categories.toArray(),
+      db.staff.toArray(),
     ]);
-    const summary = withoutProductsSold(buildSummary({ ...records, products, categories }));
+    const summary = withoutProductsSold(buildSummary({ ...records, products, categories, staff }));
     const { session, expected } = cash;
     const record: CashSessionRecord = withoutUndefined({
       id: session?.id ?? newId(at.getTime()),

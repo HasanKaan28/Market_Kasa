@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/app/App';
 import { createProduct } from '@/data/products';
 import { recordSale } from '@/data/sales';
+import { createStaff } from '@/data/staff';
 import { businessDate } from '@/domain/businessDate';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { periodOf } from './period';
@@ -99,6 +100,33 @@ describe('ReportsScreen', () => {
     expect(await netSales('₺360,00')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Bitiş'), { target: { value: yesterday } });
     expect(await netSales('₺270,00')).toBeInTheDocument();
+  });
+
+  it('shows the staff table on the reports screen', async () => {
+    const { data, sell } = await salesData();
+    await createStaff(
+      data.db,
+      { name: 'Kaan', role: 'owner', pin: '4821' },
+      new Date(Date.now() - DAY_MS),
+    );
+    const ayse = await createStaff(
+      data.db,
+      { name: 'Ayşe', role: 'cashier', pin: '1234' },
+      new Date(Date.now() - DAY_MS),
+    );
+    await sell(new Date(), 1);
+    const tea = (await data.db.products.toArray())[0];
+    await recordSale(data.db, {
+      deviceCode: 'K1',
+      at: new Date(),
+      staffId: ayse.id,
+      lines: [{ productId: tea?.id ?? '', qtyMilli: 2000 }],
+      payments: [{ method: 'cash', amount: 18000 }],
+    });
+    await renderWithData(<ReportsScreen />, data);
+    const table = await screen.findByRole('table', { name: 'Personel' });
+    expect(within(table).getByText('Ayşe')).toBeInTheDocument();
+    expect(within(table).getByText('Personelsiz')).toBeInTheDocument();
   });
 
   it('exports the products sold as CSV', async () => {
