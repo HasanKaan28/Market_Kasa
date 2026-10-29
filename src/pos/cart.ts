@@ -134,7 +134,8 @@ function refreshLines(cart: Cart, products: readonly ProductRecord[]): Cart {
   return changed ? { ...cart, lines } : cart;
 }
 
-function isCart(value: unknown): value is Cart {
+/** A well-formed cart: a string id and valid lines (prices in range, positive quantities). */
+export function isCart(value: unknown): value is Cart {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
