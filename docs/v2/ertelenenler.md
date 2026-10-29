@@ -16,6 +16,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - `parseTRY` binlik gruplamayı denetlemiyor ("0.500" → ₺500,00). (M0)
 - "Alınan tutar" için üst sınır yok. (M2a)
 - Yalnız kartla ödemede `cashGiven` verilirse para üstü yazılıyor. (M1a)
+- WhatsApp bağlantısı sabit hatları da `wa.me/90212…` yapıyor ve WhatsApp hata veriyor; yalnız 5xx cep numaralarına numara verilmeli. (M4a)
 - ₺0'lık sepet: yalnız ₺0,00'lık ürünle satılamıyor; tamamen indirimli sepet ödeme yollarında tutarsız, bölünmüşte ödemesiz satış oluşuyor ve iadesi alınamıyor. (M2a, M2c)
 - Açık ödeme penceresinin toplamı sepet yenilenince sessizce değişiyor; müşteri seçiminde toplam görünmüyor ve borç tek dokunuşta yazılıyor. (M2a)
 - Sepet indirimi penceresi mevcut indirimi göstermiyor; boş alanla "Uygula" indirimi sessizce kaldırıyor. (M2c)
@@ -79,6 +80,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Test: iki kasanın aynı ürünü saymasını `applyServerRows` ya da sahte sunucu üzerinden denemek. (M3d)
 - Sunucu barkodu büyük harfe çevirmeli ve market içinde benzersiz tutmalı; silinmiş ürünün barkodu bırakması istemcideki kuralla aynı olmalı. (M3a)
 - Geri getirilen ürünün barkodu bu arada başka cihazda başka ürüne verilmişse kullanıcıya bir şey söylenmiyor. (M3a)
+- Saati geride bir kasanın iptali kendi satışının borcundan önce sıralanınca borç yaşı yanlış borçtan sayılıyor; gerçek sıra sunucu sıra numarasıyla gelir. (M4a)
 - İki kasanın alan bazında birleşmesi, kritik seviyesi kesirli bir adetli ürün üretebilir; form sonra kaydetmeyi reddeder. (M3b)
 - Fiyat değişiklikleri için iz kaydı (§2.3). (M3b)
 
@@ -94,14 +96,23 @@ M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün fo
 
 ## M4 · Cari hesaplar
 
-M4a (veresiye) planı yazıldı ve bu bölümün M4a maddelerini aldı: iptal ve iadeden sonra borç yaşı, `debtAgeDays`'in gün dönümü ve saat dilimi, `addLedgerEntry`'nin transaction'ı, arşivli ya da bilinmeyen veresiye müşterisi testleri. M4b'nin planı taslak olarak yazıldı ([2026-10-29-m4b-tedarikciler.md](plans/2026-10-29-m4b-tedarikciler.md)) ve aşağıdaki maddeleri alır:
+M4a veresiyeyi getirir: Müşteriler ekranı, tahsilat, düzeltme, ekstre ve WhatsApp hatırlatma. İncelemesinden kalan küçük maddeler (M4 cilası):
 
+- Liste yüklenmeden "0 müşteri" yazıyor. (M4a)
+- Reddedilen arşiv ya da tahsilat nedenini söylemiyor. (M4a)
+- Limiti aşan bakiye yalnız renk ve kalınlıkla belirtiliyor; testi yok. (M4a)
+- `customerSummaries` her cari satırında müşterinin listesini kopyalıyor (karesel). (M4a)
+- Küçükler: iki alan testi `describe('stockLevel')` altında; yazdırma CSS'i ve sınıf adı hâlâ "receipt" diyor; hatırlatma ve ekstre sıralama eşitlikleri ve `customerSummaries`'te gün dönümü test edilmiyor. (M4a)
+ M4b'nin planı taslak olarak yazıldı ([2026-10-29-m4b-tedarikciler.md](plans/2026-10-29-m4b-tedarikciler.md)) ve aşağıdaki maddeleri alır:
+
+- **M4b:** Görev 1–2 uygulandı (tedarikçi verisi, mal kabulün tedarikçiye ve açık hesaba bağlanması); Görev 3–4 (Tedarikçiler ekranı, KDV hariç fiyat ve bedelsiz mal) bekliyor.
 - **M4b:** Tedarikçiler, tedarikçi cari ve ödemeleri (nakit, banka, kart, çek), alış faturasının tedarikçiye bağlanması (DESIGN §6.2, §6.3, §10).
 - **M4b:** Bedelsiz gelen mal ve KDV hariç fatura fiyatı (tedarikçi faturası). (M3c)
 
 ## M6 · Yönetim
 
 - Fiş ayarlarını her kasiyer değiştirebiliyor (roller). (M2d)
+- Gün dönümü ayarı: ekranlar ayar geçirmiyor; borç yaşı kayıtlı `businessDate` yerine `occurredAt`'ten yeniden hesaplanıyor. Ayar gelince ikisi birlikte düzeltilmeli; ayar girildiği yerde 0–720 dakika denetlenmeli. (M4a)
 - Ürünleri ve kategorileri her kasiyer ekleyip silebiliyor (roller); yönetim ekranları için yan menü (§13). (M3a)
 - Mal kabulü ve stok düzeltmesini her kasiyer yapabiliyor (§8.5, roller). (M3c)
 - İçe aktarma, dışa aktarma ve toplu fiyatı her kasiyer yapabiliyor; §8.5'e göre dışa aktarma yalnız sahibe açık olmalı. (M3b)

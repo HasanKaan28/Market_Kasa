@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Durum:** Taslak. Kullanıcı yokken yazıldı, henüz uygulanmadı; gözden geçirilip onaylanınca uygulanır.
+> **Durum:** Kullanıcı yokken yazıldı. Görev 1–2 uygulandı (`3bc6ace`, `d0d4f7f`); Görev 3–4 ve son inceleme bekliyor. Gözden geçirilip onaylanınca tamamlanır.
 
 **Goal:** Market sahibi tedarikçilerini kaydeder (ad, telefon, vergi no, vergi dairesi). Mal kabul bir tedarikçiye ve fatura numarasına bağlanır; ödeme nakit, kart ya da açık hesap olur. Açık hesap tedarikçinin carisine borç yazar. "Tedarikçiler" ekranında her tedarikçinin bakiyesi, ekstresi ve ödemeleri (nakit, banka, kart, çek) görünür; ekstre yazdırılır. Mal kabulde KDV hariç fatura fiyatı ve bedelsiz gelen mal girilebilir.
 

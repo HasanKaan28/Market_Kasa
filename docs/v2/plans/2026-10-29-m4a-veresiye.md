@@ -145,3 +145,22 @@ Her kuralın bir bozma denemesi var: kuralı koruyan kod kaldırılınca testi k
 **Interfaces:**
 - **Produces:** Arşivli ya da bilinmeyen müşteriye veresiye satış reddedilir; mesaj kasada "Bu müşteri veresiye alamaz." olur. Gün dönümü ayarı veresiye borcuna da yazılır.
 - [ ] **Step 1–5:** `it('refuses credit to an archived customer')`, `it('refuses credit to an unknown customer')`, `it('dates a credit sale by the cutoff')`. Commit — `git commit -m "test(pos): credit sales check the customer and the cutoff"`
+
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `358c96f`…`3f4848a` (6 görev), inceleme düzeltmeleri `8ce5335`. Son durumda 568 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): kritik yok, 3 önemli, 11 küçük bulgu. Önemlilerin hepsi düzeltildi. Küçüklerden ikisi önemliye yükseltilip düzeltildi; kalanlar ertelendi.
+  - **I1:** Arşivlenmiş bir müşterinin bakiyesi sonradan değişirse (fişli iade, başka kasanın satışı) müşteri listeden kayboluyor ve tahsilat alınamıyordu. Artık "Arşivli" etiketiyle listede görünüyor ve ödeme yapabiliyor; yalnız bilinmeyen müşteri reddediliyor.
+  - **I2:** Bazı kuralların ikiz korumaları test edilmiyordu: düzeltmenin transaction'ı ve müşteri denetimi, satışa bağlı borç, iptalin artanı, eksik ürün mesajı, alacaklı müşterinin arşivi. Hepsine test eklendi; bozma denemeleri kırmızı.
+  - **I3:** Hatırlatma görünümü 375 px'te taşıyordu. Sütunlar daraltıldı, WhatsApp bağlantısı telefonda simge oldu.
+  - **Küçük 3 (önemliye yükseltildi):** Tahsilatta tutar kutusu odak almıyor, Enter kaydetmiyordu. Artık alıyor ve kaydediyor.
+  - **Küçük 5 (önemliye yükseltildi):** "Arşivle" tek dokunuşta arşivliyordu. Artık soruyor.
+- **Bozma denemeleri:** 14 deneme, hepsi kırmızı: tahsilat ve düzeltme transaction'ları, tutar denetimi, iptalin kendi satışını kapatması, artanın sonraki borca geçmesi, elle yazılan borcun sırası, arşiv denetimi ve onayı, arşivli müşterinin ödemesi ve listede görünmesi, fazla ödemenin alacak kalması, kasadaki müşteri mesajı.
+- **Kararlar:**
+  - Tahsilat ve düzeltme cari hareketidir; düzeltmenin nedeni zorunludur.
+  - Arşivleme bakiye sıfırken ve onayla yapılır; arşivliyken bakiyesi değişen müşteri listede kalır.
+  - Pencerede ekstre en yeniden eskiye, yazdırılan ekstre eskiden yeniye sıralanır; yazdırma fişle aynı `printView` üzerinden yapılır, PDF tarayıcıdan kaydedilir.
+  - Yazdırılan ekstre tarih aralığı göstermez; her satırın tarihi ve yazdırma tarihi vardır. Dönem seçimi M5 raporlarına kaldı.
+  - Gün dönümü veri katmanında uygulanıyor; ekranlara ayar M6'da gelir.
+- **Doğrulama:** Production build Chromium'da denendi. Ahmet Yılmaz'a ₺100 borç yazıldı, ₺30 kartla tahsilat alındı: bakiye ₺70, bildirim "Tahsilat alındı: ₺30,00." 375 px'te pencere sığdı; Hatırlatma görünümü yatay kaymadan sığdı. "Ekstreyi yazdır" tarayıcıda denenmedi (yazdırma penceresi), birim testi var.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M4 cilası, M2e, M0b ve M6 bölümlerinde.
