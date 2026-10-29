@@ -9,6 +9,7 @@ import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, SelectField, TextField } from '@/design';
 import { formatStock, UNIT_LABELS, VAT_OPTIONS } from '@/pos/format';
 import { useBarcodeScanner } from '@/pos/keyboard';
+import { suggestProductName } from './openFoodFacts';
 import {
   draftOf,
   editedFields,
@@ -31,6 +32,15 @@ export type ProductFormDialogProps = {
 };
 
 type Errors = DraftErrors & { form?: string };
+
+// Product barcodes (EAN-8 to GTIN-14) are worth looking up; a shop's own short codes are not.
+const LOOKUP_BARCODE = /^\d{8,14}$/;
+
+const LOOKUP_FAILURES = {
+  'not-found': 'Bu barkod için ad bulunamadı.',
+  offline: 'İnternet bağlantısı yok.',
+  timeout: 'Yanıt gecikti, sonra yeniden deneyin.',
+} as const;
 
 /** Adds or edits a product with every field the catalogue keeps; also deletes and restores. */
 export function ProductFormDialog({
@@ -157,6 +167,13 @@ export function ProductFormDialog({
           error={errors.name}
           onChange={(event) => set('name', event.target.value)}
         />
+        {LOOKUP_BARCODE.test(draft.barcode.trim()) ? (
+          <NameSuggestion
+            barcode={draft.barcode.trim()}
+            hasName={draft.name.trim() !== ''}
+            onUse={(name) => set('name', name)}
+          />
+        ) : null}
         <SelectField
           label="Kategori"
           value={categoryId}
@@ -269,5 +286,64 @@ export function ProductFormDialog({
         )
       ) : null}
     </Dialog>
+  );
+}
+
+type Lookup =
+  | { kind: 'idle' }
+  | { kind: 'asking' }
+  | { kind: 'offer'; name: string }
+  | { kind: 'failed'; message: string };
+
+/**
+ * Asks Open Food Facts for the barcode's product name, only when the button is pressed. An empty
+ * name box takes the answer at once; a typed name stays until the user picks "Kullan".
+ */
+function NameSuggestion({
+  barcode,
+  hasName,
+  onUse,
+}: {
+  barcode: string;
+  hasName: boolean;
+  onUse(name: string): void;
+}): JSX.Element {
+  const [lookup, setLookup] = useState<Lookup>({ kind: 'idle' });
+
+  async function ask() {
+    setLookup({ kind: 'asking' });
+    const result = await suggestProductName(barcode);
+    if ('error' in result) {
+      setLookup({ kind: 'failed', message: LOOKUP_FAILURES[result.error] });
+    } else if (hasName) {
+      setLookup({ kind: 'offer', name: result.name });
+    } else {
+      onUse(result.name);
+      setLookup({ kind: 'idle' });
+    }
+  }
+
+  return (
+    <div className="-mt-2 flex flex-col items-start gap-1">
+      <Button variant="ghost" disabled={lookup.kind === 'asking'} onClick={() => void ask()}>
+        İnternetten ad öner
+      </Button>
+      {lookup.kind === 'offer' ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p>{`Öneri: ${lookup.name}`}</p>
+          <Button
+            onClick={() => {
+              onUse(lookup.name);
+              setLookup({ kind: 'idle' });
+            }}
+          >
+            Kullan
+          </Button>
+        </div>
+      ) : null}
+      <p role="status" className="text-sm text-text-2">
+        {lookup.kind === 'failed' ? lookup.message : ''}
+      </p>
+    </div>
   );
 }

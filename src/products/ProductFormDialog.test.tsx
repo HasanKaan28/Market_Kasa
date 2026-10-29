@@ -103,6 +103,42 @@ describe('ProductFormDialog', () => {
     });
   });
 
+  it('asks only when told, with the barcode alone', async () => {
+    const lookup = vi.fn<(url: string, init?: RequestInit) => Promise<unknown>>(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 1,
+        product: { product_name_tr: 'Çikolatalı Gofret', brands: 'Ülker', quantity: '36 g' },
+      }),
+    }));
+    vi.stubGlobal('fetch', lookup);
+    try {
+      await renderWithData(
+        <ProductFormDialog open barcode="8690504000014" onClose={vi.fn()} onSaved={vi.fn()} />,
+      );
+      expect(lookup).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole('button', { name: 'İnternetten ad öner' }));
+      expect(await screen.findByDisplayValue('Ülker Çikolatalı Gofret 36 g')).toBeInTheDocument();
+      expect(lookup).toHaveBeenCalledTimes(1);
+      expect(lookup.mock.calls[0]?.[0]).toBe(
+        'https://world.openfoodfacts.org/api/v2/product/8690504000014.json?fields=product_name_tr,product_name,brands,quantity',
+      );
+      expect(lookup.mock.calls[0]?.[1]).toEqual({ signal: expect.any(AbortSignal) });
+
+      // With a name already typed, the suggestion waits to be used.
+      await userEvent.clear(screen.getByLabelText('Ürün adı'));
+      await userEvent.type(screen.getByLabelText('Ürün adı'), 'Gofret');
+      await userEvent.click(screen.getByRole('button', { name: 'İnternetten ad öner' }));
+      expect(await screen.findByText('Öneri: Ülker Çikolatalı Gofret 36 g')).toBeInTheDocument();
+      expect(screen.getByLabelText('Ürün adı')).toHaveValue('Gofret');
+      await userEvent.click(screen.getByRole('button', { name: 'Kullan' }));
+      expect(screen.getByLabelText('Ürün adı')).toHaveValue('Ülker Çikolatalı Gofret 36 g');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('refuses a barcode another product holds and names it', async () => {
     const data = createTestData();
     await createProduct(data.db, milk, at);
