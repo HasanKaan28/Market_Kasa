@@ -4,6 +4,7 @@ import type {
   PullResponse,
   PushRequest,
   PushResponse,
+  Rejection,
   ServerRow,
   SyncTable,
   SyncTransport,
@@ -14,13 +15,15 @@ type StoredRow = { row: Record<string, unknown>; serverSeq: number };
 /**
  * In-memory server with the same rules the real one must follow: operations are applied once
  * per opId, inserts once per record, patches field by field (null clears a field), and the
- * product with the smallest id keeps a contested barcode.
+ * product with the smallest id keeps a contested barcode. A refused operation is reported and
+ * its record is sent again.
  */
 export class FakeServer implements SyncTransport {
   private readonly tables = new Map<SyncTable, Map<string, StoredRow>>();
   private readonly appliedOps = new Set<string>();
   private lastSeq = 0;
   private nextFailure: Error | undefined;
+  private refusal: ((op: OutboxItem) => string | undefined) | undefined;
 
   async push(request: PushRequest): Promise<PushResponse> {
     const failure = this.nextFailure;
@@ -29,7 +32,16 @@ export class FakeServer implements SyncTransport {
       throw failure;
     }
     const acknowledged: number[] = [];
+    const rejected: Rejection[] = [];
     for (const op of request.ops) {
+      const reason = this.appliedOps.has(op.opId) ? undefined : this.refusal?.(op);
+      if (reason !== undefined) {
+        this.resend(op.table, op.recordId);
+        if (op.seq !== undefined) {
+          rejected.push({ seq: op.seq, reason });
+        }
+        continue;
+      }
       if (!this.appliedOps.has(op.opId)) {
         this.apply(op);
         this.appliedOps.add(op.opId);
@@ -38,7 +50,7 @@ export class FakeServer implements SyncTransport {
         acknowledged.push(op.seq);
       }
     }
-    return { acknowledged };
+    return rejected.length > 0 ? { acknowledged, rejected } : { acknowledged };
   }
 
   async pull({ since, limit }: PullRequest): Promise<PullResponse> {
@@ -63,6 +75,20 @@ export class FakeServer implements SyncTransport {
 
   failNextPush(error: Error = new Error('network down')): void {
     this.nextFailure = error;
+  }
+
+  /** Refuses every new operation the rule gives a reason for, as the real server will. */
+  refuse(rule: (op: OutboxItem) => string | undefined): void {
+    this.refusal = rule;
+  }
+
+  /** Gives a record a new sequence so every device pulls its current row again. */
+  private resend(table: SyncTable, id: string): void {
+    const rows = this.table(table);
+    const stored = rows.get(id);
+    if (stored) {
+      rows.set(id, { row: stored.row, serverSeq: this.bumpSeq() });
+    }
   }
 
   private apply(op: OutboxItem): void {

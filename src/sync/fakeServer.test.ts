@@ -61,6 +61,18 @@ describe('FakeServer', () => {
     expect(server.rows('products')).toEqual([{ id: 'p1', name: 'Süt', sellPrice: 5000 }]);
   });
 
+  it('refuses the ops its rule names and sends the record again', async () => {
+    const server = new FakeServer();
+    await server.push({ ops: [insert(1, 'products', { id: 'p1', name: 'Süt', sellPrice: 4250 })] });
+    server.refuse((op) => (op.kind === 'patch' ? 'Fiyat değiştirme yetkisi yok' : undefined));
+    expect(await server.push({ ops: [patch(2, 'p1', { sellPrice: 1 })] })).toEqual({
+      acknowledged: [],
+      rejected: [{ seq: 2, reason: 'Fiyat değiştirme yetkisi yok' }],
+    });
+    expect(server.rows('products')).toEqual([{ id: 'p1', name: 'Süt', sellPrice: 4250 }]);
+    expect((await server.pull({ since: 1, limit: 10 })).rows.map((r) => r.id)).toEqual(['p1']);
+  });
+
   it('pages changes in server order', async () => {
     const server = new FakeServer();
     await server.push({

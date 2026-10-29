@@ -4,8 +4,15 @@ export type SyncTable = OutboxTable;
 
 export type PushRequest = { ops: OutboxItem[] };
 
-/** The device-side `seq` of every operation the server processed, applied or already known. */
-export type PushResponse = { acknowledged: number[] };
+/** An operation the server refused, such as a price edit without permission. */
+export type Rejection = { seq: number; reason: string };
+
+/**
+ * `acknowledged`: the device-side `seq` of every operation the server applied or already knew.
+ * `rejected`: operations it refused. The device drops them, and the server sends the current
+ * row of each refused record again, so the device's local value reverts on its next pull.
+ */
+export type PushResponse = { acknowledged: number[]; rejected?: Rejection[] };
 
 /** A row's current server state; `serverSeq` grows with every change to any row. */
 export type ServerRow = {
