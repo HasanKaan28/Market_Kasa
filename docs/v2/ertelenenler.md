@@ -69,14 +69,21 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Yeniden basılan fiş, satışı yapan kasanın değil bu cihazın adını yazıyor. (M2d)
 - Eşitleme rozeti ilk turdan önce "0 işlem bekliyor" gösteriyor; çevrimdışıyken bekleyen işlem sayısını göstermiyor (§15). (M2a)
 - Test: satıştan önce gelen iptal ve iade; yakınsama testinde iptal ve iade. (M2b)
+- Sunucu barkodu büyük harfe çevirmeli ve market içinde benzersiz tutmalı; silinmiş ürünün barkodu bırakması istemcideki kuralla aynı olmalı. (M3a)
 
 ## M3 · Ürün ve stok
 
-- Tartılı satırlar birimini kaybedebiliyor (eski kayıt, `refresh`); sepet satırında, iade adımında ve fişte "kg" yok, çünkü satış satırı birim taşımıyor. (M2b, M2c, M2d)
-- Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor (sepet satırları birleştirdiği için şimdilik oluşmuyor). (M2b)
-- Silinmiş ürünün barkodu çıkmaz sokak: arama göstermiyor, hata tutanı söylemiyor (geri getirme). (M1a)
-- Barkodlar büyük/küçük harfe duyarlı. (M1a)
-- Test: güncellemede barkod çakışması. (M1a)
+M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3'ün kalan alt planları:
+
+- **M3b · İçe/dışa aktarma ve toplu fiyat:** sütun eşlemeli CSV/XLSX içe aktarma ve önizleme, düzgün CSV dışa aktarma, toplu fiyat güncelleme, barkoddan ad önerisi (Open Food Facts). (DESIGN §10)
+- **M3c · Mal kabul ve stok hareketleri:** Stok ekranı, mal kabul (alış ve satış fiyatını güncelleyerek), ürün bazında hareket geçmişi, elle stok düzeltme, kritik stok listesi. (DESIGN §10)
+- **M3d · Sayım:** sayım farkı hareket olarak yazılır (DESIGN §10); sayım sürerken başka cihazda yapılan satışlar hesaba katılır.
+
+Ertelenmiş maddeler:
+
+- **M3c:** Tartılı satırlar birimini kaybedebiliyor (eski kayıt, `refresh`); sepet satırında, iade adımında ve fişte "kg" yok, çünkü satış satırı birim taşımıyor. (M2b, M2c, M2d)
+- **M3c:** Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor (sepet satırları birleştirdiği için şimdilik oluşmuyor). (M2b)
+- **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15). M2a planı bunu M2b'ye bırakmıştı, M2b almadı. Kasada, Ürünler ekranında, mal kabulde ve sayımda kullanılacak. (M2a)
 
 ## M4 · Cari hesaplar
 
@@ -88,6 +95,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 ## M6 · Yönetim
 
 - Fiş ayarlarını her kasiyer değiştirebiliyor (roller). (M2d)
+- Ürünleri ve kategorileri her kasiyer ekleyip silebiliyor (roller); yönetim ekranları için yan menü (§13). (M3a)
 
 ## M7 · e-Arşiv
 
