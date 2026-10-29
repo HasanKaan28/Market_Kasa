@@ -39,3 +39,10 @@ export class SaleReturnedError extends Error {
     this.name = 'SaleReturnedError';
   }
 }
+
+export class ReturnExceedsSaleError extends Error {
+  constructor(receiptNo: string, productId: string) {
+    super(`Return exceeds what was sold on ${receiptNo} for product ${productId}`);
+    this.name = 'ReturnExceedsSaleError';
+  }
+}
