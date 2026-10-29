@@ -52,11 +52,12 @@ export function SplitPaymentDialog({
 
   const amounts = METHODS.map((method) => ({ method, amount: readAmount(parts[method]) }));
   const readable = amounts.every((part) => part.amount !== null);
-  const amountOf = (method: PaymentMethod) =>
-    amounts.find((part) => part.method === method)?.amount ?? 0;
+  // null: the field cannot be read (shown as an error); sums treat it as nothing yet.
+  const amountOf = (method: PaymentMethod): Kurus | null =>
+    amounts.find((part) => part.method === method)?.amount ?? null;
   const remaining = total - amounts.reduce((sum, part) => sum + (part.amount ?? 0), 0);
-  const cash = amountOf('cash');
-  const credit = amountOf('credit');
+  const cash = amountOf('cash') ?? 0;
+  const credit = amountOf('credit') ?? 0;
   const cashGiven = given.trim() === '' ? undefined : readAmount(given);
   const cashOk = cash === 0 || cashGiven === undefined || (cashGiven !== null && cashGiven >= cash);
   const needsCustomer = credit > 0 && customer === null;
@@ -107,10 +108,14 @@ export function SplitPaymentDialog({
             </Button>
           </div>
         ))}
-        <div className="flex items-baseline justify-between">
-          <span className="font-medium">Kalan</span>
-          <span data-testid="remaining" className="font-mono text-[22px] font-semibold">
-            {formatTRY(remaining)}
+        <div
+          data-testid="remaining"
+          aria-live="polite"
+          className={`flex items-baseline justify-between ${remaining < 0 ? 'text-danger' : ''}`}
+        >
+          <span className="font-medium">{remaining < 0 ? 'Fazla' : 'Kalan'}</span>
+          <span className="font-mono text-[22px] font-semibold">
+            {formatTRY(Math.abs(remaining))}
           </span>
         </div>
         {credit > 0 ? (
@@ -131,6 +136,13 @@ export function SplitPaymentDialog({
               inputMode="decimal"
               autoComplete="off"
               value={given}
+              error={
+                cashGiven === null
+                  ? 'Geçerli bir tutar girin.'
+                  : cashGiven !== undefined && cashGiven < cash
+                    ? 'Alınan nakit, nakit kısmından az.'
+                    : undefined
+              }
               onChange={(event) => setGiven(event.target.value)}
             />
             {cashGiven !== undefined && cashGiven !== null && cashGiven >= cash ? (

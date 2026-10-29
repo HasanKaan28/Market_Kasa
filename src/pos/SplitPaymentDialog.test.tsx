@@ -75,4 +75,19 @@ describe('SplitPaymentDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
     expect(onConfirm).toHaveBeenCalledWith({ payments: [{ method: 'card', amount: 4250 }] });
   });
+
+  it('says why it cannot complete', async () => {
+    await setup(4250);
+    const card = screen.getByLabelText('Kart');
+    await userEvent.type(card, '37,5o');
+    expect(screen.getByText('Geçerli bir tutar girin.')).toBeInTheDocument();
+    await userEvent.clear(card);
+    await userEvent.type(card, '50');
+    expect(screen.getByTestId('remaining')).toHaveTextContent(/Fazla.*₺7,50/);
+    await userEvent.clear(card);
+    await userEvent.type(screen.getByLabelText('Nakit'), '42,50');
+    await userEvent.type(screen.getByLabelText('Alınan nakit'), '40');
+    expect(screen.getByText('Alınan nakit, nakit kısmından az.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Satışı tamamla' })).toBeDisabled();
+  });
 });
