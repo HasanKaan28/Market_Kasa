@@ -1,0 +1,48 @@
+import type { JSX } from 'react';
+import { formatTRY } from '@/domain/money';
+import type { StatementModel } from './printStatement';
+import { formatBalance } from './statement';
+
+const dateFormat = new Intl.DateTimeFormat('tr-TR', {
+  dateStyle: 'short',
+  timeZone: 'Europe/Istanbul',
+});
+
+/** A customer's statement as printed on A4: market, customer, every entry, and the balance. */
+export function StatementView({ model }: { model: StatementModel }): JSX.Element {
+  const { customer, lines } = model;
+  const balance = lines.at(-1)?.balanceAfter ?? 0;
+  return (
+    <article className="flex flex-col gap-4 text-[12pt] text-black">
+      <header className="flex flex-col gap-1">
+        <p className="text-[14pt] font-semibold">{model.marketName}</p>
+        <h1 className="text-[16pt] font-semibold">Müşteri ekstresi</h1>
+        <p>{customer.phone ? `${customer.name} · ${customer.phone}` : customer.name}</p>
+        <p>{`Tarih: ${dateFormat.format(model.printedAt)}`}</p>
+      </header>
+      <table className="w-full border-collapse text-left">
+        <thead>
+          <tr className="border-b border-black">
+            <th className="py-1 pr-2">Tarih</th>
+            <th className="py-1 pr-2">Açıklama</th>
+            <th className="py-1 pr-2 text-right">Tutar</th>
+            <th className="py-1 text-right">Bakiye</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map(({ entry, description, balanceAfter }) => (
+            <tr key={entry.id} className="border-b border-gray-300">
+              <td className="py-1 pr-2">{dateFormat.format(new Date(entry.occurredAt))}</td>
+              <td className="py-1 pr-2">{description}</td>
+              <td className="py-1 pr-2 text-right">
+                {entry.amount < 0 ? `−${formatTRY(-entry.amount)}` : formatTRY(entry.amount)}
+              </td>
+              <td className="py-1 text-right">{formatBalance(balanceAfter)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-right font-semibold">{`Bakiye: ${formatBalance(balance)}`}</p>
+    </article>
+  );
+}

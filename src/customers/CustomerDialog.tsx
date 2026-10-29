@@ -6,8 +6,11 @@ import { Button, Dialog } from '@/design';
 import { businessDate } from '@/domain/businessDate';
 import { debtAgeDays } from '@/domain/ledger';
 import { formatTRY } from '@/domain/money';
+import { whatsappLink } from '@/pos/receiptText';
 import { CustomerFormDialog } from './CustomerFormDialog';
 import { AdjustmentForm, PaymentForm } from './PaymentForm';
+import { printStatement } from './printStatement';
+import { reminderText } from './reminder';
 import { customerStatement, formatBalance } from './statement';
 
 export type CustomerDialogProps = {
@@ -32,7 +35,7 @@ export function CustomerDialog({
   onClose,
   onDone,
 }: CustomerDialogProps): JSX.Element {
-  const { db } = useData();
+  const { db, settings } = useData();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
@@ -91,6 +94,38 @@ export function CustomerDialog({
             <Button onClick={() => setPanel('payment')}>Tahsilat al</Button>
             <Button onClick={() => setPanel('adjustment')}>Düzeltme</Button>
             <Button onClick={() => setPanel('edit')}>Düzenle</Button>
+            <Button
+              disabled={!customer}
+              onClick={() =>
+                customer &&
+                printStatement({
+                  marketName: settings.marketName,
+                  customer,
+                  lines,
+                  printedAt: new Date(),
+                })
+              }
+            >
+              Ekstreyi yazdır
+            </Button>
+            {customer && balance > 0 ? (
+              <a
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line bg-surface px-3.5 text-[15px] font-semibold text-text hover:border-line-strong"
+                href={whatsappLink(
+                  reminderText({
+                    marketName: settings.marketName,
+                    customerName: customer.name,
+                    balance,
+                    debtAgeDays: age,
+                  }),
+                  customer.phone,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                WhatsApp ile hatırlat
+              </a>
+            ) : null}
             <Button disabled={busy || balance !== 0} onClick={() => void archive()}>
               Arşivle
             </Button>

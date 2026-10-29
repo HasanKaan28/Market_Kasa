@@ -92,4 +92,28 @@ describe('CustomersScreen', () => {
     expect(await screen.findByRole('button', { name: 'Veli' })).toBeInTheDocument();
     expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Müşteri eklendi.');
   });
+
+  it('lists debtors oldest debt first with a WhatsApp link', async () => {
+    const data = createTestData();
+    const ahmet = await createCustomer(
+      data.db,
+      { name: 'Ahmet', phone: '05321112233' },
+      daysAgo(10),
+    );
+    const veli = await createCustomer(data.db, { name: 'Veli' }, daysAgo(10));
+    await createCustomer(data.db, { name: 'Ayşe' }, daysAgo(10));
+    await recordAdjustment(data.db, { customerId: ahmet.id, amount: 1000, note: 'x' }, daysAgo(2));
+    await recordAdjustment(data.db, { customerId: veli.id, amount: 2000, note: 'x' }, daysAgo(5));
+    await renderWithData(<CustomersScreen />, data);
+    await screen.findByRole('table', { name: 'Müşteriler' });
+    await userEvent.click(screen.getByRole('radio', { name: 'Hatırlatma' }));
+    const table = screen.getByRole('table', { name: 'Müşteriler' });
+    expect(rowsOf(table).map((row) => row[0])).toEqual(['Veli', 'Ahmet']);
+    const links = within(table).getAllByRole('link', { name: /WhatsApp/ });
+    expect(links.map((link) => link.getAttribute('href')?.split('?')[0])).toEqual([
+      'https://wa.me/',
+      'https://wa.me/905321112233',
+    ]);
+    expect(links[1]).toHaveAttribute('target', '_blank');
+  });
 });

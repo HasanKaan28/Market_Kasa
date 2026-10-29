@@ -138,4 +138,23 @@ describe('CustomerFormDialog', () => {
       creditLimit: 0,
     });
   });
+
+  it('prints the statement and links a reminder', async () => {
+    const { data, customer } = await owing(42500);
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    await renderWithData(
+      <CustomerDialog open customerId={customer.id} onClose={vi.fn()} onDone={vi.fn()} />,
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Ahmet' });
+    const reminder = await within(dialog).findByRole('link', { name: 'WhatsApp ile hatırlat' });
+    expect(reminder.getAttribute('href')).toMatch(
+      /^https:\/\/wa\.me\/905321112233\?text=Merhaba%20Ahmet/,
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ekstreyi yazdır' }));
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('print-root')).toHaveTextContent('Müşteri ekstresi');
+    window.dispatchEvent(new Event('afterprint'));
+    print.mockRestore();
+  });
 });

@@ -65,7 +65,12 @@ describe('customerStatement', () => {
       });
     const first = await credit(day(2));
     const second = await credit(day(3));
-    await voidSale(db, { saleId: second.id, reason: 'Yanlış müşteri', deviceCode: 'K1', at: day(4) });
+    await voidSale(db, {
+      saleId: second.id,
+      reason: 'Yanlış müşteri',
+      deviceCode: 'K1',
+      at: day(4),
+    });
     await recordReturn(db, {
       saleId: first.id,
       lines: [{ productId: tea.id, qtyMilli: 1000 }],

@@ -56,7 +56,9 @@ export async function customerStatement(
   entries.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id));
   const saleIds = [...new Set(entries.flatMap((entry) => (entry.saleId ? [entry.saleId] : [])))];
   const sales = await db.sales.bulkGet(saleIds);
-  const receipts = new Map(sales.flatMap((sale) => (sale ? [[sale.id, sale.receiptNo] as const] : [])));
+  const receipts = new Map(
+    sales.flatMap((sale) => (sale ? [[sale.id, sale.receiptNo] as const] : [])),
+  );
   let running = 0;
   return entries.map((entry) => {
     running += entry.amount;

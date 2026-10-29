@@ -7,15 +7,18 @@ import { normalizeForSearch } from '@/data/text';
 import { Button, ChoiceGroup, TextField, ToastRegion, useToast } from '@/design';
 import { businessDate } from '@/domain/businessDate';
 import { formatTRY } from '@/domain/money';
+import { whatsappLink } from '@/pos/receiptText';
 import { CustomerDialog } from './CustomerDialog';
 import { CustomerFormDialog } from './CustomerFormDialog';
+import { reminderText } from './reminder';
 import { customerSummaries, formatBalance, type CustomerSummary } from './statement';
 
-type CustomerView = 'all' | 'debtors';
+type CustomerView = 'all' | 'debtors' | 'reminders';
 
 const VIEWS: readonly { value: CustomerView; label: string }[] = [
   { value: 'all', label: 'Tümü' },
   { value: 'debtors', label: 'Borçlu' },
+  { value: 'reminders', label: 'Hatırlatma' },
 ];
 
 /** The credit customers: what each owes, since when, and against which limit. */
@@ -37,6 +40,10 @@ export function CustomersScreen(): JSX.Element {
   const rows = (summaries ?? []).filter(
     (row) => (view === 'all' || row.balance > 0) && matches(row, query),
   );
+  // Who to remind first: the oldest debt, then the largest.
+  if (view === 'reminders') {
+    rows.sort((a, b) => b.debtAgeDays - a.debtAgeDays || b.balance - a.balance);
+  }
 
   return (
     <>
@@ -104,6 +111,11 @@ export function CustomersScreen(): JSX.Element {
                 <th scope="col" className="hidden w-28 py-2 text-right font-medium md:table-cell">
                   Limit
                 </th>
+                {view === 'reminders' ? (
+                  <th scope="col" className="w-44 py-2 pl-3 font-medium">
+                    <span className="sr-only">Hatırlat</span>
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -134,6 +146,27 @@ export function CustomersScreen(): JSX.Element {
                     <td className="hidden py-3 text-right text-text-2 md:table-cell">
                       {customer.creditLimit > 0 ? formatTRY(customer.creditLimit) : '—'}
                     </td>
+                    {view === 'reminders' ? (
+                      <td className="py-1.5 pl-3">
+                        <a
+                          aria-label={`WhatsApp ile hatırlat: ${customer.name}`}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line bg-surface px-3.5 text-[15px] font-semibold text-text hover:border-line-strong"
+                          href={whatsappLink(
+                            reminderText({
+                              marketName: settings.marketName,
+                              customerName: customer.name,
+                              balance,
+                              debtAgeDays,
+                            }),
+                            customer.phone,
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          WhatsApp
+                        </a>
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
