@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { formatPriceInput, formatStock, parseQuantity } from './format';
+import { formatLineQty, formatPriceInput, formatStock, parseQuantity } from './format';
 
 describe('formatPriceInput', () => {
   it('writes a price for an input field, without grouping', () => {
     expect(formatPriceInput(4250)).toBe('42,50');
     expect(formatPriceInput(100_000_000)).toBe('1000000,00');
+  });
+});
+
+describe('formatLineQty', () => {
+  it('writes kilograms with their unit and pieces as a plain count', () => {
+    expect(formatLineQty(1250, 'kg')).toBe('1,25 kg');
+    expect(formatLineQty(2000, 'piece')).toBe('2');
+    expect(formatLineQty(2000)).toBe('2');
   });
 });
 

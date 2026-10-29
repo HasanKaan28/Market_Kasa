@@ -230,6 +230,7 @@ function buildSale(
       productId: product.id,
       name: product.name,
       barcode: product.barcode,
+      unit: product.unit,
       qtyMilli: line?.qtyMilli ?? 0,
       unitPrice: product.sellPrice,
       vatRate: product.vatRate,

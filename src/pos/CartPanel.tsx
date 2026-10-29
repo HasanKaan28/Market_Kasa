@@ -11,6 +11,7 @@ import {
   type CartAction,
   type CartLine,
 } from './cart';
+import { formatLineQty } from './format';
 
 export type CartPanelProps = {
   cart: Cart;
@@ -127,7 +128,7 @@ function CartRow({
   dispatch(action: CartAction): void;
   onEdit(productId: string): void;
 }): JSX.Element {
-  const quantity = (line.qtyMilli / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 3 });
+  const quantity = formatLineQty(line.qtyMilli, line.unit);
   return (
     <li className="flex items-center gap-2 py-2 pr-4 pl-4">
       <div className="min-w-0 flex-1">

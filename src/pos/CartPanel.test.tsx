@@ -74,6 +74,22 @@ describe('CartPanel', () => {
     expect(onPay).toHaveBeenCalledWith('card');
   });
 
+  it('shows a weighed line in kilograms', () => {
+    const cheese = { ...p('k', 'Kaşar', 8000), unit: 'kg' as const };
+    const added = cartReducer(emptyCart('c'), { type: 'add', product: cheese });
+    const cart = cartReducer(added, { type: 'setQuantity', productId: 'k', qtyMilli: 1250 });
+    render(
+      <CartPanel
+        cart={cart}
+        dispatch={vi.fn()}
+        onPay={vi.fn()}
+        onEditLine={vi.fn()}
+        onDiscount={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('1,25 kg × ₺80,00')).toBeInTheDocument();
+  });
+
   it('disables payment for an empty cart', () => {
     render(
       <CartPanel

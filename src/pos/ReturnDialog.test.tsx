@@ -22,6 +22,28 @@ async function sold(db: MarketDb, name: string, sellPrice: number, units: number
 }
 
 describe('ReturnDialog', () => {
+  it('shows a weighed line in kilograms', async () => {
+    const data = createTestData();
+    const cheese = await createProduct(
+      data.db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 8000, vatRate: 1 },
+      at,
+    );
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at,
+      lines: [{ productId: cheese.id, qtyMilli: 1250 }],
+      payments: [{ method: 'cash', amount: 10000 }],
+    });
+    await renderWithData(
+      <ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />,
+      data,
+    );
+    expect(
+      await screen.findByText('Satılan 1,25 kg · İade edilebilir 1,25 kg'),
+    ).toBeInTheDocument();
+  });
+
   it('returns the chosen quantity and shows the refund', async () => {
     const data = createTestData();
     const { sale } = await sold(data.db, 'Ayran', 2250, 3);

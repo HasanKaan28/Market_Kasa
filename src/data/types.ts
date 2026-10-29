@@ -49,6 +49,8 @@ export type SaleLine = {
   productId: string;
   name: string;
   barcode?: string;
+  /** Absent on sales recorded before lines kept their unit; those count as pieces. */
+  unit?: ProductUnit;
   qtyMilli: number;
   unitPrice: Kurus;
   vatRate: VatRate;

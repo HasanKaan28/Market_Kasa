@@ -22,6 +22,40 @@ afterEach(async () => {
 });
 
 describe('buildReceipt', () => {
+  it('shows kilograms on a weighed receipt line', async () => {
+    const cheese = await createProduct(
+      db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 8000, vatRate: 1 },
+      at,
+    );
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at,
+      lines: [{ productId: cheese.id, qtyMilli: 1250 }],
+      payments: [{ method: 'cash', amount: 10000 }],
+    });
+    expect(buildReceipt(sale, context).lines[0]?.detail).toBe('1,25 kg × ₺80,00');
+  });
+
+  it('reads a sale line without a unit as pieces', async () => {
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at,
+      lines: [{ productId: ekmek, qtyMilli: 2000 }],
+      payments: [{ method: 'cash', amount: 3000 }],
+    });
+    // Sales recorded before lines carried a unit have none.
+    const old = {
+      ...sale,
+      lines: sale.lines.map((line) => {
+        const copy = { ...line };
+        delete copy.unit;
+        return copy;
+      }),
+    };
+    expect(buildReceipt(old, context).lines[0]?.detail).toBe('2 × ₺15,00');
+  });
+
   it('lists lines and totals that add up', async () => {
     const sale = await recordSale(db, {
       deviceCode: 'K1',

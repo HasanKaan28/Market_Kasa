@@ -62,6 +62,11 @@ export function formatQty(qtyMilli: number): string {
 
 export const UNIT_LABELS: Record<ProductUnit, string> = { piece: 'adet', kg: 'kg' };
 
+/** A line's quantity: "1,25 kg" when weighed, a plain count ("2") otherwise or when unknown. */
+export function formatLineQty(qtyMilli: number, unit?: ProductUnit): string {
+  return unit === 'kg' ? `${formatQty(qtyMilli)} kg` : formatQty(qtyMilli);
+}
+
 /** Stock with its unit: "12 adet", "1,25 kg"; a shortfall gets a real minus sign, "−3 adet". */
 export function formatStock(qtyMilli: number, unit: ProductUnit): string {
   const sign = qtyMilli < 0 ? '−' : '';

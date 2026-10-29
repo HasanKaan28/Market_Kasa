@@ -8,7 +8,7 @@ import type { Payment, PaymentMethod, ReturnRecord, SaleRecord } from '@/data/ty
 import { Button, Dialog } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { refundShare } from '@/domain/returns';
-import { formatQty } from './format';
+import { formatLineQty } from './format';
 
 export type ReturnDialogProps = {
   open: boolean;
@@ -113,7 +113,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{line.name}</p>
                 <p className="text-sm text-text-2">
-                  {`Satılan ${formatQty(line.qtyMilli)} · İade edilebilir ${formatQty(left)}`}
+                  {`Satılan ${formatLineQty(line.qtyMilli, line.unit)} · İade edilebilir ${formatLineQty(left, line.unit)}`}
                 </p>
               </div>
               <Button
@@ -124,7 +124,9 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
                 icon={<Minus aria-hidden="true" size={18} />}
                 onClick={() => step(line.productId, line.qtyMilli, -ONE)}
               />
-              <span className="w-10 text-center font-mono">{formatQty(qty)}</span>
+              <span className="min-w-10 text-center font-mono">
+                {formatLineQty(qty, line.unit)}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"

@@ -54,6 +54,25 @@ describe('recordSale', () => {
     expect(await findSaleByReceiptNo(db, 'K1-20261028-0001')).toMatchObject({ id: sale.id });
   });
 
+  it("writes each line's unit into the sale", async () => {
+    const cheese = await createProduct(
+      db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 32000, vatRate: 1 },
+      setupAt,
+    );
+    const bread = await createProduct(db, { name: 'Ekmek', sellPrice: 1500, vatRate: 1 }, setupAt);
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at: setupAt,
+      lines: [
+        { productId: cheese.id, qtyMilli: 1250 },
+        { productId: bread.id, qtyMilli: 2000 },
+      ],
+      payments: [{ method: 'cash', amount: 43000 }],
+    });
+    expect(sale.lines.map((line) => line.unit)).toEqual(['kg', 'piece']);
+  });
+
   it('queues every sale record as an insert', async () => {
     const before = await pendingCount(db);
     await recordSale(db, cashSale('2026-10-28T09:00:00Z'));

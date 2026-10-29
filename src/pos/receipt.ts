@@ -1,7 +1,7 @@
 import type { SaleRecord } from '@/data/types';
 import { formatTRY, type Kurus } from '@/domain/money';
 import { lineTotal } from '@/domain/pricing';
-import { formatQty, PAYMENT_LABELS } from './format';
+import { formatLineQty, PAYMENT_LABELS } from './format';
 
 export type ReceiptRow = { label: string; amount: string };
 
@@ -52,7 +52,7 @@ export function buildReceipt(sale: SaleRecord, context: ReceiptContext): Receipt
   );
   const lines: ReceiptLine[] = sale.lines.map((line, index) => ({
     name: line.name,
-    detail: `${formatQty(line.qtyMilli)} × ${formatTRY(line.unitPrice)}`,
+    detail: `${formatLineQty(line.qtyMilli, line.unit)} × ${formatTRY(line.unitPrice)}`,
     ...(line.lineDiscount > 0 ? { discount: `İndirim −${formatTRY(line.lineDiscount)}` } : {}),
     amount: formatTRY(amounts[index] ?? 0),
   }));
