@@ -904,3 +904,32 @@ describe('PosScreen', () => {
 - [ ] **Step 4: Bütün kontroller** — Run: `npm run lint && npm run typecheck && npm test && npm run build` · Expected: PASS.
 - [ ] **Step 5: Gözle kontrol** — production build'i `kasa-preview` ile aç; 1366 × 768 ve 375 × 812'de: barkodsuz hızlı ürün ekle (Yeni ürün), adla ara ve ekle, F2 ile nakit sat (para üstü), Kart ile sat, Veresiye ile yeni müşteriye sat, sayfayı yenileyip sepetin kaldığını gör. Düzen taslağın 1. panosuyla tutarlı, yatay kaydırma yok, dokunma hedefleri ≥ 44 px.
 - [ ] **Step 6: Commit** — `git add src` · `git commit -m "feat(pos): wire the first working register into the app"`
+
+## Uygulama notları (2026-10-29)
+
+Commit'ler `a4bd185`…`78bcbf8`. Son inceleme: 1 kritik, 4 önemli (düzeltildi), 10 küçük bulgu ertelendi. CI'da bir test kararsız çıktı; nedeni gerçek bir zamanlama hatasıydı, düzeltildi.
+
+**Verilen kararlar:**
+- TextField'in `ref`'i ve AppShell'in isteğe bağlı `staffName`'i çalışma anında zaten çalışıyordu; başarısız kontrol tip denetimiydi.
+- Button'a 44 px kare `icon` boyutu eklendi.
+- Plandaki nakit satış testi, her zaman var olan bildirim bölgesini bulunca hemen geçiyordu; artık bildirim metnini bekliyor.
+- Eşitleme koşucusu hiçbir hatada reddetmiyor, hatayı durum olarak bildiriyor.
+- F tuşu ve okuyucu işleyicileri ekran güncellenirken (layout effect) yenileniyor; CI'daki kararsız testin nedeni buydu.
+- Okuyucu: Shift gibi değiştirici tuşlar yok sayılıyor; iki ya da daha çok hızlı tuştan sonra gelen Enter, kod çıkmasa da yutuluyor; kart onay butonu odak almıyor (F4 sonra Enter artık satmıyor).
+- Sepet kimliği daha önce başka satırlarla satılmışsa satış reddediliyor ve sepet yeni kimlik alıyor. Karşılaştırma fiyatlara değil satırlara (ürün, miktar) bakıyor. Başka sekmenin kaydettiği sepet bu sekmedekinin yerine geçiyor.
+- Yeni veresiye müşterisi bir kez oluşturuluyor; çift tıklama ya da tekrar deneme aynısını kullanıyor.
+- Birim fiyat üst sınırı ₺1.000.000,00 (ürün deposu ve yeni ürün penceresi). Toplanamayan kayıtlı sepet atılıyor. Hata sınırı boş ekran yerine "Sepeti temizle ve yeniden başlat" sunuyor.
+- Sepete girdikten sonra silinen ürün satılabiliyor (DESIGN §7); yalnız hiç olmayan ürün reddediliyor. M1a kuralı bu yönde değişti.
+- Kapsam dışı bırakılanlar: okuyucu ayarı (klavye düzeni, önek, Tab sonu), 50 ms eşiği (§15), büyük/küçük harfe duyarlı barkod (M1a), IndexedDB erişilemezliği, eşitleme yeniden deneme (M0b), ölü menü bağlantıları (M3+), limit aşım onayı (M6).
+
+**Ertelenen küçük bulgular:**
+- Okuyucu zamanı işleyicide `performance.now()` ile ölçülüyor; 50 ms'yi aşan bir donma taramayı bölebilir. "Alınan tutar" için üst sınır yok.
+- Yalnız ₺0,00'lık ürün içeren sepet satılamıyor.
+- Satıştan sonra odak sayfada kalıyor; arama alanına dönmeli.
+- İmleç metnin ortasındayken okutulan kod alanda kalıyor.
+- Eşitleme rozeti ilk turdan önce "0 işlem bekliyor" gösteriyor; çevrimdışıyken bekleyen işlem sayısını göstermiyor (§15).
+- Açık ödeme penceresinin toplamı sepet yenilenince sessizce değişiyor; müşteri seçiminde toplam görünmüyor ve borç tek dokunuşta yazılıyor.
+- Hata bildirimleri 4 saniyede kayboluyor; aynı mesaj ikinci kez gösterilmiyor.
+- IndexedDB hataları (okutma, arama Enter'ı, "Ekle") mesaj göstermiyor.
+- "5lt", "cola1L" gibi aramalar barkod sanılıyor ve Enter yeni ürün penceresini açıyor.
+- "Sepeti temizle" geri alınamıyor; satırların Azalt/Artır etiketleri aynı; F1 için ekranda ipucu yok; pencere açıkken F1 Chrome yardımını açıyor.
