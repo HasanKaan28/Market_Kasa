@@ -5,6 +5,8 @@ import { createProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
 import { makeTestDb } from '@/test/db';
 import { applyServerRows } from './apply';
+import { parkedRows } from './issues';
+import type { ServerRow, SyncTable } from './protocol';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -86,5 +88,29 @@ describe('applyServerRows', () => {
     ]);
     expect((await db.products.get('p-1'))?.barcode).toBe('X');
     expect((await db.products.get('p-2'))?.barcode).toBeUndefined();
+  });
+
+  it('stores two sales that share a receipt number', async () => {
+    const sale = (id: string, serverSeq: number): ServerRow => ({
+      table: 'sales',
+      id,
+      serverSeq,
+      row: { id, receiptNo: 'K1-20261029-0001', deviceCode: 'K1', businessDate: '2026-10-29' },
+    });
+    await applyServerRows(db, [sale('s1', 1), sale('s2', 2)]);
+    expect(await db.sales.count()).toBe(2);
+  });
+
+  it('sets aside rows it cannot apply and applies the rest', async () => {
+    const rows: ServerRow[] = [
+      { table: 'categories' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
+      { table: 'stockMovements', id: 'm2', serverSeq: 2, row: { ...movement, id: 'm2', delta: '-1.000' } },
+      { table: 'ledger', id: 'l1', serverSeq: 3, row: { customerId: 'c1', kind: 'debt', amount: 100 } },
+      { table: 'stockMovements', id: 'm1', serverSeq: 4, row: movement },
+    ];
+    await applyServerRows(db, rows);
+    expect(await stockOf(db, 'p1')).toBe(-2000);
+    expect(await db.stockMovements.count()).toBe(1);
+    expect((await parkedRows(db)).map((parked) => parked.row.serverSeq)).toEqual([1, 2, 3]);
   });
 });

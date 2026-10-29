@@ -39,6 +39,12 @@ export class MarketDb extends Dexie {
       meta: 'key',
       products: 'id, &barcode, name, updatedAt',
     });
+    // v3: receipt numbers are no longer unique here. Two registers set to the same device
+    // code both number their sales from 0001, and the server keeps both; refusing the second
+    // would stop every later pull. Unique device codes are the server's job (M6).
+    this.version(3).stores({
+      sales: 'id, receiptNo, [deviceCode+businessDate+seq], occurredAt, customerId',
+    });
   }
 }
 

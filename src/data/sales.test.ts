@@ -142,17 +142,13 @@ describe('recordSale', () => {
   });
 
   it('rolls back every write when the sale itself cannot be stored', async () => {
-    // A corrupted record already holds the receipt number this sale will get.
-    const earlier = await recordSale(db, cashSale('2026-10-27T09:00:00Z'));
-    await db.sales.add({
-      ...earlier,
-      id: 'bogus',
-      receiptNo: 'K1-20261028-0001',
-      businessDate: '2026-10-27',
-      seq: 2,
-    });
+    await recordSale(db, cashSale('2026-10-27T09:00:00Z'));
     const before = await pendingCount(db);
-    await expect(recordSale(db, cashSale('2026-10-28T09:00:00Z'))).rejects.toThrow();
+    // The sale is the transaction's last write; make storing it fail.
+    db.sales.hook('creating', () => {
+      throw new Error('disk full');
+    });
+    await expect(recordSale(db, cashSale('2026-10-28T09:00:00Z'))).rejects.toThrow('disk full');
     expect(await pendingCount(db)).toBe(before);
     expect(await stockOf(db, ids.ekmek)).toBe(-2000);
   });

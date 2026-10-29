@@ -1,12 +1,16 @@
 import type { MarketDb } from '@/data/db';
+import { parkRows, type ParkedRow } from './issues';
 import type { ServerRow, SyncTable } from './protocol';
 
 const EVENT_TABLES: ReadonlySet<SyncTable> = new Set(['sales', 'stockMovements', 'ledger']);
+const ENTITY_TABLES: ReadonlySet<SyncTable> = new Set(['products', 'customers']);
 
 /**
  * Applies pulled rows in order, safely more than once. Events are inserted only if missing.
  * For products and customers the server row wins, then this device's not-yet-acknowledged
  * operations on the same record are replayed on top so a pending local edit is not lost.
+ * A row that cannot be applied (a table this build does not know, a malformed row) is parked
+ * and the rest still apply, so one bad row never stops the pull.
  */
 export async function applyServerRows(db: MarketDb, rows: readonly ServerRow[]): Promise<void> {
   if (rows.length === 0) {
@@ -20,15 +24,24 @@ export async function applyServerRows(db: MarketDb, rows: readonly ServerRow[]):
     db.products,
     db.customers,
     db.outbox,
+    db.meta,
   ];
   await db.transaction('rw', tables, async () => {
+    const parked: ParkedRow[] = [];
     for (const row of rows) {
-      if (EVENT_TABLES.has(row.table)) {
-        await applyEvent(db, row);
-      } else {
-        await applyEntity(db, row);
+      try {
+        if (EVENT_TABLES.has(row.table)) {
+          await applyEvent(db, row);
+        } else if (ENTITY_TABLES.has(row.table)) {
+          await applyEntity(db, row);
+        } else {
+          throw new RangeError(`Unknown table: ${row.table}`);
+        }
+      } catch (error) {
+        parked.push({ row, error: error instanceof Error ? error.message : String(error) });
       }
     }
+    await parkRows(db, parked);
   });
 }
 
@@ -37,11 +50,21 @@ async function applyEvent(db: MarketDb, { table, id, row }: ServerRow): Promise<
   if (await target.get(id)) {
     return;
   }
+  // Checked before the first write: a movement must never land without its stock update.
+  if (table === 'stockMovements') {
+    assertMovement(row);
+  }
   await target.add(row);
   if (table === 'stockMovements') {
     const productId = String(row.productId);
     const current = (await db.stockLevels.get(productId))?.qtyMilli ?? 0;
     await db.stockLevels.put({ productId, qtyMilli: current + Number(row.delta) });
+  }
+}
+
+function assertMovement(row: Record<string, unknown>): void {
+  if (typeof row.productId !== 'string' || !Number.isSafeInteger(row.delta)) {
+    throw new RangeError(`Malformed stock movement: ${JSON.stringify(row)}`);
   }
 }
 
