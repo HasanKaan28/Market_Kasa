@@ -92,4 +92,17 @@ describe('stockLevel', () => {
     expect(debtAgeDays(late, '2026-10-29')).toBe(0);
     expect(debtAgeDays(late, '2026-10-29', { cutoffMinutes: 240 })).toBe(1);
   });
+
+  it('ages a debt by its business day', () => {
+    // Written with the day turning at 04:00, so kept as the 28th whatever the cutoff is now.
+    const kept: LedgerEntry[] = [
+      {
+        kind: 'debt',
+        amount: 1000,
+        occurredAt: '2026-10-28T23:30:00Z',
+        businessDate: '2026-10-28',
+      },
+    ];
+    expect(debtAgeDays(kept, '2026-10-29')).toBe(1);
+  });
 });

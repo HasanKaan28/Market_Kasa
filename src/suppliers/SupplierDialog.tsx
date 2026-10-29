@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { AdjustmentForm } from '@/customers/PaymentForm';
 import { recordSupplierAdjustment } from '@/data/supplierLedger';
@@ -34,6 +35,7 @@ export function SupplierDialog({
 }: SupplierDialogProps): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [panel, setPanel] = useState<'payment' | 'adjustment' | 'edit' | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -149,7 +151,7 @@ export function SupplierDialog({
               save={(amount, note) =>
                 recordSupplierAdjustment(
                   db,
-                  { supplierId, amount, note, staffId: staff?.id },
+                  { supplierId, amount, note, staffId: staff?.id, cutoffMinutes },
                   new Date(),
                 )
               }

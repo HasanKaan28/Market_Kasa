@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { archiveCustomer } from '@/data/customers';
 import { recordAdjustment } from '@/data/ledger';
@@ -39,6 +40,7 @@ export function CustomerDialog({
 }: CustomerDialogProps): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -55,7 +57,8 @@ export function CustomerDialog({
   const balance = lines.at(-1)?.balanceAfter ?? 0;
   const age = debtAgeDays(
     lines.map((line) => line.entry),
-    businessDate(new Date()),
+    businessDate(new Date(), { cutoffMinutes }),
+    { cutoffMinutes },
   );
 
   function saved(message: string) {
@@ -177,7 +180,11 @@ export function CustomerDialog({
           {panel === 'adjustment' ? (
             <AdjustmentForm
               save={(amount, note) =>
-                recordAdjustment(db, { customerId, amount, note, staffId: staff?.id }, new Date())
+                recordAdjustment(
+                  db,
+                  { customerId, amount, note, staffId: staff?.id, cutoffMinutes },
+                  new Date(),
+                )
               }
               onSaved={saved}
               onCancel={() => setPanel(null)}

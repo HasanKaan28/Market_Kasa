@@ -55,3 +55,25 @@ function isDeviceSettings(value: unknown): value is DeviceSettings {
 function isName(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '' && value.length <= MAX_NAME_LENGTH;
 }
+
+/** Saves this device's settings; the app reads them when it starts. False when they are invalid. */
+export function saveDeviceSettings(
+  settings: DeviceSettings,
+  storage?: Pick<Storage, 'setItem'>,
+): boolean {
+  const cleaned = {
+    ...settings,
+    marketName: settings.marketName.trim(),
+    deviceName: settings.deviceName.trim(),
+    deviceCode: settings.deviceCode.trim().toUpperCase(),
+  };
+  if (!isDeviceSettings(cleaned)) {
+    return false;
+  }
+  try {
+    (storage ?? localStorage).setItem(STORAGE_KEY, JSON.stringify(cleaned));
+    return true;
+  } catch {
+    return false;
+  }
+}

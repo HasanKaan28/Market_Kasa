@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
 import { listSuppliers } from '@/data/suppliers';
@@ -50,6 +51,7 @@ export type GoodsReceiptProps = {
 export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   const { db, settings, runner } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [draft, setDraft] = useState<ReceiptDraft>(() => loadDraft());
   const [query, setQuery] = useState('');
   const [errors, setErrors] = useState<ReadonlyMap<string, string>>(new Map());
@@ -182,6 +184,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         {
           deviceCode: settings.deviceCode,
           staffId: staff?.id,
+          cutoffMinutes,
           lines: read.lines,
           note: draft.note,
           ...(supplierId !== '' ? { supplierId } : {}),

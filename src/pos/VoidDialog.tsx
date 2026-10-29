@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { SaleReturnedError, SaleVoidedError } from '@/data/errors';
 import type { SaleRecord, SaleVoidRecord } from '@/data/types';
@@ -17,6 +18,7 @@ export type VoidDialogProps = {
 export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -40,6 +42,7 @@ export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): 
         reason,
         deviceCode: settings.deviceCode,
         staffId: staff?.id,
+        cutoffMinutes,
         at: new Date(),
       });
       onVoided(record);

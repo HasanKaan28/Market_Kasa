@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useId, useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import {
   closeCashSession,
@@ -39,8 +40,12 @@ type View =
 export function CashDialog({ open, paperWidth, onClose, onDone }: CashDialogProps): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [view, setView] = useState<View>({ kind: 'status' });
-  const cash = useLiveQuery(() => expectedCash(db, settings.deviceCode), [db, settings.deviceCode]);
+  const cash = useLiveQuery(
+    () => expectedCash(db, settings.deviceCode, undefined, { cutoffMinutes }),
+    [db, settings.deviceCode, cutoffMinutes],
+  );
 
   function print(record: CashSessionRecord) {
     printZReport(
@@ -64,6 +69,7 @@ export function CashDialog({ open, paperWidth, onClose, onDone }: CashDialogProp
               {
                 deviceCode: settings.deviceCode,
                 staffId: staff?.id,
+                cutoffMinutes,
                 kind: view.direction,
                 amount,
                 reason,
@@ -82,7 +88,7 @@ export function CashDialog({ open, paperWidth, onClose, onDone }: CashDialogProp
           onSave={async (countedCash) => {
             const record = await closeCashSession(
               db,
-              { deviceCode: settings.deviceCode, staffId: staff?.id, countedCash },
+              { deviceCode: settings.deviceCode, staffId: staff?.id, cutoffMinutes, countedCash },
               new Date(),
             );
             setView({ kind: 'closed', record });

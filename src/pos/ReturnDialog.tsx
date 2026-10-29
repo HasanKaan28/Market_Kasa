@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Minus, Plus } from 'lucide-react';
 import { useRef, useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { ReturnExceedsSaleError } from '@/data/errors';
 import { planRefund, quantitiesOf, recordReturn, refundsOf } from '@/data/returns';
@@ -39,6 +40,7 @@ function safePlan(sale: SaleRecord, earlier: readonly Payment[], amount: number)
 export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogProps): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const earlier = useLiveQuery(
     () => db.returns.where('saleId').equals(sale.id).toArray(),
     [db, sale.id],
@@ -89,6 +91,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
         lines,
         deviceCode: settings.deviceCode,
         staffId: staff?.id,
+        cutoffMinutes,
         at: new Date(),
       });
       onReturned(record);

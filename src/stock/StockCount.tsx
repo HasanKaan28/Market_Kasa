@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { countsNeedingCheck, recordCount } from '@/data/counts';
 import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
@@ -41,6 +42,7 @@ export type StockCountProps = {
 export function StockCount({ onDone }: StockCountProps): JSX.Element {
   const { db, settings, runner } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [draft, setDraft] = useState<CountDraft>(() => loadCountDraft());
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState<string>();
@@ -138,6 +140,7 @@ export function StockCount({ onDone }: StockCountProps): JSX.Element {
         {
           deviceCode: settings.deviceCode,
           staffId: staff?.id,
+          cutoffMinutes,
           lines: read.lines,
           note: draft.note,
         },

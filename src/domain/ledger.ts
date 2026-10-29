@@ -7,7 +7,14 @@ export type LedgerKind = 'debt' | 'payment' | 'adjustment';
  * Signed amount: debts are positive, payments negative, adjustments either way. `saleId` ties a
  * sale's debt to the void or return that takes it back.
  */
-export type LedgerEntry = { kind: LedgerKind; amount: Kurus; occurredAt: string; saleId?: string };
+export type LedgerEntry = {
+  kind: LedgerKind;
+  amount: Kurus;
+  occurredAt: string;
+  /** The business day it was written for; worked out from `occurredAt` when absent. */
+  businessDate?: string;
+  saleId?: string;
+};
 
 const DAY_MS = 86_400_000;
 
@@ -25,8 +32,19 @@ export function balance(entries: readonly LedgerEntry[]): Kurus {
  * nothing is owed.
  */
 export function oldestUnpaidDebt(entries: readonly LedgerEntry[]): string | null {
+  return oldestOpenDebt(entries)?.occurredAt ?? null;
+}
+
+function oldestOpenDebt(
+  entries: readonly LedgerEntry[],
+): { occurredAt: string; businessDate?: string } | null {
   const ordered = [...entries].sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt));
-  const open: { occurredAt: string; remaining: Kurus; saleId?: string }[] = [];
+  const open: {
+    occurredAt: string;
+    businessDate?: string;
+    remaining: Kurus;
+    saleId?: string;
+  }[] = [];
   let credit = 0;
 
   for (const entry of ordered) {
@@ -37,6 +55,7 @@ export function oldestUnpaidDebt(entries: readonly LedgerEntry[]): string | null
       if (entry.amount > covered) {
         open.push({
           occurredAt: entry.occurredAt,
+          ...(entry.businessDate ? { businessDate: entry.businessDate } : {}),
           remaining: entry.amount - covered,
           saleId: entry.saleId,
         });
@@ -53,7 +72,7 @@ export function oldestUnpaidDebt(entries: readonly LedgerEntry[]): string | null
     credit += toApply;
   }
 
-  return open.find((debt) => debt.remaining > 0)?.occurredAt ?? null;
+  return open.find((debt) => debt.remaining > 0) ?? null;
 }
 
 /**
@@ -65,11 +84,11 @@ export function debtAgeDays(
   today: string,
   opts: { cutoffMinutes?: number; timeZone?: string } = {},
 ): number {
-  const oldest = oldestUnpaidDebt(entries);
+  const oldest = oldestOpenDebt(entries);
   if (oldest === null) {
     return 0;
   }
-  const since = businessDate(new Date(oldest), opts);
+  const since = oldest.businessDate ?? businessDate(new Date(oldest.occurredAt), opts);
   return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${since}T00:00:00Z`)) / DAY_MS);
 }
 

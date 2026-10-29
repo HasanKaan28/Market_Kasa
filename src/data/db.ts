@@ -6,6 +6,7 @@ import type {
   CustomerRecord,
   PurchaseRecord,
   LedgerRecord,
+  MarketSettingsRecord,
   MetaRecord,
   OutboxItem,
   ProductRecord,
@@ -41,6 +42,7 @@ export class MarketDb extends Dexie {
   declare cashSessions: Table<CashSessionRecord, string>;
   declare cashMovements: Table<CashMovementRecord, string>;
   declare staff: Table<StaffRecord, string>;
+  declare settings: Table<MarketSettingsRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -97,6 +99,8 @@ export class MarketDb extends Dexie {
     });
     // v11: the people who work the registers (M6a).
     this.version(11).stores({ staff: 'id, name, updatedAt' });
+    // v12: the settings every register of the market shares (M6b).
+    this.version(12).stores({ settings: 'id' });
   }
 }
 

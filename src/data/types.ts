@@ -309,6 +309,15 @@ export type CashSessionRecord = {
   businessDate: string;
 };
 
+/** The market-wide settings, one record with the id "market". */
+export type MarketSettingsRecord = {
+  id: 'market';
+  /** Minutes after midnight the business day turns, 0 to 720. */
+  cutoffMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type OutboxTable =
   | 'products'
   | 'customers'
@@ -324,13 +333,14 @@ export type OutboxTable =
   | 'supplierLedger'
   | 'cashMovements'
   | 'cashSessions'
-  | 'staff';
+  | 'staff'
+  | 'settings';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }
   | {
       kind: 'patch';
-      table: 'products' | 'customers' | 'categories' | 'suppliers' | 'staff';
+      table: 'products' | 'customers' | 'categories' | 'suppliers' | 'staff' | 'settings';
       recordId: string;
       patch: object;
     };

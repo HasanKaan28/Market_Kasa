@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Download, Printer } from 'lucide-react';
 import { useId, useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
 import { Button, ChoiceGroup, SelectField, TextField } from '@/design';
@@ -36,7 +37,8 @@ export function ReportsScreen(): JSX.Element {
   const [choice, setChoice] = useState<Choice>('today');
   const [custom, setCustom] = useState({ from: '', to: '' });
   const [register, setRegister] = useState(ALL);
-  const today = businessDate(new Date());
+  const { cutoffMinutes } = useMarketSettings();
+  const today = businessDate(new Date(), { cutoffMinutes });
   const { from, to } = choice === 'custom' ? customRange(custom, today) : periodOf(choice, today);
   const summary = useLiveQuery(
     () => loadSummary(db, { from, to, ...(register === ALL ? {} : { deviceCode: register }) }),

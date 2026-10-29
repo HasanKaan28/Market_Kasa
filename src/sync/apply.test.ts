@@ -192,6 +192,17 @@ describe('applyServerRows', () => {
     expect(await db.supplierLedger.toArray()).toEqual([entry]);
   });
 
+  it('applies pulled settings', async () => {
+    const row = {
+      id: 'market',
+      cutoffMinutes: 180,
+      createdAt: at.toISOString(),
+      updatedAt: at.toISOString(),
+    };
+    await applyServerRows(db, [{ table: 'settings', id: 'market', serverSeq: 15, row }]);
+    expect(await db.settings.get('market')).toEqual(row);
+  });
+
   it('applies pulled staff', async () => {
     const row = {
       id: 's1',

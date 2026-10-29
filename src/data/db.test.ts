@@ -31,6 +31,7 @@ describe('openMarketDb', () => {
       'returns',
       'saleVoids',
       'sales',
+      'settings',
       'staff',
       'stockCounts',
       'stockLevels',

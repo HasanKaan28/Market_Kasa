@@ -7,9 +7,10 @@ import { useSession } from '@/app/session';
 import { listStaff } from '@/data/staff';
 import { Button, ToastRegion, useToast } from '@/design';
 import { ROLE_LABELS } from '@/domain/permissions';
+import { MarketSection, ReceiptSection, RegisterSection } from './MarketSections';
 import { StaffDialog } from './StaffDialog';
 
-/** The owner's settings: for now the people who work the registers. */
+/** The owner's settings: the market, this register, the receipt and the people who work here. */
 export function SettingsScreen(): JSX.Element {
   const { db, settings, runner } = useData();
   const status = useSyncStatus(runner);
@@ -36,6 +37,9 @@ export function SettingsScreen(): JSX.Element {
         activeNav="settings"
       >
         <h1 className="text-xl font-semibold">Ayarlar</h1>
+        <MarketSection onDone={(message) => done(message)} />
+        <RegisterSection />
+        <ReceiptSection onDone={(message) => done(message)} />
         <section
           aria-labelledby="staff-heading"
           className="flex flex-col gap-3 rounded-control border border-line bg-surface p-4"

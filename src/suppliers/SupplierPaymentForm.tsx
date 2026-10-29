@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { recordSupplierPayment } from '@/data/supplierLedger';
 import type { SupplierPaymentMethod } from '@/data/types';
@@ -29,6 +30,7 @@ export function SupplierPaymentForm({
 }): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<SupplierPaymentMethod>('cash');
   const [note, setNote] = useState('');
@@ -60,6 +62,7 @@ export function SupplierPaymentForm({
         {
           deviceCode: settings.deviceCode,
           staffId: staff?.id,
+          cutoffMinutes,
           supplierId,
           amount: kurus,
           method,

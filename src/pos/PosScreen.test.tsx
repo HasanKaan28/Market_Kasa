@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createProduct, updateProduct } from '@/data/products';
 import { createStaff } from '@/data/staff';
+import { saveMarketSettings } from '@/data/settings';
 import { recentSales, recordSale } from '@/data/sales';
 import { stockOf } from '@/data/stock';
 import { isVoided } from '@/data/voids';
@@ -36,6 +37,27 @@ describe('PosScreen', () => {
     expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Satış tamamlandı');
     expect(await recentSales(data.db)).toHaveLength(1);
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
+  });
+
+  it('counts a sale after midnight on the day before', async () => {
+    // 01:30 on the 30th in Istanbul, with the market's day turning at 02:00.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-29T22:30:00Z'));
+    try {
+      const data = createTestData();
+      await saveMarketSettings(data.db, { cutoffMinutes: 120 }, new Date());
+      await createProduct(data.db, milk, new Date());
+      await renderWithData(<PosScreen />, data);
+      scan(milk.barcode);
+      expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: 'F2' });
+      await userEvent.type(await screen.findByLabelText('Alınan tutar'), '50');
+      await userEvent.click(screen.getByRole('button', { name: 'Satışı tamamla' }));
+      expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+      expect((await recentSales(data.db))[0]?.businessDate).toBe('2026-10-29');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sells in the name of the person signed in', async () => {

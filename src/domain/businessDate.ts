@@ -18,6 +18,11 @@ function dayFormatter(timeZone: string): Intl.DateTimeFormat {
   return formatter;
 }
 
+/** Whether a day cutoff is whole minutes after midnight, at most noon. */
+export function isValidCutoff(minutes: number): boolean {
+  return Number.isInteger(minutes) && minutes >= 0 && minutes <= MAX_CUTOFF_MINUTES;
+}
+
 /**
  * The trading day an instant belongs to, as YYYY-MM-DD in the market's time zone.
  * A sale before the cutoff (minutes after midnight) still counts towards the previous day.

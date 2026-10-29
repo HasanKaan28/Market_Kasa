@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { recordPayment } from '@/data/ledger';
 import type { LedgerMethod } from '@/data/types';
@@ -33,6 +34,7 @@ export function PaymentForm({
 }: FormProps & { balance: number }): JSX.Element {
   const { db, settings } = useData();
   const { staff } = useSession();
+  const { cutoffMinutes } = useMarketSettings();
   const [amount, setAmount] = useState(balance > 0 ? formatPriceInput(balance) : '');
   const [method, setMethod] = useState<LedgerMethod>('cash');
   const [note, setNote] = useState('');
@@ -54,6 +56,7 @@ export function PaymentForm({
         {
           deviceCode: settings.deviceCode,
           staffId: staff?.id,
+          cutoffMinutes,
           customerId,
           amount: kurus,
           method,

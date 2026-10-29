@@ -135,8 +135,9 @@ export async function expectedCash(
   db: MarketDb,
   deviceCode: string,
   at?: Date,
+  opts: { cutoffMinutes?: number } = {},
 ): Promise<ExpectedCash> {
-  return (await countDrawer(db, deviceCode, at)).cash;
+  return (await countDrawer(db, deviceCode, at, opts.cutoffMinutes)).cash;
 }
 
 /**
@@ -169,7 +170,7 @@ export async function closeCashSession(
     db.outbox,
   ];
   return db.transaction('rw', tables, async () => {
-    const { cash, records } = await countDrawer(db, deviceCode, at);
+    const { cash, records } = await countDrawer(db, deviceCode, at, cutoffMinutes);
     const [products, categories] = await Promise.all([
       db.products.toArray(),
       db.categories.toArray(),
@@ -212,6 +213,7 @@ async function countDrawer(
   db: MarketDb,
   deviceCode: string,
   at: Date | undefined,
+  cutoffMinutes = 0,
 ): Promise<{
   cash: ExpectedCash;
   records: Pick<SummaryInput, 'sales' | 'voids' | 'returns' | 'salesById'>;
@@ -220,7 +222,9 @@ async function countDrawer(
   return db.transaction('r', tables, async () => {
     const session = await currentCashSession(db, deviceCode);
     const last = await lastClose(db, deviceCode);
-    const dayStart = businessDayStart(businessDate(at ?? new Date())).toISOString();
+    const dayStart = businessDayStart(businessDate(at ?? new Date(), { cutoffMinutes }), {
+      cutoffMinutes,
+    }).toISOString();
     const opened = session?.openedAt;
     const from = last
       ? last.closedAt

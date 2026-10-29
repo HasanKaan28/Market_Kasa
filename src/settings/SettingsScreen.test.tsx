@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Screens } from '@/app/Screens';
 import { SessionProvider } from '@/app/SessionProvider';
+import { loadMarketSettings } from '@/data/settings';
 import { checkPin, createStaff } from '@/data/staff';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 
@@ -99,5 +100,24 @@ describe('SettingsScreen', () => {
     dialog = await screen.findByRole('dialog', { name: 'Kaan' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pasife al' }));
     expect(await within(dialog).findByText('Son sahip pasife alınamaz.')).toBeInTheDocument();
+  });
+  it('edits the market and this register', async () => {
+    const { data, kaan } = await team();
+    await settingsAs(data, kaan.id);
+    await userEvent.selectOptions(await screen.findByLabelText('Gün dönümü'), '02:00');
+    await userEvent.click(screen.getByRole('button', { name: 'Market ayarını kaydet' }));
+    expect(await screen.findByText('Market ayarı kaydedildi.')).toBeInTheDocument();
+    expect(await loadMarketSettings(data.db)).toEqual({ cutoffMinutes: 120 });
+    const register = screen.getByRole('region', { name: 'Bu kasa' });
+    await userEvent.clear(within(register).getByLabelText('Kasa adı'));
+    await userEvent.type(within(register).getByLabelText('Kasa adı'), 'Ön kasa');
+    await userEvent.clear(within(register).getByLabelText('Kasa kodu'));
+    await userEvent.type(within(register).getByLabelText('Kasa kodu'), 'K2');
+    await userEvent.click(within(register).getByRole('button', { name: 'Kasayı kaydet' }));
+    expect(await screen.findByText(/yeniden açıldığında/)).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('mk2.device') ?? '{}')).toMatchObject({
+      deviceName: 'Ön kasa',
+      deviceCode: 'K2',
+    });
   });
 });

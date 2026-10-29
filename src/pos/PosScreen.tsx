@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useReducer, useRef, useState, type JSX } from 'react';
 import { ApprovalDialog } from '@/app/ApprovalDialog';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useData, useSyncStatus } from '@/app/appData';
 import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
@@ -59,6 +60,7 @@ export function PosScreen(): JSX.Element {
   const { db, settings, runner } = useData();
   const session = useSession();
   const { staff } = session;
+  const { cutoffMinutes } = useMarketSettings();
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
   const [dialog, setDialog] = useState<OpenDialog>(null);
@@ -146,6 +148,7 @@ export function PosScreen(): JSX.Element {
         cart,
         deviceCode: settings.deviceCode,
         staffId: staff?.id,
+        cutoffMinutes,
         payments,
         at: new Date(),
         ...extra,

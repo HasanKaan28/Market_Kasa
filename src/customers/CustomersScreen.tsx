@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { MessageCircle, Plus } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { AppShell } from '@/app/AppShell';
 import { normalizeForSearch } from '@/data/text';
 import { Button, ChoiceGroup, TextField, ToastRegion, useToast } from '@/design';
@@ -31,7 +32,11 @@ export function CustomersScreen(): JSX.Element {
   const [dialog, setDialog] = useState<{ kind: 'customer'; id: string } | { kind: 'new' } | null>(
     null,
   );
-  const summaries = useLiveQuery(() => customerSummaries(db, businessDate(new Date())), [db]);
+  const { cutoffMinutes } = useMarketSettings();
+  const summaries = useLiveQuery(
+    () => customerSummaries(db, businessDate(new Date(), { cutoffMinutes }), { cutoffMinutes }),
+    [db, cutoffMinutes],
+  );
   function done(message: string) {
     toast.show(message);
     void runner.run();
