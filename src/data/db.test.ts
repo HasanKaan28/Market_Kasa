@@ -29,9 +29,17 @@ describe('openMarketDb', () => {
       'returns',
       'saleVoids',
       'sales',
+      'stockCounts',
       'stockLevels',
       'stockMovements',
     ]);
+  });
+
+  it('indexes movements by product and time', () => {
+    db = openMarketDb('movement-index-check');
+    expect(db.stockMovements.schema.indexes.map((index) => index.name)).toContain(
+      '[productId+occurredAt]',
+    );
   });
 
   it('does not index booleans', () => {

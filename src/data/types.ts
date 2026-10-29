@@ -117,6 +117,25 @@ export type PurchaseRecord = {
   businessDate: string;
 };
 
+export type CountLine = {
+  productId: string;
+  name: string;
+  unit: ProductUnit;
+  /** The stock this device held when the count was saved. */
+  expectedMilli: number;
+  countedMilli: number;
+};
+
+/** A shelf count; each line whose count differs moves the stock by a `count` movement with its id. */
+export type StockCountRecord = {
+  id: string;
+  deviceCode: string;
+  lines: CountLine[];
+  note?: string;
+  occurredAt: string;
+  businessDate: string;
+};
+
 export type LedgerRecord = {
   id: string;
   customerId: string;
@@ -171,7 +190,8 @@ export type OutboxTable =
   | 'ledger'
   | 'saleVoids'
   | 'returns'
-  | 'purchases';
+  | 'purchases'
+  | 'stockCounts';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }

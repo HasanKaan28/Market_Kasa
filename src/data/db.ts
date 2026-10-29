@@ -10,6 +10,7 @@ import type {
   ReturnRecord,
   SaleRecord,
   SaleVoidRecord,
+  StockCountRecord,
   StockLevelRecord,
   StockMovementRecord,
 } from './types';
@@ -29,6 +30,7 @@ export class MarketDb extends Dexie {
   declare returns: Table<ReturnRecord, string>;
   declare categories: Table<CategoryRecord, string>;
   declare purchases: Table<PurchaseRecord, string>;
+  declare stockCounts: Table<StockCountRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -64,6 +66,11 @@ export class MarketDb extends Dexie {
     this.version(6).stores({ categories: 'id, updatedAt' });
     // v7: goods receipts (M3c).
     this.version(7).stores({ purchases: 'id, occurredAt' });
+    // v8: shelf counts (M3d), and a product's movements read by time.
+    this.version(8).stores({
+      stockCounts: 'id, occurredAt',
+      stockMovements: 'id, productId, [productId+occurredAt]',
+    });
   }
 }
 
