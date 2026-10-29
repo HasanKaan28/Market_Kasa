@@ -55,6 +55,7 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Boş sepette Bölünmüş ve İndirim; ekrandan veresiyeli bölünmüş satış ve limit hatası; eski biçimli bekleyen sepet. (M2c)
 - İadeden sonra otomatik yazdırma olmaması; gerçek bir iadenin fişe "İADESİ VAR" yazması. (M2d)
 - Kasada silinmiş ürünün barkodunu okutup yeni ürün kaydetmek; kasada küçük harfli okutma. (M3a)
+- Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor; sepet satırları birleştiği için şimdilik oluşmuyor. (M2b; M3c planı buraya taşıdı)
 
 ## M0b · Sunucu ve eşitleme
 
@@ -77,17 +78,12 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 
 ## M3 · Ürün ve stok
 
-M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3'ün kalan alt planları:
+M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c (mal kabul ve stok hareketleri) planı yazıldı. M3'ün kalan alt planı:
 
-- **M3c · Mal kabul ve stok hareketleri:** Stok ekranı, mal kabul (alış ve satış fiyatını güncelleyerek), ürün bazında hareket geçmişi, elle stok düzeltme, kritik stok listesi. (DESIGN §10)
 - **M3d · Sayım:** sayım farkı hareket olarak yazılır (DESIGN §10); sayım sürerken başka cihazda yapılan satışlar hesaba katılır.
 
 Ertelenmiş maddeler:
 
-- **M3c:** Tartılı satırlar birimini kaybedebiliyor (eski kayıt, `refresh`); sepet satırında, iade adımında ve fişte "kg" yok, çünkü satış satırı birim taşımıyor. (M2b, M2c, M2d)
-- **M3c:** Aynı ürün iki satırda olursa iade ürün kimliğiyle arıyor (sepet satırları birleştirdiği için şimdilik oluşmuyor). (M2b)
-- **M3c:** Kg'dan adede çevrilen ürünün stoğu "1,5 adet" görünüyor. (M3a)
-- **M3c:** Ad önerisinde yarışlar: beklerken yazılan ad eziliyor, istek sürerken barkod değişirse eski barkodun adı yazılıyor, öneri barkod değişince kalıyor. Sunucu hatasında "İnternet bağlantısı yok." yazıyor; beklerken "Aranıyor…" yok. (M3b)
 - **M3d:** Kamera ile okutma (DESIGN §10 Kasa, §15).
 - **M3d:** İçe aktarma önizlemesinde 50. satırdan sonrası görünmüyor (uyarı, geri getirme, hata nedeni). Satır numaraları boş satırları atlıyor, Excel'inkilerle uyuşmuyor. (M3b)
 - **M3d:** Binlik ayraçlı miktar ("1.000") ondalık okunuyor. (M3b)
