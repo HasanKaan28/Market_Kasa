@@ -1,7 +1,8 @@
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
-import { ChoiceGroup } from '@/design';
+import { ChoiceGroup, ToastRegion, useToast } from '@/design';
+import { GoodsReceipt } from './GoodsReceipt';
 
 type StockView = 'receive' | 'critical';
 
@@ -15,23 +16,28 @@ export function StockScreen(): JSX.Element {
   const { settings, runner } = useData();
   const status = useSyncStatus(runner);
   const [view, setView] = useState<StockView>('receive');
+  const toast = useToast();
 
   return (
-    <AppShell
-      marketName={settings.marketName}
-      deviceName={settings.deviceName}
-      syncState={status.state}
-      pendingCount={status.pendingCount}
-      activeNav="stock"
-    >
-      <h1 className="text-xl font-semibold">Stok</h1>
-      <ChoiceGroup
-        legend="Göster"
-        name="stockView"
-        options={VIEWS}
-        value={view}
-        onChange={(next) => setView(next)}
-      />
-    </AppShell>
+    <>
+      <AppShell
+        marketName={settings.marketName}
+        deviceName={settings.deviceName}
+        syncState={status.state}
+        pendingCount={status.pendingCount}
+        activeNav="stock"
+      >
+        <h1 className="text-xl font-semibold">Stok</h1>
+        <ChoiceGroup
+          legend="Göster"
+          name="stockView"
+          options={VIEWS}
+          value={view}
+          onChange={(next) => setView(next)}
+        />
+        {view === 'receive' ? <GoodsReceipt onDone={toast.show} /> : null}
+      </AppShell>
+      <ToastRegion message={toast.message} />
+    </>
   );
 }
