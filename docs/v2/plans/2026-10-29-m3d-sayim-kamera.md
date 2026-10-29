@@ -205,3 +205,23 @@ Her kuralın bir bozma denemesi var: kuralı koruyan kod kaldırılınca testi k
   - Var olan satırı artıran okutma arama alanının altında "{ad}: {miktar}" yazar (`role="status"`).
   - Tartılı satırda fiyat kutularının ipucu "Kilogram fiyatı"dır.
 - [ ] **Step 1–5:** `it('adds a new product whose barcode changed in the form')`, `it('offers to restore a deleted product it scans')`, `it('clears a line error once the line is edited')`, `it('says which line a rescan counted up')`, `it('reads a scanned code with letters')`, `it('refuses a price above the limit')`. Commit — `git commit -m "fix(stock): goods receipt restores, follows the form and says more"`
+
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `b78fd58`…`8dacf4a` (7 görev ve bir test yarışı düzeltmesi), inceleme düzeltmeleri `7f89db8` ve `53c52b5`. Son durumda 552 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): kritik yok, 3 önemli, 10 küçük bulgu. Önemlilerin hepsi düzeltildi. Küçüklerden üçü önemliye yükseltilip düzeltildi; kalanlar ertelendi.
+  - **I1:** Saati ileri giden bir kasanın satışı, sayımdan sonra damgalandığı için her sayımı "Kontrol gerekli" yapıyordu; yeniden sayım da kurtarmıyordu. Sayım artık kendi anına kadar damgalanmış hareketlerin toplamını saklıyor ve yalnız o toplam sonradan değişirse işaretleniyor.
+  - **I2:** Kamera sürekli modda elde tutulan ürünü her 1,5 saniyede bir yeniden sayıyordu ve pencere ne olduğunu söylemiyordu. Artık bir kod ancak bir saniye görüş dışında kaldıktan sonra yeniden sayılıyor. Pencere her okumanın sonucunu yazıyor ("Çay: 3 adet", "Bu barkod kayıtlı değil.").
+  - **I3:** Kural testleri iki korumayı yakalamıyordu: sayımın kendi hareketini dışlamak ve sıfır sayım. İkisi de artık test ediliyor; bozma denemeleri kırmızı.
+  - **Küçük 1 (önemliye yükseltildi):** Silinmiş ürünün sayım uyarısı 30 gün kalıyordu. Artık gösterilmiyor.
+  - **Küçük 3 (önemliye yükseltildi):** Kasada kamera, iki barkod gösteren bir çoklu pakette iki ürün ekliyordu. Artık ilk koddan sonra kapanıyor ve yalnız onu alıyor.
+  - **Küçük 4 (önemliye yükseltildi):** Play Hizmetleri olmayan Android telefonlarda tarayıcının okuyucusu hiçbir biçimi okumuyordu. Bu durumda artık ZXing okuyor.
+- **Bozma denemeleri:** Her kuralın koruyan kodu kaldırılıp testi çalıştırıldı ve kırmızı görüldü: sayım transaction'ı, miktar denetimi, yeniden hesaplama, kendi hareketi, sıfır sayım, saat kayması, silinmiş ürün, kameranın durması, elde tutulan kod, tek kod ve biçimsiz okuyucu.
+- **Kararlar:**
+  - Bir sayımda aynı ürün iki satırda olamaz.
+  - Aramayla ya da "Yeniden say" ile eklenen ürün boş sayılanla gelir; adette yalnız okutma 1 artırır.
+  - Kamera düğmesi tarayıcıda kamera arayüzü varsa görünür; kamera ancak düğmeyle açılır ve görüntü cihazdan çıkmaz.
+  - İçe aktarmada "1.000" ondalık okunmaya devam eder; bilimsel gösterim ondalıklı sayıdır.
+  - Dosya seçici eski `.xls`'i de gösterir, böylece seçen kişi ne yapacağını öğrenir.
+- **Doğrulama:** Production build Chromium'da denendi. Sayım görünümünde Tereyağı okutuldu: beklenen 13, fark −12. Sayılan 12 yazıldı, kaydedildi; bildirim "Sayım kaydedildi: 1 ürün, 1 farklı." çıktı, stok 12 oldu. 375 px'te düzen sığdı. Gerçek kamera ve ZXing yolu tarayıcıda denenmedi (izin sorusu); M8 pilotuna kaldı.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M3 cilası, M0b ve M8 bölümlerinde.

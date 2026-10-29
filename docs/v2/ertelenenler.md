@@ -69,13 +69,14 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - Satışın alt kayıtları satıştan önce kuyruğa giriyor; sunucu çocukları ebeveynden önce kabul etmeli. (M1a)
 - Değişiklik olmayan güncelleme yine de `{updatedAt}` yaması gönderiyor. (M1a)
 - Bilinmeyen ödeme yöntemi ve veresiyesiz satıştaki `customerId` çalışma anında denetlenmiyor. (M1a)
-- Sunucudan gelen satış, iptal, iade, kategori ve mal kabul satırları şekil denetiminden geçmiyor: bozuk bir satış fiş görünümünü, adsız bir kategori kasayı ve Ürünler ekranını düşürüyor. (M2b, M2d, M3a, M3c)
+- Sunucudan gelen satış, iptal, iade, kategori, mal kabul ve sayım satırları şekil denetiminden geçmiyor (satırsız bir sayım Sayım ekranındaki denetimi bozuyor): bozuk bir satış fiş görünümünü, adsız bir kategori kasayı ve Ürünler ekranını düşürüyor. (M2b, M2d, M3a, M3c)
 - Kasalar arası hareket sırası saat kaymasında yanlış görünebilir; gerçek sıra için sunucu sıra numarası gerekir. `occurredAt` metin olarak karşılaştırılıyor; sunucu aynı ISO biçimini korumalı. (M3c)
 - Mal kabul taslağı sekmeler arasında eşitlenmiyor ve markete göre anahtarlanmıyor (sepetle aynı); çok marketli girişte ele alınmalı. (M3c)
 - Fişteki satır tutarları ve ara toplam satıştan okunmuyor, yeniden hesaplanıyor. (M2d)
 - Yeniden basılan fiş, satışı yapan kasanın değil bu cihazın adını yazıyor. (M2d)
 - Eşitleme rozeti ilk turdan önce "0 işlem bekliyor" gösteriyor; çevrimdışıyken bekleyen işlem sayısını göstermiyor (§15). (M2a)
 - Test: satıştan önce gelen iptal ve iade; yakınsama testinde iptal ve iade. (M2b)
+- Test: iki kasanın aynı ürünü saymasını `applyServerRows` ya da sahte sunucu üzerinden denemek. (M3d)
 - Sunucu barkodu büyük harfe çevirmeli ve market içinde benzersiz tutmalı; silinmiş ürünün barkodu bırakması istemcideki kuralla aynı olmalı. (M3a)
 - Geri getirilen ürünün barkodu bu arada başka cihazda başka ürüne verilmişse kullanıcıya bir şey söylenmiyor. (M3a)
 - İki kasanın alan bazında birleşmesi, kritik seviyesi kesirli bir adetli ürün üretebilir; form sonra kaydetmeyi reddeder. (M3b)
@@ -83,7 +84,13 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 
 ## M3 · Ürün ve stok
 
-M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c mal kabulü, stok düzeltmesini, hareket geçmişini ve kritik stok listesini getirir. M3d (sayım ve kamera) planı yazıldı ve bu bölümün bütün maddelerini aldı: sayım, kamera ile okutma, M3b'den kalan içe aktarma maddeleri, M3c'den kalan stok ve mal kabul maddeleri.
+M3a (ürün kataloğu) ekranlar arası geçişi, Ürünler ekranını, ürün formunu, kategorileri ve kasada kategori seçimini getirir. M3b içe/dışa aktarmayı, toplu fiyatı ve barkoddan ad önerisini getirir. M3c mal kabulü, stok düzeltmesini, hareket geçmişini ve kritik stok listesini getirir. M3d sayımı, kamerayla okutmayı ve M3b–M3c'den kalan içe aktarma ve mal kabul maddelerini getirir. M3'ün planı kalmadı. M3d incelemesinden kalan küçük maddeler, bir sonraki stok ve ürün cilasına:
+
+- Sayım satırının hatası ve kayıt uyarısı satır düzeltilince kalkmıyor (mal kabulde satır hatası kalkıyor). (M3d)
+- Barkod hücresinde "2E+12" genel mesaj alıyor; "sütunu metin yapın" önerisi çıkmıyor. (M3d)
+- Parolalı .xlsx "Eski Excel" diye anılıyor. (M3d)
+- Sayım denetimi her sayılan ürünün sayıma kadarki bütün geçmişini okuyor; geçmiş büyüdükçe yavaşlar. (M3d)
+- Test: kamera açılmadan pencerenin kapanması. (M3d)
 
 ## M4 · Cari hesaplar
 
@@ -115,6 +122,8 @@ M4a (veresiye) planı yazıldı ve bu bölümün M4a maddelerini aldı: iptal ve
 - v5 yükseltmesi büyük/küçük harf çakışmasında silinmiş eski ürünü canlı ürüne tercih ediyor; yalnız v4 deneme verisini etkiler. (M3a)
 - Geri tuşu (Android'inki de) kasada açık bir pencere varken ekranı değiştiriyor; sepet saklı olduğu için kayıp yok. (M3a)
 - Electron ve Android'de dışa aktarılan dosyanın indirilmesi ve paylaşılması. İleride bir CSP gelirse `world.openfoodfacts.org`'a izin vermeli, yoksa ad önerisi "çevrimdışı" der. (M3b)
+- Kamera düğmesi kamerası olmayan bilgisayarlarda da görünüyor ve "Kamera bulunamadı." diyor; `enumerateDevices()` ile gizlenebilir. (M3d)
+- Pilotta denenecek: gerçek kamerayla okuma hızı, iOS'ta kamera izni, ZXing'in okuyamadığı bir hatadan sonra döngüsünü durdurup görüntüyü siyah bırakıp bırakmadığı. (M3d)
 - Pilotta denenecek: okuyucu UPC-A'yı 12 mi 13 hane mi gönderiyor (12 haneli kodda düşmüş 0 sağlama toplamıyla anlaşılamıyor); Safari/iOS'ta 5.000 satırlık içe aktarmanın hızı. (M3b)
 
 ## Kapananlar
