@@ -114,7 +114,18 @@ M4a veresiyeyi getirir: Müşteriler ekranı, tahsilat, düzeltme, ekstre ve Wha
 
 ## M5 · Raporlar ve kasa
 
-M5 (raporlar ve gün sonu) planı yazıldı ve bu bölümün iki maddesini aldı: nakit tahsilat ve ödemelerin kasa hareketi, `PurchaseRecord.payment`'ın isteğe bağlı olması.
+M5 tamamlandı. İncelemeden kalan küçük bulgular:
+
+- Gece yarısından sonra alınan Z ertesi iş gününe yazılıyor. Gün dönümü ayarı (M6b) bunu çözer.
+- Aynı satışın hem iptali hem iadesi eşitlemeyle gelirse (çakışma), bütün kasaların raporu iki kasanın nakdiyle uyuşmuyor.
+- Başka kasada iptal edilen satış, "Tümü", K1 ve K2 süzgeçlerinde üç farklı görünüyor.
+- Gün sonu penceresi ve yazdırılan Z, "kasa açılmadı" yazısına farklı ölçütle karar veriyor (nakit satış ve satış sayısı).
+- Dünden açık kalan kasa yalnız saati gösteriyor ("Açık · 09:00"), tarihi göstermiyor.
+- İki sekme aynı anda gün sonu alırsa iki Z kaydı yazılıyor (hiçbir rakam iki kez sayılmıyor).
+- `data/cash.ts` ve `data/types.ts`, `reports/summary`'den içe aktarıyor; bugün çalışan ama kırılgan bir döngü (cash → summary → returns → ledger → cash). Özet hesabı `src/data` ya da `src/domain` altına taşınmalı.
+- Küçük temizlikler: `csvText` üzerinde üst üste iki açıklama; bir rapor testi `URL.createObjectURL`'ı geri koymuyor; `cash.ts` "kasa günde bir açılır" diyor ama kod yalnız açık kasayı tekrar açtırmıyor.
+- Uzun bir tarih aralığı her değişiklikte baştan okunuyor.
+- **Cila için:** Nakit tahsilat, tedarikçiye nakit ödeme ve nakit mal kabul her zaman kasadan sayılıyor. Cepten ödenen para "nakit" yazılırsa Z'de kasa fazlası çıkar. Bu formlara "Kasadan" seçeneği eklenmeli (DESIGN §10: "kasadan ödeme").
 
 ## M6 · Yönetim
 

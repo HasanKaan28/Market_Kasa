@@ -97,3 +97,21 @@
   - Gün sonu: "Sayılan nakit" girilir, beklenen ve fark gösterilir, "Z raporunu kaydet" ile kapanır. Z raporu fiş genişliğinde yazdırılır (`printView`, fiş ayarlarındaki kâğıt).
   - Oturum açılmamışsa gün sonu açılış nakdini 0 sayar ve "Kasa açılmadan satış yapıldı." yazar.
 - [ ] **Step 1–5:** `it('opens the drawer, records cash out and closes with a Z report')`, `it('closes a day the drawer was never opened')`, `it('prints the Z report on the receipt paper')`. Commit — `git commit -m "feat(pos): cash drawer sessions and the end-of-day Z report"`
+
+## Uygulama notları (2026-10-29)
+
+- **Commitler:** `d1fcc25`, `0e89626`, `9bda8a4`, `e9c19bf` (4 görev); tarayıcı denemesinde bulunan hata `2045cc1`; inceleme düzeltmeleri `2835615`. Son durumda 634 test yeşil.
+- **Tarayıcı denemesi:** Raporlar ekranı bu makinedeki geliştirme verisinde çöktü. Erken bir sürümün yazdığı iade kaydında `refunds` yerine `refundMethod` vardı. Rapor ve kasa kodu artık bu eski biçimi de okuyan `refundsOf`'u kullanıyor.
+- **Son inceleme** (Opus, donmuş worktree): 1 kritik, 2 önemli, 9 küçük bulgu. Kritik ve önemliler düzeltildi, küçükler ertelendi.
+  - **C1:** Hiç Z alınmamış ve açılmamış bir kasanın ilk gün sonu, kasanın bütün geçmişini sayıyordu. Artık ilk gün sonu günün başından sayar (kasa daha önce açıldıysa açılıştan).
+  - **I1:** Son Z ile sonraki açılış arasında yapılan satış hiçbir Z'ye girmiyordu. Artık Z, kasanın son Z'sinden bu yana olan her şeyi kapsar. Açılış nakdi güne başlarken konan paradır, kasa yeniden sayılmaz. Gün sonu penceresi sayımın nereden başladığını yazar.
+  - **I2:** Aynı gün iptal edilen satış Z'nin "Satışlar" bölümünde eksi olarak yazıldığı için toplam tutmuyordu. Artık Z şöyle okunur: Satış (iade öncesi) − İade − Önceki satış iptali = Net satış. Verilen indirim ve aynı gün iptal edilen fişler bilgi olarak, eksisiz yazılır.
+- **Bozma denemeleri:** 23 deneme, hepsi kırmızı. İlk turda bir tanesi hayatta kaldı (özel tarih aralığı): test, yeni sorgu bitmeden ekranda kalan eski rakamı yakalıyordu. Artık her adım bir öncekinin göstermediği bir rakamı bekliyor.
+- **Kararlar:**
+  - Her kayıt kendi iş gününde ve kendi kasasında sayılır.
+  - Dexie v10 `businessDate` indekslerini ekledi; raporlar ve Z aynı okuma fonksiyonunu kullanır (gün ya da saat aralığı).
+  - Kasa listesi, satış indeksi üzerinde kasa başına tek adımla bulunur.
+  - Z kaydı nakit dökümünü de saklar; ürün bazındaki satış listesi Z'ye girmez (raporlarda var).
+  - Nakit tahsilat, tedarikçiye nakit ödeme ve nakit mal kabul kasadan sayılır.
+- **Doğrulama:** Production build Chromium'da denendi. Raporlar gerçek veriyle açıldı (net ₺70,50, iade ve iptal kutuları, tablolar); 375 px'te düzen akıyor. Kasada F10 ile kasa açıldı (₺200), gün sonunda ₺195 sayıldı, fark −₺5,00 göründü, Z kaydedildi; Z 58 mm fiş genişliğinde dizildi.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M5 ve cila bölümlerinde.
