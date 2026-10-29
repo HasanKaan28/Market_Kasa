@@ -5,6 +5,7 @@ import { buildSummary, loadRange, type Summary, type SummaryInput } from '@/repo
 import type { MarketDb } from './db';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
+import { refundsOf } from './returns';
 import { withoutUndefined } from './records';
 import type { CashBreakdown, CashMovementRecord, CashSessionRecord, Payment } from './types';
 
@@ -234,7 +235,7 @@ async function countDrawer(
           cashOf(records.salesById.get(saleVoid.saleId)?.payments ?? []),
         ),
       ),
-      refunds: sum(records.returns.map((saleReturn) => cashOf(saleReturn.refunds))),
+      refunds: cashOf(refundsOf(records.returns)),
       movementsIn: sum(movements.filter((m) => m.kind === 'in').map((m) => m.amount)),
       movementsOut: sum(movements.filter((m) => m.kind === 'out').map((m) => m.amount)),
     };

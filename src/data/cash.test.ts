@@ -17,7 +17,7 @@ import { recordReturn } from './returns';
 import { recordSale } from './sales';
 import { recordSupplierPayment } from './supplierLedger';
 import { createSupplier } from './suppliers';
-import type { Payment } from './types';
+import type { Payment, ReturnRecord } from './types';
 import { voidSale } from './voids';
 
 let db: MarketDb;
@@ -106,6 +106,26 @@ describe('expectedCash', () => {
       movementsIn: 500,
       movementsOut: 300,
       expected: 20000 + 7000 - 1000 + 500 - 300,
+    });
+  });
+
+  it('counts the cash of a return stored before refunds were split', async () => {
+    const product = await tea();
+    await openCashSession(db, { deviceCode: 'K1', openingCash: 0 }, opened);
+    const sale = await sell(product.id, 3, [{ method: 'cash', amount: 3000 }], 'K1', later(5));
+    const stored = await recordReturn(db, {
+      saleId: sale.id,
+      lines: [{ productId: product.id, qtyMilli: 1000 }],
+      deviceCode: 'K1',
+      at: later(6),
+    });
+    // The shape early builds wrote: one refund method for the whole amount.
+    const legacy: Record<string, unknown> = { ...stored, refundMethod: 'cash' };
+    delete legacy.refunds;
+    await db.returns.put(legacy as unknown as ReturnRecord);
+    expect(await expectedCash(db, 'K1', later(10))).toMatchObject({
+      refunds: 1000,
+      expected: 2000,
     });
   });
 

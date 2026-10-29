@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { MarketDb } from '@/data/db';
+import { refundsOf } from '@/data/returns';
 import type {
   CategoryRecord,
   PaymentMethod,
@@ -167,7 +168,7 @@ export function buildSummary({
     returnTotal += saleReturn.amount;
     net -= saleReturn.amount;
     device(saleReturn.deviceCode).net -= saleReturn.amount;
-    for (const refund of saleReturn.refunds) {
+    for (const refund of refundsOf([saleReturn])) {
       byMethod[refund.method] -= refund.amount;
     }
     for (const line of saleReturn.lines) {

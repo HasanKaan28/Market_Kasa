@@ -5,7 +5,7 @@ import type { MarketDb } from '@/data/db';
 import { createProduct } from '@/data/products';
 import { recordReturn } from '@/data/returns';
 import { recordSale } from '@/data/sales';
-import type { Payment } from '@/data/types';
+import type { Payment, ReturnRecord } from '@/data/types';
 import { voidSale } from '@/data/voids';
 import { makeTestDb } from '@/test/db';
 import { buildSummary, loadSummary } from './summary';
@@ -116,6 +116,27 @@ describe('buildSummary', () => {
       net: 9000,
       byMethod: { cash: 9000, card: 0, credit: 0 },
     });
+  });
+
+  it('reads a return stored before refunds were split', async () => {
+    const { tea, sell } = await setup();
+    const sale = await sell(
+      day(29),
+      [{ productId: tea.id, qtyMilli: 2000 }],
+      [{ method: 'cash', amount: 18000 }],
+    );
+    const stored = await recordReturn(db, {
+      saleId: sale.id,
+      lines: [{ productId: tea.id, qtyMilli: 1000 }],
+      deviceCode: 'K1',
+      at: day(29, 5),
+    });
+    // The shape early builds wrote: one refund method for the whole amount.
+    const legacy: Record<string, unknown> = { ...stored, refundMethod: 'cash' };
+    delete legacy.refunds;
+    await db.returns.put(legacy as unknown as ReturnRecord);
+    const summary = await loadSummary(db, { from: date(29), to: date(29) });
+    expect(summary).toMatchObject({ returnCount: 1, net: 9000, byMethod: { cash: 9000 } });
   });
 
   it('breaks down VAT, cost, categories and best sellers', async () => {
