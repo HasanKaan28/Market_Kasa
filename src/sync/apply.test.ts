@@ -141,6 +141,20 @@ describe('applyServerRows', () => {
     expect(await db.categories.get('c1')).toEqual(row);
   });
 
+  it('applies pulled purchases once', async () => {
+    const purchase = {
+      id: 'g1',
+      deviceCode: 'K2',
+      lines: [],
+      total: 0,
+      occurredAt: at.toISOString(),
+      businessDate: '2026-10-29',
+    };
+    const pulled: ServerRow = { table: 'purchases', id: 'g1', serverSeq: 8, row: purchase };
+    await applyServerRows(db, [pulled, pulled]);
+    expect(await db.purchases.toArray()).toEqual([purchase]);
+  });
+
   it('stores two sales that share a receipt number', async () => {
     const sale = (id: string, serverSeq: number): ServerRow => ({
       table: 'sales',

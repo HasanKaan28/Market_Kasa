@@ -2,10 +2,13 @@ import { businessDate } from '@/domain/businessDate';
 import { stockLevel } from '@/domain/ledger';
 import { assertSafeInteger } from '@/domain/money';
 import type { MarketDb } from './db';
+import { RecordNotFoundError } from './errors';
 import { newId } from './ids';
 import { appendOutbox } from './outbox';
 import { withoutUndefined } from './records';
 import type { StockMovementKind, StockMovementRecord } from './types';
+
+const DEFAULT_MOVEMENT_LIMIT = 200;
 
 export type NewStockMovement = {
   /** Set only when the id must be the same on every device (see `deriveId`). */
@@ -14,8 +17,19 @@ export type NewStockMovement = {
   delta: number;
   kind: StockMovementKind;
   refId?: string;
+  note?: string;
   at: Date;
   cutoffMinutes?: number;
+};
+
+export type AdjustReason = 'waste' | 'damaged' | 'lost' | 'found' | 'other';
+
+export const ADJUST_REASONS: Record<AdjustReason, string> = {
+  waste: 'Fire',
+  damaged: 'Bozuk / SKT geçmiş',
+  lost: 'Kayıp',
+  found: 'Bulunan',
+  other: 'Diğer',
 };
 
 /**
@@ -36,6 +50,7 @@ export async function recordStockMovement(
     delta: input.delta,
     kind: input.kind,
     refId: input.refId,
+    note: input.note,
     occurredAt: input.at.toISOString(),
     businessDate: businessDate(input.at, { cutoffMinutes: input.cutoffMinutes }),
   });
@@ -66,5 +81,56 @@ export async function recomputeStock(db: MarketDb, productId: string): Promise<n
     );
     await db.stockLevels.put({ productId, qtyMilli });
     return qtyMilli;
+  });
+}
+
+/**
+ * Changes a product's stock by a signed difference, with its reason. A difference, not a new
+ * total: two registers' adjustments add up, so neither is lost.
+ */
+export async function adjustStock(
+  db: MarketDb,
+  input: { productId: string; deltaMilli: number; reason: AdjustReason; note?: string },
+  at: Date,
+): Promise<StockMovementRecord> {
+  return db.transaction(
+    'rw',
+    db.products,
+    db.stockMovements,
+    db.stockLevels,
+    db.outbox,
+    async () => {
+      const product = await db.products.get(input.productId);
+      if (!product || product.deletedAt) {
+        throw new RecordNotFoundError('Product', input.productId);
+      }
+      if (product.unit === 'piece' && input.deltaMilli % 1000 !== 0) {
+        throw new RangeError('A piece product takes whole quantities');
+      }
+      const note = input.note?.trim();
+      return recordStockMovement(db, {
+        productId: input.productId,
+        delta: input.deltaMilli,
+        kind: 'manual',
+        note: note ? `${ADJUST_REASONS[input.reason]}: ${note}` : ADJUST_REASONS[input.reason],
+        at,
+      });
+    },
+  );
+}
+
+/** A product's movements, newest first, each with the stock it left behind. */
+export async function listMovements(
+  db: MarketDb,
+  productId: string,
+  limit: number = DEFAULT_MOVEMENT_LIMIT,
+): Promise<{ movement: StockMovementRecord; balanceMilli: number }[]> {
+  const movements = await db.stockMovements.where('productId').equals(productId).toArray();
+  movements.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id));
+  let balance = await stockOf(db, productId);
+  return movements.slice(0, limit).map((movement) => {
+    const row = { movement, balanceMilli: balance };
+    balance -= movement.delta;
+    return row;
   });
 }

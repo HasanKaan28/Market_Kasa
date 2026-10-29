@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeTestDb } from '@/test/db';
 import type { MarketDb } from './db';
 import { pendingOps } from './outbox';
-import { recomputeStock, recordStockMovement, stockOf } from './stock';
+import { createProduct } from './products';
+import { adjustStock, listMovements, recomputeStock, recordStockMovement, stockOf } from './stock';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -47,5 +48,39 @@ describe('stock', () => {
     await expect(
       recordStockMovement(db, { productId: 'p1', delta: 0.5, kind: 'manual', at }),
     ).rejects.toThrow(RangeError);
+  });
+
+  it('adjusts stock by a signed difference with its reason', async () => {
+    const product = await createProduct(db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    await recordStockMovement(db, { productId: product.id, delta: 10000, kind: 'count', at });
+    const movement = await adjustStock(
+      db,
+      { productId: product.id, deltaMilli: -2000, reason: 'waste', note: ' kırık ' },
+      at,
+    );
+    expect(movement).toMatchObject({ kind: 'manual', delta: -2000, note: 'Fire: kırık' });
+    expect(await stockOf(db, product.id)).toBe(8000);
+    await expect(
+      adjustStock(db, { productId: product.id, deltaMilli: 500, reason: 'found' }, at),
+    ).rejects.toBeInstanceOf(RangeError);
+  });
+
+  it('lists movements newest first with the stock after each', async () => {
+    const product = await createProduct(db, { name: 'Bardak', sellPrice: 500, vatRate: 20 }, at);
+    const t = (minute: number) => new Date(at.getTime() + minute * 60_000);
+    await recordStockMovement(db, {
+      productId: product.id,
+      delta: 10000,
+      kind: 'purchase',
+      at: t(1),
+    });
+    await recordStockMovement(db, { productId: product.id, delta: -2000, kind: 'sale', at: t(2) });
+    await adjustStock(db, { productId: product.id, deltaMilli: -9000, reason: 'lost' }, t(3));
+    const rows = await listMovements(db, product.id);
+    expect(rows.map((row) => [row.movement.delta, row.balanceMilli])).toEqual([
+      [-9000, -1000],
+      [-2000, 8000],
+      [10000, 10000],
+    ]);
   });
 });

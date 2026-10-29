@@ -89,11 +89,33 @@ export type StockMovementRecord = {
   delta: number;
   kind: StockMovementKind;
   refId?: string;
+  /** Why a manual adjustment was made: its reason, and the note typed with it. */
+  note?: string;
   occurredAt: string;
   businessDate: string;
 };
 
 export type StockLevelRecord = { productId: string; qtyMilli: number };
+
+export type PurchaseLine = {
+  productId: string;
+  name: string;
+  unit: ProductUnit;
+  qtyMilli: number;
+  buyPrice: Kurus;
+  cost: Kurus;
+};
+
+/** Goods received in one go; each line's stock movement carries its id. M4 adds the supplier. */
+export type PurchaseRecord = {
+  id: string;
+  deviceCode: string;
+  lines: PurchaseLine[];
+  total: Kurus;
+  note?: string;
+  occurredAt: string;
+  businessDate: string;
+};
 
 export type LedgerRecord = {
   id: string;
@@ -148,7 +170,8 @@ export type OutboxTable =
   | 'stockMovements'
   | 'ledger'
   | 'saleVoids'
-  | 'returns';
+  | 'returns'
+  | 'purchases';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }

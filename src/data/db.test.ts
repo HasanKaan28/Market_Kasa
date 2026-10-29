@@ -25,6 +25,7 @@ describe('openMarketDb', () => {
       'meta',
       'outbox',
       'products',
+      'purchases',
       'returns',
       'saleVoids',
       'sales',
