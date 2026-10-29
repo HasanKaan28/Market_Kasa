@@ -42,8 +42,10 @@ describe('ReceiptsDialog', () => {
     await twoSales(data.db);
     await screen.findByText('K1-20261029-0001');
     await userEvent.type(screen.getByLabelText('Fiş no'), '0002');
-    await vi.waitFor(() => expect(screen.queryByText('K1-20261029-0001')).not.toBeInTheDocument());
-    expect(screen.getByText('K1-20261029-0002')).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(screen.queryByText('K1-20261029-0001')).not.toBeInTheDocument();
+      expect(screen.getByText('K1-20261029-0002')).toBeInTheDocument();
+    });
   });
 
   it('shows a receipt and starts a return or a void', async () => {
