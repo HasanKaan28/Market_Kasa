@@ -11,4 +11,15 @@ describe('businessDate', () => {
   ])('%s (cutoff %i) → %s', (iso, cutoff, day) =>
     expect(businessDate(new Date(iso), { cutoffMinutes: cutoff })).toBe(day),
   );
+
+  it('refuses a cutoff outside the day', () => {
+    const at = new Date('2026-10-29T09:00:00Z');
+    expect(() => businessDate(at, { cutoffMinutes: -1 })).toThrow(RangeError);
+    expect(() => businessDate(at, { cutoffMinutes: 721 })).toThrow(RangeError);
+    expect(() => businessDate(at, { cutoffMinutes: 1.5 })).toThrow(RangeError);
+    // 11:00 in Istanbul, before a day that turns at noon.
+    expect(businessDate(new Date('2026-10-29T08:00:00Z'), { cutoffMinutes: 720 })).toBe(
+      '2026-10-28',
+    );
+  });
 });

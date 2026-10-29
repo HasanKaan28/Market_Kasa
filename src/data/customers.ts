@@ -58,15 +58,20 @@ export async function updateCustomer(
   });
 }
 
+/** Archives a settled customer; one who owes, or is owed, stays so the balance is not hidden. */
 export async function archiveCustomer(db: MarketDb, id: string, at: Date): Promise<void> {
   const stamp = at.toISOString();
-  await db.transaction('rw', db.customers, db.outbox, async () => {
+  await db.transaction('rw', db.customers, db.ledger, db.outbox, async () => {
     const current = await db.customers.get(id);
     if (!current) {
       throw new RecordNotFoundError('Customer', id);
     }
     if (current.archivedAt) {
       return;
+    }
+    const owed = balance(await db.ledger.where('customerId').equals(id).toArray());
+    if (owed !== 0) {
+      throw new RangeError(`Only a settled customer is archived; the balance is ${owed}`);
     }
     await db.customers.put({ ...current, archivedAt: stamp, updatedAt: stamp });
     await appendOutbox(

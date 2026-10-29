@@ -3,8 +3,11 @@ import { assertSafeInteger, type Kurus } from './money';
 
 export type LedgerKind = 'debt' | 'payment' | 'adjustment';
 
-/** Signed amount: debts are positive, payments negative, adjustments either way. */
-export type LedgerEntry = { kind: LedgerKind; amount: Kurus; occurredAt: string };
+/**
+ * Signed amount: debts are positive, payments negative, adjustments either way. `saleId` ties a
+ * sale's debt to the void or return that takes it back.
+ */
+export type LedgerEntry = { kind: LedgerKind; amount: Kurus; occurredAt: string; saleId?: string };
 
 const DAY_MS = 86_400_000;
 
@@ -17,13 +20,13 @@ export function balance(entries: readonly LedgerEntry[]): Kurus {
 
 /**
  * Settles the ledger first-in-first-out: payments close the oldest open debts, and anything
- * left over becomes credit that later debts draw on. Returns when the oldest still-open debt
- * was incurred, or null when nothing is owed.
+ * left over becomes credit that later debts draw on. A void or return of a sale closes that
+ * sale's debt first. Returns when the oldest still-open debt was incurred, or null when
+ * nothing is owed.
  */
 export function oldestUnpaidDebt(entries: readonly LedgerEntry[]): string | null {
   const ordered = [...entries].sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt));
-  const open: { occurredAt: string; remaining: Kurus }[] = [];
-  let head = 0;
+  const open: { occurredAt: string; remaining: Kurus; saleId?: string }[] = [];
   let credit = 0;
 
   for (const entry of ordered) {
@@ -32,32 +35,41 @@ export function oldestUnpaidDebt(entries: readonly LedgerEntry[]): string | null
       const covered = Math.min(credit, entry.amount);
       credit -= covered;
       if (entry.amount > covered) {
-        open.push({ occurredAt: entry.occurredAt, remaining: entry.amount - covered });
+        open.push({
+          occurredAt: entry.occurredAt,
+          remaining: entry.amount - covered,
+          saleId: entry.saleId,
+        });
       }
       continue;
     }
     let toApply = -entry.amount;
-    while (toApply > 0 && head < open.length) {
-      const debt = open[head];
-      if (!debt) break;
+    const own = open.filter((debt) => entry.saleId !== undefined && debt.saleId === entry.saleId);
+    for (const debt of [...own, ...open]) {
       const used = Math.min(debt.remaining, toApply);
       debt.remaining -= used;
       toApply -= used;
-      if (debt.remaining === 0) head += 1;
     }
     credit += toApply;
   }
 
-  return open[head]?.occurredAt ?? null;
+  return open.find((debt) => debt.remaining > 0)?.occurredAt ?? null;
 }
 
-/** Whole days between the oldest open debt's business day and `today` (YYYY-MM-DD). */
-export function debtAgeDays(entries: readonly LedgerEntry[], today: string): number {
+/**
+ * Whole days between the oldest open debt's business day and `today` (YYYY-MM-DD), the day
+ * found with the market's cutoff and time zone.
+ */
+export function debtAgeDays(
+  entries: readonly LedgerEntry[],
+  today: string,
+  opts: { cutoffMinutes?: number; timeZone?: string } = {},
+): number {
   const oldest = oldestUnpaidDebt(entries);
   if (oldest === null) {
     return 0;
   }
-  const since = businessDate(new Date(oldest));
+  const since = businessDate(new Date(oldest), opts);
   return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${since}T00:00:00Z`)) / DAY_MS);
 }
 

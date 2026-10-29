@@ -55,4 +55,22 @@ describe('stockLevel', () => {
 
   it('rejects fractional thousandths', () =>
     expect(() => stockLevel([{ delta: 0.5 }])).toThrow(RangeError));
+
+  it("closes the voided sale's debt, not the oldest", () => {
+    const voided: LedgerEntry[] = [
+      { kind: 'debt', amount: 5000, saleId: 'a', occurredAt: '2026-10-01T09:00:00Z' },
+      { kind: 'debt', amount: 5000, saleId: 'b', occurredAt: '2026-10-10T09:00:00Z' },
+      { kind: 'adjustment', amount: -5000, saleId: 'b', occurredAt: '2026-10-12T09:00:00Z' },
+    ];
+    expect(oldestUnpaidDebt(voided)).toBe('2026-10-01T09:00:00Z');
+  });
+
+  it('counts debt age by the business day cutoff', () => {
+    // 02:30 in Istanbul on the 29th: with the day turning at 04:00 it is still the 28th.
+    const late: LedgerEntry[] = [
+      { kind: 'debt', amount: 1000, occurredAt: '2026-10-28T23:30:00Z' },
+    ];
+    expect(debtAgeDays(late, '2026-10-29')).toBe(0);
+    expect(debtAgeDays(late, '2026-10-29', { cutoffMinutes: 240 })).toBe(1);
+  });
 });

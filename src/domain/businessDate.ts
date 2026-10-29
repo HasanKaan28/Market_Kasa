@@ -1,4 +1,6 @@
 const DEFAULT_TIME_ZONE = 'Europe/Istanbul';
+// A day may turn at most at noon; later would move a whole working day to the day before.
+const MAX_CUTOFF_MINUTES = 720;
 
 const dayFormatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -25,6 +27,11 @@ export function businessDate(
   opts: { timeZone?: string; cutoffMinutes?: number } = {},
 ): string {
   const { timeZone = DEFAULT_TIME_ZONE, cutoffMinutes = 0 } = opts;
+  if (!Number.isInteger(cutoffMinutes) || cutoffMinutes < 0 || cutoffMinutes > MAX_CUTOFF_MINUTES) {
+    throw new RangeError(
+      `A day cutoff must be 0 to ${MAX_CUTOFF_MINUTES} minutes, got ${cutoffMinutes}`,
+    );
+  }
   const shifted = new Date(at.getTime() - cutoffMinutes * 60_000);
   const parts = dayFormatter(timeZone).formatToParts(shifted);
   const part = (type: Intl.DateTimeFormatPartTypes) =>

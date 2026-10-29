@@ -136,11 +136,16 @@ export type StockCountRecord = {
   businessDate: string;
 };
 
+/** How a customer paid: credit itself is never a way to pay credit. */
+export type LedgerMethod = 'cash' | 'card';
+
 export type LedgerRecord = {
   id: string;
   customerId: string;
   kind: LedgerKind;
   amount: Kurus;
+  /** How a payment was made. */
+  method?: LedgerMethod;
   saleId?: string;
   note?: string;
   occurredAt: string;
