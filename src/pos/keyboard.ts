@@ -1,0 +1,121 @@
+import { useEffect, useRef } from 'react';
+
+export type ScanBuffer = { push(key: string, at: number): string | null };
+
+type ScanOptions = { maxGapMs?: number; minLength?: number };
+
+type ShortcutKey = 'F1' | 'F2' | 'F4';
+
+const SCAN_CHARACTER = /^[0-9A-Za-z-]$/;
+const TYPED_BARCODE = /^[0-9A-Za-z-]{4,32}$/;
+const MAX_CODE_LENGTH = 32;
+const SHORTCUT_KEYS: ReadonlySet<string> = new Set<ShortcutKey>(['F1', 'F2', 'F4']);
+
+/**
+ * Tells a barcode scanner from a person: a scanner types every key at most `maxGapMs` after the
+ * previous one and ends with Enter (DESIGN §15). A slower key starts a new burst.
+ */
+export function createScanBuffer({ maxGapMs = 50, minLength = 4 }: ScanOptions = {}): ScanBuffer {
+  let code = '';
+  let lastAt = Number.NEGATIVE_INFINITY;
+  return {
+    push(key, at) {
+      const inBurst = at - lastAt <= maxGapMs;
+      lastAt = at;
+      if (key === 'Enter') {
+        const scanned = inBurst && code.length >= minLength && code.length <= MAX_CODE_LENGTH;
+        const result = scanned ? code : null;
+        code = '';
+        return result;
+      }
+      if (!SCAN_CHARACTER.test(key)) {
+        code = '';
+        return null;
+      }
+      code = inBurst ? code + key : key;
+      return null;
+    },
+  };
+}
+
+/** Whether text a person typed is meant as a barcode: barcode characters and at least one digit. */
+export function looksLikeBarcode(text: string): boolean {
+  return TYPED_BARCODE.test(text) && /\d/.test(text);
+}
+
+/**
+ * Listens for scanner bursts wherever focus is. The scan's Enter is swallowed so it cannot click
+ * a focused button or submit a field, and a scan typed into a text field is taken back out of it.
+ */
+export function useBarcodeScanner(
+  onScan: (code: string) => void,
+  { now = defaultNow, maxGapMs, minLength }: ScanOptions & { now?: () => number } = {},
+): void {
+  const latest = useRef(onScan);
+  useEffect(() => {
+    latest.current = onScan;
+  });
+
+  useEffect(() => {
+    const buffer = createScanBuffer({ maxGapMs, minLength });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+      const code = buffer.push(event.key, now());
+      if (code === null) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      removeTypedCode(event.target, code);
+      latest.current(code);
+    };
+    // Capture phase: runs before any field's or button's own key handling.
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [now, maxGapMs, minLength]);
+}
+
+export function useShortcuts(
+  handlers: Partial<Record<ShortcutKey, () => void>>,
+  enabled: boolean = true,
+): void {
+  const latest = useRef(handlers);
+  useEffect(() => {
+    latest.current = handlers;
+  });
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const handler = isShortcutKey(event.key) ? latest.current[event.key] : undefined;
+      if (handler) {
+        event.preventDefault();
+        handler();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [enabled]);
+}
+
+function defaultNow(): number {
+  return performance.now();
+}
+
+function isShortcutKey(key: string): key is ShortcutKey {
+  return SHORTCUT_KEYS.has(key);
+}
+
+/** Sets the field through the native setter and an input event, so React's onChange sees it. */
+function removeTypedCode(target: EventTarget | null, code: string): void {
+  if (!(target instanceof HTMLInputElement) || !target.value.endsWith(code)) {
+    return;
+  }
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  setValue?.call(target, target.value.slice(0, -code.length));
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+}
