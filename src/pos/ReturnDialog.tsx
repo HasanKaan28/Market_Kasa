@@ -30,16 +30,23 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
 
+  // Returns made elsewhere (another tab, a sync) can land while the dialog is open: every
+  // choice is clamped to what is left now, so the refund preview can never ask for too much.
   const remaining = (productId: string, soldMilli: number) =>
-    soldMilli - (returned?.get(productId) ?? 0);
+    Math.max(0, soldMilli - (returned?.get(productId) ?? 0));
+  const quantityOf = (productId: string, soldMilli: number) =>
+    Math.min(chosen[productId] ?? 0, remaining(productId, soldMilli));
   const refund = sale.lines.reduce((sum, line) => {
-    const qty = chosen[line.productId] ?? 0;
+    const qty = quantityOf(line.productId, line.qtyMilli);
     const already = returned?.get(line.productId) ?? 0;
     return qty > 0 ? sum + refundShare(line.net, line.qtyMilli, already, qty) : sum;
   }, 0);
-  const lines = Object.entries(chosen)
-    .filter(([, qtyMilli]) => qtyMilli > 0)
-    .map(([productId, qtyMilli]) => ({ productId, qtyMilli }));
+  const lines = sale.lines
+    .map((line) => ({
+      productId: line.productId,
+      qtyMilli: quantityOf(line.productId, line.qtyMilli),
+    }))
+    .filter((line) => line.qtyMilli > 0);
 
   function step(productId: string, soldMilli: number, delta: number) {
     const max = remaining(productId, soldMilli);
@@ -82,7 +89,7 @@ export function ReturnDialog({ open, sale, onClose, onReturned }: ReturnDialogPr
       <ul className="flex flex-col divide-y divide-line">
         {sale.lines.map((line) => {
           const left = returned ? remaining(line.productId, line.qtyMilli) : 0;
-          const qty = chosen[line.productId] ?? 0;
+          const qty = quantityOf(line.productId, line.qtyMilli);
           return (
             <li key={line.productId} className="flex items-center gap-2 py-2">
               <div className="min-w-0 flex-1">

@@ -70,4 +70,22 @@ describe('ReturnDialog', () => {
     await renderWithData(<ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />, data);
     expect(screen.getByRole('button', { name: 'İadeyi kaydet' })).toBeDisabled();
   });
+
+  it('survives a return made elsewhere while it is open', async () => {
+    const data = createTestData();
+    const { product, sale } = await sold(data.db, 'Ekmek', 1500, 2);
+    await renderWithData(<ReturnDialog open sale={sale} onClose={vi.fn()} onReturned={vi.fn()} />, data);
+    const more = await screen.findByRole('button', { name: 'Artır · Ekmek' });
+    await userEvent.click(more);
+    await userEvent.click(more);
+    expect(screen.getByTestId('refund')).toHaveTextContent('₺30,00');
+    await recordReturn(data.db, {
+      saleId: sale.id,
+      lines: [{ productId: product.id, qtyMilli: 1000 }],
+      refundMethod: 'cash',
+      deviceCode: 'K1',
+      at,
+    });
+    await vi.waitFor(() => expect(screen.getByTestId('refund')).toHaveTextContent('₺15,00'));
+  });
 });
