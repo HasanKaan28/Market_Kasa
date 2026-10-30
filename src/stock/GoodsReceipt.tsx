@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
+import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
@@ -50,6 +51,7 @@ export type GoodsReceiptProps = {
  */
 export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   const { db, settings, runner } = useData();
+  const actor = useActor();
   const { staff } = useSession();
   const { cutoffMinutes } = useMarketSettings();
   const [draft, setDraft] = useState<ReceiptDraft>(() => loadDraft());
@@ -194,6 +196,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           ...(payment === 'cash' ? { fromDrawer } : {}),
         },
         new Date(),
+        actor,
       );
       setDraft(EMPTY_DRAFT);
       onDone(`Mal kabul kaydedildi: ${purchase.lines.length} ürün, ${formatTRY(purchase.total)}.`);

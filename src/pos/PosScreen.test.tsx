@@ -40,6 +40,29 @@ describe('PosScreen', () => {
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
   });
 
+  it("keeps selling on the last grace day by the market's day", async () => {
+    // 01:30 on 9 November in Istanbul is still the 8th with the day turning at 02:00: the
+    // licence through the 5th is on its last grace day, not read-only.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-08T22:30:00Z'));
+    try {
+      const data = createTestData();
+      await saveMarketSettings(data.db, { cutoffMinutes: 120 }, new Date());
+      await saveLicense(data.db, '2026-11-05');
+      await renderWithData(<PosScreen />, data);
+      expect(
+        await screen.findByText('Lisans süresi doldu. Satış için bugün son gün.'),
+      ).toBeInTheDocument();
+      await createProduct(data.db, milk, new Date());
+      scan(milk.barcode);
+      expect(await screen.findByText('1 kalem')).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: 'F2' });
+      expect(await screen.findByLabelText('Alınan tutar')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('closes the register when the grace is over', async () => {
     const data = createTestData();
     await saveLicense(data.db, '2026-01-01');

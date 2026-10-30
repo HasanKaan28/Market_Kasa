@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useContext } from 'react';
 import type { MarketDb } from '@/data/db';
+import { loadMarketSettings } from '@/data/settings';
 import { licenseState, type LicenseState } from '@/domain/license';
 import { DataContext } from './appData';
 
@@ -28,6 +29,18 @@ const UNKNOWN: LicenseState = { kind: 'unknown' };
  */
 export function useLicense(): LicenseState {
   const data = useContext(DataContext);
-  const expiresAt = useLiveQuery(async () => (data ? loadLicense(data.db) : null), [data]);
-  return expiresAt === undefined ? UNKNOWN : licenseState(expiresAt, new Date());
+  // The day turns at the market's cutoff, read here too, so the shell needs no other provider.
+  const known = useLiveQuery(async () => {
+    if (!data) {
+      return { expiresAt: null, cutoffMinutes: 0 };
+    }
+    const [expiresAt, settings] = await Promise.all([
+      loadLicense(data.db),
+      loadMarketSettings(data.db),
+    ]);
+    return { expiresAt, cutoffMinutes: settings.cutoffMinutes };
+  }, [data]);
+  return known === undefined
+    ? UNKNOWN
+    : licenseState(known.expiresAt, new Date(), { cutoffMinutes: known.cutoffMinutes });
 }

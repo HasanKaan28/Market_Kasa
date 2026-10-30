@@ -5,12 +5,14 @@ import { useData } from '@/app/appData';
 import { saveDeviceSettings } from '@/app/device';
 import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
+import { currentCashSession } from '@/data/cash';
 import { saveMarketSettings } from '@/data/settings';
 import { Button, SelectField, TextField } from '@/design';
 import { licenseState } from '@/domain/license';
 import { ReceiptSettingsDialog } from '@/pos/ReceiptSettingsDialog';
 import { loadReceiptSettings, saveReceiptSettings } from '@/pos/receiptSettings';
 import { formatPeriod } from '@/reports/reportFormat';
+import { reportRegisters } from '@/reports/summary';
 
 // The day may turn on the hour from midnight to noon (DESIGN §9).
 const CUTOFF_OPTIONS = Array.from({ length: 13 }, (_, hour) => ({
@@ -97,14 +99,29 @@ export function MarketSection({ onDone }: { onDone(message: string): void }): JS
 
 /** This device's own names and register code; the app reads them when it starts. */
 export function RegisterSection(): JSX.Element {
-  const { settings } = useData();
+  const { db, settings } = useData();
   const [marketName, setMarketName] = useState(settings.marketName);
   const [deviceName, setDeviceName] = useState(settings.deviceName);
   const [deviceCode, setDeviceCode] = useState(settings.deviceCode);
   const [message, setMessage] = useState<{ text: string; error: boolean }>();
 
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const code = deviceCode.trim().toUpperCase();
+    if (code !== settings.deviceCode) {
+      // The drawer and the Z belong to the code: a new code would leave the open drawer behind.
+      if (await currentCashSession(db, settings.deviceCode)) {
+        setMessage({
+          text: 'Kasa açık: önce gün sonunu (Z) alın, sonra kodu değiştirin.',
+          error: true,
+        });
+        return;
+      }
+      if ((await reportRegisters(db)).includes(code)) {
+        setMessage({ text: `${code} kodunu başka bir kasa kullanıyor.`, error: true });
+        return;
+      }
+    }
     const saved = saveDeviceSettings({ ...settings, marketName, deviceName, deviceCode });
     setMessage(
       saved
@@ -122,7 +139,7 @@ export function RegisterSection(): JSX.Element {
       title="Bu kasa"
       description="Fişte ve raporlarda görünen adlar ile fiş numarasının başındaki kasa kodu."
     >
-      <form className="flex flex-col gap-3" onSubmit={save}>
+      <form className="flex flex-col gap-3" onSubmit={(event) => void save(event)}>
         <div className="grid gap-3 sm:grid-cols-3">
           <TextField
             label="Market adı"
@@ -192,7 +209,9 @@ export function ReceiptSection({ onDone }: { onDone(message: string): void }): J
 export function LicenseSection(): JSX.Element {
   const { db } = useData();
   const expiresAt = useLiveQuery(() => loadLicense(db), [db]);
-  const state = expiresAt === undefined ? null : licenseState(expiresAt, new Date());
+  const { cutoffMinutes } = useMarketSettings();
+  const state =
+    expiresAt === undefined ? null : licenseState(expiresAt, new Date(), { cutoffMinutes });
   const text =
     expiresAt === undefined
       ? null

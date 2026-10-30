@@ -73,6 +73,10 @@ describe('GoodsReceipt', () => {
     expect(await data.db.cashMovements.count()).toBe(0);
     expect(await stockOf(data.db, product.id)).toBe(12000);
     expect((await data.db.products.get(product.id))?.sellPrice).toBe(4500);
+    // The new sell price is on record as a price change.
+    expect(await data.db.auditLog.toArray()).toMatchObject([
+      { action: 'product.price', entityId: product.id, after: { sellPrice: 4500 } },
+    ]);
     expect(await data.db.purchases.toArray()).toMatchObject([
       { note: 'İrsaliye 1234', total: 36000 },
     ]);

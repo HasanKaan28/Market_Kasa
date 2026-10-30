@@ -1,6 +1,7 @@
 import { businessDate } from '@/domain/businessDate';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { lineTotal, MAX_UNIT_PRICE } from '@/domain/pricing';
+import type { Actor } from './audit';
 import { addCashMovement } from './cash';
 import type { MarketDb } from './db';
 import { RecordNotFoundError } from './errors';
@@ -50,6 +51,7 @@ export async function recordPurchase(
   db: MarketDb,
   input: PurchaseInput,
   at: Date,
+  actor?: Actor,
 ): Promise<PurchaseRecord> {
   if (input.lines.length === 0) {
     throw new RangeError('A goods receipt needs at least one line');
@@ -69,6 +71,8 @@ export async function recordPurchase(
     db.cashMovements,
     db.outbox,
     db.meta,
+    // A price changed by a person is logged (see updateProduct).
+    ...(actor ? [db.auditLog] : []),
   ];
   return db.transaction('rw', tables, async () => {
     const supplier =
@@ -130,7 +134,7 @@ export async function recordPurchase(
     await appendOutbox(db, { kind: 'insert', table: 'purchases', recordId: id, record }, at);
     for (const { product, line, patch } of checked) {
       if (Object.keys(patch).length > 0) {
-        await updateProduct(db, product.id, patch, at);
+        await updateProduct(db, product.id, patch, at, actor);
       }
       await recordStockMovement(db, {
         productId: product.id,

@@ -5,6 +5,7 @@ import { recordApproval, type Actor } from './audit';
 import type { MarketDb } from './db';
 import { pendingOps } from './outbox';
 import { createProduct, updateProduct } from './products';
+import { recordPurchase } from './purchases';
 import { saveMarketSettings } from './settings';
 import { archiveStaff, createStaff, restoreStaff, setStaffPin, updateStaff } from './staff';
 
@@ -103,6 +104,29 @@ describe('audit log', () => {
     const hashes = (await db.staff.toArray()).flatMap((person) => [person.pinHash, person.pinSalt]);
     expect(hashes.some((hash) => stored.includes(hash))).toBe(false);
     expect((await pendingOps(db)).filter((op) => op.table === 'auditLog')).toHaveLength(7);
+  });
+
+  it('records a sell price changed on a goods receipt', async () => {
+    const tea = await createProduct(
+      db,
+      { name: 'Çay', sellPrice: 9000, buyPrice: 7000, vatRate: 1 },
+      at,
+    );
+    await recordPurchase(
+      db,
+      { deviceCode: 'K1', lines: [{ productId: tea.id, qtyMilli: 1000, sellPrice: 5000 }] },
+      later(1),
+      owner,
+    );
+    expect(await entries()).toEqual([
+      {
+        action: 'product.price',
+        entityId: tea.id,
+        staffId: 'staff-owner',
+        before: { sellPrice: 9000 },
+        after: { sellPrice: 5000 },
+      },
+    ]);
   });
 
   it('records a price change and an approval', async () => {

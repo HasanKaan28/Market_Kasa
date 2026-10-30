@@ -49,6 +49,18 @@ describe('products', () => {
     expect(ops[0]).toMatchObject({ kind: 'insert', table: 'products', recordId: p.id, record: p });
   });
 
+  it("writes opening stock on the market's business day", async () => {
+    // 01:30 on the 30th in Istanbul, with the day turning at 02:00.
+    const product = await createProduct(
+      db,
+      { name: 'Pirinç', sellPrice: 5000, vatRate: 1 },
+      new Date('2026-10-29T22:30:00Z'),
+      { openingStockMilli: 5000, cutoffMinutes: 120 },
+    );
+    const [opening] = await db.stockMovements.where('productId').equals(product.id).toArray();
+    expect(opening?.businessDate).toBe('2026-10-29');
+  });
+
   it('stores barcodes in upper case and finds them in any case', async () => {
     const pen = await createProduct(
       db,

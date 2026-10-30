@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Screens } from '@/app/Screens';
 import { SessionProvider } from '@/app/SessionProvider';
+import { closeCashSession, openCashSession } from '@/data/cash';
+import { createProduct } from '@/data/products';
+import { recordSale } from '@/data/sales';
 import { loadMarketSettings } from '@/data/settings';
 import { checkPin, createStaff, updateStaff } from '@/data/staff';
 import { createTestData, renderWithData } from '@/test/renderWithData';
@@ -105,6 +108,42 @@ describe('SettingsScreen', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pasife al' }));
     expect(await within(dialog).findByText('Son sahip pasife alınamaz.')).toBeInTheDocument();
   });
+  it('keeps the register code while its drawer is open or taken by another register', async () => {
+    const { data, kaan } = await team();
+    await openCashSession(data.db, { deviceCode: 'K1', openingCash: 5000 }, new Date());
+    await settingsAs(data, kaan.id);
+    const register = await screen.findByRole('region', { name: 'Bu kasa' });
+    await userEvent.clear(within(register).getByLabelText('Kasa kodu'));
+    await userEvent.type(within(register).getByLabelText('Kasa kodu'), 'K3');
+    await userEvent.click(within(register).getByRole('button', { name: 'Kasayı kaydet' }));
+    expect(
+      await within(register).findByText(
+        'Kasa açık: önce gün sonunu (Z) alın, sonra kodu değiştirin.',
+      ),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem('mk2.device')).toBeNull();
+    await closeCashSession(data.db, { deviceCode: 'K1', countedCash: 5000 }, new Date());
+    // K2 has rung up sales: its code is taken.
+    const tea = await createProduct(
+      data.db,
+      { name: 'Çay', sellPrice: 1000, vatRate: 1 },
+      new Date(),
+    );
+    await recordSale(data.db, {
+      deviceCode: 'K2',
+      at: new Date(),
+      lines: [{ productId: tea.id, qtyMilli: 1000 }],
+      payments: [{ method: 'card', amount: 1000 }],
+    });
+    await userEvent.clear(within(register).getByLabelText('Kasa kodu'));
+    await userEvent.type(within(register).getByLabelText('Kasa kodu'), 'K2');
+    await userEvent.click(within(register).getByRole('button', { name: 'Kasayı kaydet' }));
+    expect(
+      await within(register).findByText('K2 kodunu başka bir kasa kullanıyor.'),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem('mk2.device')).toBeNull();
+  });
+
   it('edits the market and this register', async () => {
     const { data, kaan } = await team();
     await settingsAs(data, kaan.id);
