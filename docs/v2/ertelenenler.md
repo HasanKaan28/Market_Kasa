@@ -88,6 +88,10 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - İz kaydının bilinmeyen işlemleri (ör. "yetkisiz" işaretli kayıtlar, §8.4) boş satır gösteriyor; açıklama metnine varsayılan dal gerekir. (M6b)
 - Lisans salt-okunurken yerelde yazılan bir tahsilat ya da kasa hareketi sunucuda reddedilirse geri alınacak bir şey yok; salt-okunurda olay yazan bütün formlar kapanmalı ya da sunucu bunları kabul etmeli. (M6b)
 - Sunucu: son aktif sahip kuralı, personel satırlarının denetimi, yönetim değişikliklerinde yetki denetimi için kuyruğa işlemi yapanın eklenmesi (§8.4). (M6a)
+- **e-Arşiv sağlayıcı adaptörü** (§11): bekleyen istekleri keser, `ettn` ya da `error` yazar; sonuç eşitlemeyle kasalara gelir. Kasa `issued` durumunu hiç göndermez. (M7)
+- Fatura durum kuralı sunucuda: kasadan gelen durum yamaları yalnız beklemede→iptal, hata→beklemede ve hata→iptal olabilir; başkası reddedilir ve satır yeniden gönderilir. Yoksa kesilmiş faturanın üstüne kuyruktaki bir iptal yazılır ve satış faturasız görünür. (M7)
+- Satış iptali sunucuda da bekleyen fatura isteğini iptal etmeli; başka kasadan eşitlemeyle gelen iptal bu kasadaki isteği geri çekmiyor. Aynı satışa iki kasadan gelen istekleri sunucu birleştirmeli (ekranda "Aynı fişe ikinci istek" yazıyor). (M7)
+- Sunucudan gelen fatura satırları şekil denetiminden geçmiyor; `buyer` alanı olmayan bir satır Faturalar ekranını düşürür. (M7)
 
 ## M3 · Ürün ve stok
 
@@ -168,7 +172,13 @@ Cila 1 tamamlandı; M5'in "kasadan ödeme", "kasa açılmadı" ölçütü ve dü
 
 ## M7 · e-Arşiv
 
-- "Bilgi fişidir, mali değeri yoktur." faturalanan satışlarda yazılmamalı. (M2d)
+M7 (istemci tarafı) tamamlandı; "Bilgi fişidir" maddesi kapandı. Sağlayıcı adaptörü ve sunucu kuralları M0b bölümünde. İncelemeden kalan küçük maddeler:
+
+- Hata almış bir istek de fişteki "Bilgi fişidir" satırını kaldırıyor. §12 "fatura kesilmemiş" diyor, plan "istenmiş" dedi; muhasebeciyle netleşmeli.
+- Tamamı iade edilmiş bir satışa da fatura istenebiliyor.
+- Sahte sağlayıcının (`settlePending`) geliştirmede bir girişi yok; sunucu olmadan uygulamada "Kesildi" ya da "Hata" görülemiyor.
+- TCKN alanına boşluklu yapıştırılan numara hane kaybediyor (`maxLength` rakamlar ayıklanmadan kesiyor).
+- Şahıs şirketi için kurumsal formda TCKN kabul ediliyor; sağlayıcı ve muhasebeci bunu onaylamalı.
 
 ## M8 · Yayın
 
