@@ -156,6 +156,16 @@ M6b (ayarlar, iz kaydı, lisans, personel raporu) tamamlandı. İncelemesinden k
 - İz kaydı ekranı her değişiklikte bütün ürünleri ve personeli okuyor.
 - Personel tablosundaki "Tutar" iade öncesi satıştır, öyle adlandırılmalı; "Silinmiş personel" çoğu zaman "henüz eşitlenmedi" demektir.
 
+## Cila 1
+
+Cila 1 tamamlandı; M5'in "kasadan ödeme", "kasa açılmadı" ölçütü ve dünden açık kasanın tarihi maddeleri ile M6a'nın son sahip ve boş onay penceresi maddeleri kapandı. İncelemeden kalan küçük maddeler:
+
+- Tartılı iadede 0 kg reddediliyor ama testle sabitlenmedi; tamamı iade edilmiş tartılı satırın alanı hâlâ yazılabiliyor.
+- Kasa penceresindeki açılış tarihi takvim gününe bakıyor, gün dönümüne bakmıyor.
+- "Kasadan ödendi" seçimi cari hareketinde ve alışta saklanmıyor; sonradan cepten mi kasadan mı ödendiği görülmüyor.
+- Eşitleme hiç etkin sahip bırakmazsa ayarlara nasıl dönüleceği (sunucu kuralı M0b'de).
+- Ürün panelinin grup testi tam paket yükü altında bir kez zaman aşımına düştü; tek başına geçiyor.
+
 ## M7 · e-Arşiv
 
 - "Bilgi fişidir, mali değeri yoktur." faturalanan satışlarda yazılmamalı. (M2d)
