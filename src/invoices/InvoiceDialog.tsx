@@ -132,14 +132,16 @@ export function InvoiceDialog({
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <TextField
-              label="Unvan"
-              autoComplete="off"
-              autoFocus
-              value={fields.title}
-              error={errors.title}
-              onChange={(event) => set('title', event.target.value)}
-            />
+            <div className="sm:col-span-2">
+              <TextField
+                label="Unvan"
+                autoComplete="off"
+                autoFocus
+                value={fields.title}
+                error={errors.title}
+                onChange={(event) => set('title', event.target.value)}
+              />
+            </div>
             <TextField
               label="VKN"
               inputMode="numeric"

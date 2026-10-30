@@ -82,7 +82,7 @@ export function InvoicesScreen(): JSX.Element {
                 {rows.map(({ invoice, sale, returned, duplicate }) => (
                   <tr key={invoice.id} className="border-b border-line align-top last:border-0">
                     <td className="px-3 py-2">
-                      <span className="block font-mono text-sm font-medium">
+                      <span className="block font-mono text-sm font-medium whitespace-nowrap">
                         {sale?.receiptNo ?? 'Fiş henüz gelmedi'}
                       </span>
                       <span className="block text-sm text-text-2">
@@ -111,7 +111,7 @@ export function InvoicesScreen(): JSX.Element {
                       ) : null}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex justify-end gap-2 whitespace-nowrap">
                         {invoice.status === 'failed' ? (
                           <Button
                             onClick={() =>
