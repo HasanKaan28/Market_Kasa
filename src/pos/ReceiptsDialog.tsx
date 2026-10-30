@@ -2,11 +2,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, Settings } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { invoiceForSale } from '@/data/invoices';
 import { saleStatus } from '@/data/returns';
 import { findSalesByReceiptEnding, recentSales } from '@/data/sales';
 import type { SaleRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
+import { INVOICE_STATUS_LABELS } from '@/invoices/labels';
 import { formatDateTime, PAYMENT_LABELS } from './format';
 import { buildReceipt } from './receipt';
 import { receiptContext, type ReceiptSettings } from './receiptSettings';
@@ -19,6 +21,7 @@ export type ReceiptsDialogProps = {
   onClose(): void;
   onReturn(sale: SaleRecord): void;
   onVoid(sale: SaleRecord): void;
+  onInvoice(sale: SaleRecord): void;
   onPrint(sale: SaleRecord): void;
   onSettings(): void;
 };
@@ -32,6 +35,7 @@ export function ReceiptsDialog({
   onClose,
   onReturn,
   onVoid,
+  onInvoice,
   onPrint,
   onSettings,
 }: ReceiptsDialogProps): JSX.Element {
@@ -45,6 +49,7 @@ export function ReceiptsDialog({
           onBack={() => setSelected(null)}
           onReturn={onReturn}
           onVoid={onVoid}
+          onInvoice={onInvoice}
           onPrint={onPrint}
         />
       ) : (
@@ -117,6 +122,7 @@ function ReceiptDetail({
   onBack,
   onReturn,
   onVoid,
+  onInvoice,
   onPrint,
 }: {
   sale: SaleRecord;
@@ -124,10 +130,16 @@ function ReceiptDetail({
   onBack(): void;
   onReturn(sale: SaleRecord): void;
   onVoid(sale: SaleRecord): void;
+  onInvoice(sale: SaleRecord): void;
   onPrint(sale: SaleRecord): void;
 }): JSX.Element {
   const { db, settings: device } = useData();
   const status = useLiveQuery(() => saleStatus(db, sale.id), [db, sale.id]);
+  // null once read and there is none, so a missing invoice is told apart from one still loading.
+  const invoice = useLiveQuery(
+    async () => (await invoiceForSale(db, sale.id)) ?? null,
+    [db, sale.id],
+  );
   const customer = useLiveQuery(
     async () => (sale.customerId ? db.customers.get(sale.customerId) : undefined),
     [db, sale.customerId],
@@ -138,10 +150,12 @@ function ReceiptDetail({
   // Until the status is known, nothing can be started.
   const canReturn = status !== undefined && !status.voided && !fullyReturned;
   const canVoid = status !== undefined && !status.voided && status.returned.size === 0;
+  const canInvoice = status !== undefined && !status.voided && invoice === null;
   const model = buildReceipt(sale, {
     ...receiptContext(device, settings),
     customerName: customer?.name,
     status: { voided: status?.voided ?? false, returnedAny: (status?.returned.size ?? 0) > 0 },
+    invoiced: Boolean(invoice),
   });
 
   function share() {
@@ -174,6 +188,9 @@ function ReceiptDetail({
         <Button onClick={share}>WhatsApp</Button>
         <Button disabled={!canReturn} onClick={() => onReturn(sale)}>
           İade al
+        </Button>
+        <Button disabled={!canInvoice} onClick={() => onInvoice(sale)}>
+          {invoice ? `Fatura · ${INVOICE_STATUS_LABELS[invoice.status]}` : 'Fatura kes'}
         </Button>
         <Button variant="danger" disabled={!canVoid} onClick={() => onVoid(sale)}>
           Satışı iptal et

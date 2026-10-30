@@ -6,6 +6,7 @@ import { createCustomer } from '@/data/customers';
 import { createProduct } from '@/data/products';
 import { recentSales, recordSale } from '@/data/sales';
 import { createStaff } from '@/data/staff';
+import { invoiceForSale } from '@/data/invoices';
 import { PosScreen } from '@/pos/PosScreen';
 import { CustomersScreen } from '@/customers/CustomersScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
@@ -221,6 +222,50 @@ describe('access', () => {
     await userEvent.click(within(split).getByRole('button', { name: 'Satışı tamamla' }));
     await approve('Kaan · Sahip', '4821');
     expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+  });
+
+  it('asks for an invoice from a receipt', async () => {
+    const { data } = await team();
+    const zeynep = await createStaff(
+      data.db,
+      { name: 'Zeynep', role: 'cashier', pin: '5555', permissions: { invoice: false } },
+      before(),
+    );
+    signedIn(zeynep.id);
+    const product = await createProduct(data.db, milk, before());
+    const sale = await recordSale(data.db, {
+      deviceCode: 'K1',
+      at: before(),
+      lines: [{ productId: product.id, qtyMilli: 1000 }],
+      payments: [{ method: 'cash', amount: 4250 }],
+    });
+    await renderWithData(
+      <SessionProvider>
+        <PosScreen />
+      </SessionProvider>,
+      data,
+    );
+    expect(await screen.findByText('Zeynep')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'F9' });
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(sale.receiptNo) }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Fatura kes' }));
+    // Zeynep's own permissions leave invoicing out: an owner approves it.
+    await approve('Kaan · Sahip', '4821');
+    const dialog = await screen.findByRole('dialog', { name: 'Fatura kes' });
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Kurumsal' }));
+    await userEvent.type(within(dialog).getByLabelText('Unvan'), 'Kurşunlu Gıda Ltd. Şti.');
+    await userEvent.type(within(dialog).getByLabelText('VKN'), '1234567890');
+    await userEvent.type(within(dialog).getByLabelText('Vergi dairesi'), 'Kurşunlu');
+    await userEvent.type(within(dialog).getByLabelText('Adres'), 'Çarşı Mah. No: 3');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Fatura iste' }));
+    expect(
+      await screen.findByText(`Fatura isteği alındı · beklemede · ${sale.receiptNo}`),
+    ).toBeInTheDocument();
+    expect(await invoiceForSale(data.db, sale.id)).toMatchObject({
+      status: 'pending',
+      staffId: zeynep.id,
+      buyer: { kind: 'company', vkn: '1234567890', taxOffice: 'Kurşunlu' },
+    });
   });
 
   it('says when nobody can approve', async () => {

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MarketDb } from '@/data/db';
 import { createProduct } from '@/data/products';
 import { recordSale } from '@/data/sales';
+import { requestInvoice } from '@/data/invoices';
 import { voidSale } from '@/data/voids';
 import { renderWithData } from '@/test/renderWithData';
 import { ReceiptsDialog } from './ReceiptsDialog';
@@ -32,6 +33,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -52,6 +54,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -75,6 +78,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={onReturn}
         onVoid={onVoid}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -99,6 +103,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -121,6 +126,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -164,6 +170,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -181,6 +188,41 @@ describe('ReceiptsDialog', () => {
     expect(await screen.findByText('K1-20261029-0001')).toBeInTheDocument();
   });
 
+  it('drops the not-fiscal line once an invoice is asked for', async () => {
+    const onInvoice = vi.fn();
+    const { data } = await renderWithData(
+      <ReceiptsDialog
+        open
+        settings={DEFAULT_RECEIPT_SETTINGS}
+        onClose={vi.fn()}
+        onReturn={vi.fn()}
+        onVoid={vi.fn()}
+        onInvoice={onInvoice}
+        onPrint={vi.fn()}
+        onSettings={vi.fn()}
+      />,
+    );
+    const [first, second] = await twoSales(data.db);
+    await requestInvoice(
+      data.db,
+      { saleId: first.id, buyer: { kind: 'person', name: 'Ayşe' }, deviceCode: 'K1' },
+      at,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /K1-20261029-0001/ }));
+    const detail = await screen.findByRole('region', { name: 'Fiş K1-20261029-0001' });
+    expect(
+      await within(detail).findByRole('button', { name: 'Fatura · Beklemede' }),
+    ).toBeDisabled();
+    expect(within(detail).getByRole('article')).not.toHaveTextContent('Bilgi fişidir');
+
+    await userEvent.click(within(detail).getByRole('button', { name: 'Fişlere dön' }));
+    await userEvent.click(await screen.findByRole('button', { name: /K1-20261029-0002/ }));
+    const other = await screen.findByRole('region', { name: 'Fiş K1-20261029-0002' });
+    expect(within(other).getByRole('article')).toHaveTextContent('Bilgi fişidir');
+    await userEvent.click(await within(other).findByRole('button', { name: 'Fatura kes' }));
+    expect(onInvoice).toHaveBeenCalledWith(expect.objectContaining({ id: second.id }));
+  });
+
   it('shows the receipt and shares it on WhatsApp', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
     const { data } = await renderWithData(
@@ -190,6 +232,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -221,6 +264,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={vi.fn()}
         onSettings={vi.fn()}
       />,
@@ -241,6 +285,7 @@ describe('ReceiptsDialog', () => {
         onClose={vi.fn()}
         onReturn={vi.fn()}
         onVoid={vi.fn()}
+        onInvoice={vi.fn()}
         onPrint={onPrint}
         onSettings={vi.fn()}
       />,

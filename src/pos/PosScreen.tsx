@@ -9,12 +9,14 @@ import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
 import { recordApproval } from '@/data/audit';
 import { CreditLimitError } from '@/data/errors';
+import { invoiceForSale } from '@/data/invoices';
 import { findProductByBarcode } from '@/data/products';
 import { saleStatus } from '@/data/returns';
 import type { Payment, ProductRecord, SaleRecord } from '@/data/types';
 import { Button, ToastRegion, useToast } from '@/design';
 import { formatTRY, type Kurus } from '@/domain/money';
 import type { Permission } from '@/domain/permissions';
+import { InvoiceDialog } from '@/invoices/InvoiceDialog';
 import { CART_STORAGE_KEY, cartReducer, cartTotals, loadCart, saveCart } from './cart';
 import { CartPanel } from './CartPanel';
 import { checkout, checkoutErrorMessage, singlePayment, StaleCartError } from './checkout';
@@ -54,7 +56,7 @@ type OpenDialog =
   | { kind: 'held' }
   | { kind: 'receipts' }
   | { kind: 'drawer' }
-  | { kind: 'void' | 'return'; sale: SaleRecord }
+  | { kind: 'void' | 'return' | 'invoice'; sale: SaleRecord }
   | { kind: 'approve'; permission: Permission; next: () => void }
   | null;
 
@@ -245,14 +247,16 @@ export function PosScreen(): JSX.Element {
 
   // The receipt as it stands now: a reprint shows a later void or return.
   async function printSale(sale: SaleRecord) {
-    const [status, customer] = await Promise.all([
+    const [status, customer, invoice] = await Promise.all([
       saleStatus(db, sale.id),
       sale.customerId ? db.customers.get(sale.customerId) : undefined,
+      invoiceForSale(db, sale.id),
     ]);
     const model = buildReceipt(sale, {
       ...receiptContext(settings, receiptSettings),
       customerName: customer?.name,
       status: { voided: status.voided, returnedAny: status.returned.size > 0 },
+      invoiced: invoice !== undefined,
     });
     printReceipt(model, receiptSettings.paperWidth);
   }
@@ -418,6 +422,15 @@ export function PosScreen(): JSX.Element {
             guarded('returnWithReceipt', () => setDialog({ kind: 'return', sale }))
           }
           onVoid={(sale) => guarded('voidSale', () => setDialog({ kind: 'void', sale }))}
+          onInvoice={(sale) => guarded('invoice', () => setDialog({ kind: 'invoice', sale }))}
+        />
+      ) : null}
+      {dialog?.kind === 'invoice' ? (
+        <InvoiceDialog
+          open
+          sale={dialog.sale}
+          onClose={() => setDialog({ kind: 'receipts' })}
+          onRequested={() => finish(`Fatura isteği alındı · beklemede · ${dialog.sale.receiptNo}`)}
         />
       ) : null}
       {dialog?.kind === 'void' ? (

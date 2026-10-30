@@ -29,6 +29,8 @@ export type ReceiptContext = {
   footer?: string;
   customerName?: string;
   status?: { voided: boolean; returnedAny: boolean };
+  /** An invoice was asked for: the receipt is then not the only paper, so it does not say so. */
+  invoiced?: boolean;
 };
 
 const NOT_FISCAL = 'Bilgi fişidir, mali değeri yoktur.';
@@ -84,7 +86,7 @@ export function buildReceipt(sale: SaleRecord, context: ReceiptContext): Receipt
       ...(context.status?.voided ? ['İPTAL EDİLDİ'] : []),
       ...(context.status?.returnedAny ? ['İADESİ VAR'] : []),
     ],
-    footer: [...textLines(context.footer), NOT_FISCAL],
+    footer: [...textLines(context.footer), ...(context.invoiced ? [] : [NOT_FISCAL])],
   };
 }
 
