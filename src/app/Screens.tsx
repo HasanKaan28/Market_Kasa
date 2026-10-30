@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { CustomersScreen } from '@/customers/CustomersScreen';
+import { InvoicesScreen } from '@/invoices/InvoicesScreen';
 import { PosScreen } from '@/pos/PosScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
 import { ReportsScreen } from '@/reports/ReportsScreen';
@@ -27,6 +28,8 @@ export function Screens({ route }: { route: Route }): JSX.Element {
       return <CustomersScreen />;
     case 'suppliers':
       return <SuppliersScreen />;
+    case 'invoices':
+      return <InvoicesScreen />;
     case 'reports':
       return <ReportsScreen />;
     case 'settings':

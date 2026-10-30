@@ -28,6 +28,7 @@ const NAV_ITEMS: readonly { key: NavKey; label: string }[] = [
   { key: 'stock', label: 'Stok' },
   { key: 'customers', label: 'Müşteriler' },
   { key: 'suppliers', label: 'Tedarikçiler' },
+  { key: 'invoices', label: 'Faturalar' },
   { key: 'reports', label: 'Raporlar' },
   { key: 'settings', label: 'Ayarlar' },
 ];

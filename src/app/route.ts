@@ -3,7 +3,7 @@ import type { Permission } from '@/domain/permissions';
 
 /** The screens this build has; each lives at `#/<route>`, which works offline and from a file. */
 export type Route =
-  'pos' | 'products' | 'stock' | 'customers' | 'suppliers' | 'reports' | 'settings';
+  'pos' | 'products' | 'stock' | 'customers' | 'suppliers' | 'invoices' | 'reports' | 'settings';
 
 const ROUTES: readonly Route[] = [
   'pos',
@@ -11,6 +11,7 @@ const ROUTES: readonly Route[] = [
   'stock',
   'customers',
   'suppliers',
+  'invoices',
   'reports',
   'settings',
 ];
@@ -21,6 +22,7 @@ export const ROUTE_PERMISSIONS: Partial<Record<Route, Permission>> = {
   stock: 'stock',
   customers: 'collect',
   suppliers: 'suppliers',
+  invoices: 'invoice',
   reports: 'reports',
   settings: 'admin',
 };
