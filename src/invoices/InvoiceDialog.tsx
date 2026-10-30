@@ -6,7 +6,7 @@ import { requestInvoice } from '@/data/invoices';
 import type { InvoiceBuyer, InvoiceRecord, SaleRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
-import { isValidTckn, isValidVkn } from '@/domain/taxId';
+import { isValidTaxId, isValidTckn } from '@/domain/taxId';
 
 export type InvoiceDialogProps = {
   open: boolean;
@@ -16,7 +16,7 @@ export type InvoiceDialogProps = {
 };
 
 type Kind = InvoiceBuyer['kind'];
-type Field = 'name' | 'tckn' | 'title' | 'vkn' | 'taxOffice' | 'address';
+type Field = 'name' | 'tckn' | 'title' | 'taxId' | 'taxOffice' | 'address';
 type Errors = Partial<Record<Field, string>>;
 
 const KIND_OPTIONS = [
@@ -39,7 +39,7 @@ export function InvoiceDialog({
     name: '',
     tckn: '',
     title: '',
-    vkn: '',
+    taxId: '',
     taxOffice: '',
     address: '',
   });
@@ -143,13 +143,14 @@ export function InvoiceDialog({
               />
             </div>
             <TextField
-              label="VKN"
+              label="VKN / TCKN"
+              hint="Şahıs şirketinde sahibinin TCKN'si."
               inputMode="numeric"
               autoComplete="off"
-              maxLength={10}
-              value={fields.vkn}
-              error={errors.vkn}
-              onChange={(event) => set('vkn', event.target.value.replace(/\D/g, ''))}
+              maxLength={11}
+              value={fields.taxId}
+              error={errors.taxId}
+              onChange={(event) => set('taxId', event.target.value.replace(/\D/g, ''))}
             />
             <TextField
               label="Vergi dairesi"
@@ -225,8 +226,8 @@ function problems(kind: Kind, fields: Record<Field, string>): Errors {
   if (fields.title.trim() === '') {
     found.title = 'Unvan gerekli.';
   }
-  if (!isValidVkn(fields.vkn)) {
-    found.vkn = 'VKN geçersiz.';
+  if (!isValidTaxId(fields.taxId)) {
+    found.taxId = 'VKN ya da TCKN geçersiz.';
   }
   if (fields.taxOffice.trim() === '') {
     found.taxOffice = 'Vergi dairesi gerekli.';
@@ -243,7 +244,7 @@ function buyerOf(kind: Kind, fields: Record<Field, string>): InvoiceBuyer {
     : {
         kind,
         title: fields.title,
-        vkn: fields.vkn,
+        taxId: fields.taxId,
         taxOffice: fields.taxOffice,
         address: fields.address,
       };

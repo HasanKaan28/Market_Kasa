@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeTestDb } from '@/test/db';
 import { createCustomer, customerBalance } from './customers';
+import { applyInvoiceResult, requestInvoice } from './invoices';
 import type { MarketDb } from './db';
 import { RecordNotFoundError, SaleReturnedError, SaleVoidedError } from './errors';
 import { pendingOps } from './outbox';
@@ -54,6 +55,29 @@ describe('voidSale', () => {
       reason: 'Yanlış ürün',
       businessDate: '2026-10-29',
     });
+  });
+
+  it('withdraws the invoice request of a voided sale', async () => {
+    const buyer = { kind: 'person' as const, name: 'Ahmet' };
+    const invoice = await requestInvoice(db, { saleId: sale.id, buyer, deviceCode: 'K1' }, at);
+    await voidSale(db, input('Yanlış ürün'));
+    expect((await db.invoices.get(invoice.id))?.status).toBe('cancelled');
+    expect(await pendingOps(db)).toContainEqual(
+      expect.objectContaining({
+        kind: 'patch',
+        table: 'invoices',
+        recordId: invoice.id,
+        patch: { status: 'cancelled', updatedAt: later.toISOString() },
+      }),
+    );
+  });
+
+  it('leaves an issued invoice to the provider', async () => {
+    const buyer = { kind: 'person' as const, name: 'Ahmet' };
+    const invoice = await requestInvoice(db, { saleId: sale.id, buyer, deviceCode: 'K1' }, at);
+    await applyInvoiceResult(db, invoice.id, { ok: true, ettn: 'E-1' }, at);
+    await voidSale(db, input('Yanlış ürün'));
+    expect((await db.invoices.get(invoice.id))?.status).toBe('issued');
   });
 
   it('voids a sale once', async () => {

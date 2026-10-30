@@ -40,10 +40,10 @@ describe('InvoiceDialog', () => {
     expect(await within(dialog).findByText('TCKN geçersiz.')).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Kurumsal' }));
-    await userEvent.type(within(dialog).getByLabelText('VKN'), '1234567891');
+    await userEvent.type(within(dialog).getByLabelText('VKN / TCKN'), '1234567891');
     await userEvent.click(ask);
     expect(await within(dialog).findByText('Unvan gerekli.')).toBeInTheDocument();
-    expect(within(dialog).getByText('VKN geçersiz.')).toBeInTheDocument();
+    expect(within(dialog).getByText('VKN ya da TCKN geçersiz.')).toBeInTheDocument();
     expect(within(dialog).getByText('Vergi dairesi gerekli.')).toBeInTheDocument();
     expect(within(dialog).getByText('Adres gerekli.')).toBeInTheDocument();
     expect(onRequested).not.toHaveBeenCalled();
@@ -72,13 +72,14 @@ describe('InvoiceDialog', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Fatura kes' });
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Kurumsal' }));
     await userEvent.type(within(dialog).getByLabelText('Unvan'), 'Kurşunlu Gıda');
-    await userEvent.type(within(dialog).getByLabelText('VKN'), '1234567890');
+    // A sole trader gives their TCKN as the tax id.
+    await userEvent.type(within(dialog).getByLabelText('VKN / TCKN'), '10000000146');
     await userEvent.type(within(dialog).getByLabelText('Vergi dairesi'), 'Kurşunlu');
     await userEvent.type(within(dialog).getByLabelText('Adres'), 'Çarşı Mah.{enter}Kurşunlu');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Fatura iste' }));
     await vi.waitFor(() => expect(onRequested).toHaveBeenCalledTimes(1));
     expect(onRequested.mock.calls[0]?.[0]).toMatchObject({
-      buyer: { kind: 'company', address: 'Çarşı Mah.\nKurşunlu' },
+      buyer: { kind: 'company', taxId: '10000000146', address: 'Çarşı Mah.\nKurşunlu' },
     });
   });
 });

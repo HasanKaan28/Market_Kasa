@@ -23,7 +23,7 @@ const person: InvoiceBuyer = { kind: 'person', name: 'Ayşe Yılmaz', tckn: '100
 const company: InvoiceBuyer = {
   kind: 'company',
   title: 'Kurşunlu Gıda Ltd. Şti.',
-  vkn: '1234567890',
+  taxId: '1234567890',
   taxOffice: 'Kurşunlu',
   address: 'Çarşı Mah. 1. Sok. No: 3\nKurşunlu / Çankırı',
 };
@@ -86,10 +86,25 @@ describe('invoice requests', () => {
     await expect(
       requestInvoice(
         db,
-        { saleId: sale.id, buyer: { ...company, vkn: '1234567891' }, deviceCode: 'K1' },
+        { saleId: sale.id, buyer: { ...company, taxId: '1234567891' }, deviceCode: 'K1' },
         at,
       ),
     ).rejects.toBeInstanceOf(RangeError);
+    // A sole trader's tax id is their TCKN: eleven digits, checked as one.
+    await expect(
+      requestInvoice(
+        db,
+        { saleId: sale.id, buyer: { ...company, taxId: '10000000147' }, deviceCode: 'K1' },
+        at,
+      ),
+    ).rejects.toBeInstanceOf(RangeError);
+    const trader = await requestInvoice(
+      db,
+      { saleId: sale.id, buyer: { ...company, taxId: '10000000146' }, deviceCode: 'K1' },
+      at,
+    );
+    expect(trader.buyer).toMatchObject({ kind: 'company', taxId: '10000000146' });
+    await cancelInvoice(db, trader.id, at);
     await expect(
       requestInvoice(
         db,

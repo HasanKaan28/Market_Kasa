@@ -273,7 +273,7 @@ describe('access', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Fatura kes' });
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Kurumsal' }));
     await userEvent.type(within(dialog).getByLabelText('Unvan'), 'Kurşunlu Gıda Ltd. Şti.');
-    await userEvent.type(within(dialog).getByLabelText('VKN'), '1234567890');
+    await userEvent.type(within(dialog).getByLabelText('VKN / TCKN'), '1234567890');
     await userEvent.type(within(dialog).getByLabelText('Vergi dairesi'), 'Kurşunlu');
     await userEvent.type(within(dialog).getByLabelText('Adres'), 'Çarşı Mah. No: 3');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Fatura iste' }));
@@ -283,7 +283,7 @@ describe('access', () => {
     expect(await invoiceForSale(data.db, sale.id)).toMatchObject({
       status: 'pending',
       staffId: zeynep.id,
-      buyer: { kind: 'company', vkn: '1234567890', taxOffice: 'Kurşunlu' },
+      buyer: { kind: 'company', taxId: '1234567890', taxOffice: 'Kurşunlu' },
     });
   });
 

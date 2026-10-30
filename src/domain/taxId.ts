@@ -30,6 +30,11 @@ export function isValidVkn(text: string): boolean {
   return d(9) === (10 - (sum % 10)) % 10;
 }
 
+/** A company's tax id: a VKN, or a sole trader's TCKN, told apart by their length. */
+export function isValidTaxId(text: string): boolean {
+  return text.trim().length === 11 ? isValidTckn(text) : isValidVkn(text);
+}
+
 /** The digit at each place of a string already checked to be digits. */
 function digits(value: string): (index: number) => number {
   return (index) => Number(value.charAt(index));

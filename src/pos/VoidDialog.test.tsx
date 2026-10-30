@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { MarketDb } from '@/data/db';
+import { applyInvoiceResult, requestInvoice } from '@/data/invoices';
 import { createProduct } from '@/data/products';
 import { recordReturn } from '@/data/returns';
 import { recordSale } from '@/data/sales';
@@ -34,6 +35,25 @@ describe('VoidDialog', () => {
     await userEvent.dblClick(screen.getByRole('button', { name: 'İptal et' }));
     await vi.waitFor(() => expect(onVoided).toHaveBeenCalled());
     expect(await data.db.saleVoids.count()).toBe(1);
+  });
+
+  it('says what becomes of the invoice', async () => {
+    const data = createTestData();
+    const { sale } = await soldMilk(data.db);
+    const buyer = { kind: 'person' as const, name: 'Ahmet' };
+    const invoice = await requestInvoice(data.db, { saleId: sale.id, buyer, deviceCode: 'K1' }, at);
+    const { rerender } = await renderWithData(
+      <VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />,
+      data,
+    );
+    expect(await screen.findByText('Fatura isteği de iptal edilir.')).toBeInTheDocument();
+    await applyInvoiceResult(data.db, invoice.id, { ok: true, ettn: 'E-1' }, at);
+    rerender(<VoidDialog open sale={sale} onClose={vi.fn()} onVoided={vi.fn()} />);
+    expect(
+      await screen.findByText(
+        'Bu satışın faturası kesildi (E-1). Satışı iptal etmek faturayı iptal etmez; faturayı sağlayıcıdan ayrıca iptal edin.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('says what a void gives back', async () => {

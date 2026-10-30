@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidTckn, isValidVkn } from './taxId';
+import { isValidTaxId, isValidTckn, isValidVkn } from './taxId';
 
 describe('tax ids', () => {
   it('checks identity and tax numbers', () => {
@@ -18,5 +18,11 @@ describe('tax ids', () => {
     expect(isValidVkn('9876543210')).toBe(false);
     expect(isValidVkn('987654321')).toBe(false);
     expect(isValidVkn('98765432177')).toBe(false);
+
+    // A company's tax id is a VKN, or a sole trader's TCKN.
+    expect(isValidTaxId('1234567890')).toBe(true);
+    expect(isValidTaxId('10000000146')).toBe(true);
+    expect(isValidTaxId('10000000147')).toBe(false);
+    expect(isValidTaxId('123456789')).toBe(false);
   });
 });

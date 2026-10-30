@@ -349,7 +349,14 @@ export type AuditRecord = {
 /** Who an invoice is made out to: a person, or a company with its tax details. */
 export type InvoiceBuyer =
   | { kind: 'person'; name: string; tckn?: string }
-  | { kind: 'company'; title: string; vkn: string; taxOffice: string; address: string };
+  | {
+      kind: 'company';
+      title: string;
+      /** The VKN, or a sole trader's TCKN. */
+      taxId: string;
+      taxOffice: string;
+      address: string;
+    };
 
 export type InvoiceStatus = 'pending' | 'issued' | 'failed' | 'cancelled';
 

@@ -6,6 +6,7 @@ import { applyInvoiceResult, requestInvoice } from '@/data/invoices';
 import { createProduct } from '@/data/products';
 import { recordReturn } from '@/data/returns';
 import { recordSale } from '@/data/sales';
+import { voidSale } from '@/data/voids';
 import type { InvoiceBuyer } from '@/data/types';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { settlePending } from './fakeGateway';
@@ -17,7 +18,7 @@ const ayse: InvoiceBuyer = { kind: 'person', name: 'Ayşe Yılmaz' };
 const gida: InvoiceBuyer = {
   kind: 'company',
   title: 'Kurşunlu Gıda',
-  vkn: '1234567890',
+  taxId: '1234567890',
   taxOffice: 'Kurşunlu',
   address: 'Çarşı Mah.',
 };
@@ -129,6 +130,25 @@ describe('InvoicesScreen', () => {
     expect(await screen.findByText('2 fatura · 1 beklemede')).toBeInTheDocument();
     expect(row(first.receiptNo).getByText('İptal edildi')).toBeInTheDocument();
     expect(row(first.receiptNo).queryByRole('button')).toBeNull();
+  });
+});
+
+describe('InvoicesScreen after a void', () => {
+  it('marks the invoice of a voided sale', async () => {
+    const data = createTestData();
+    const { sales } = await threeSales(data.db);
+    const [first] = sales;
+    const invoice = await requestInvoice(
+      data.db,
+      { saleId: first.id, buyer: gida, deviceCode: 'K1' },
+      at,
+    );
+    await applyInvoiceResult(data.db, invoice.id, { ok: true, ettn: 'ETTN-9' }, later);
+    await voidSale(data.db, { saleId: first.id, reason: 'Yanlış', deviceCode: 'K1', at: later });
+    await renderWithData(<InvoicesScreen />, data);
+    await screen.findByText('1 fatura · 0 beklemede');
+    expect(row(first.receiptNo).getByText('Satış iptal edildi')).toBeInTheDocument();
+    expect(row(first.receiptNo).getByText('Kesildi')).toBeInTheDocument();
   });
 });
 

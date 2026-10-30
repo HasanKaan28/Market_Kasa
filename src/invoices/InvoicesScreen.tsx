@@ -14,6 +14,7 @@ type InvoiceRow = {
   invoice: InvoiceRecord;
   sale?: SaleRecord;
   returned: boolean;
+  voided: boolean;
   /** Another request for the same sale came first: two registers asked before they synced. */
   duplicate: boolean;
 };
@@ -79,7 +80,7 @@ export function InvoicesScreen(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ invoice, sale, returned, duplicate }) => (
+                {rows.map(({ invoice, sale, returned, voided, duplicate }) => (
                   <tr key={invoice.id} className="border-b border-line align-top last:border-0">
                     <td className="px-3 py-2">
                       <span className="block font-mono text-sm font-medium whitespace-nowrap">
@@ -88,6 +89,7 @@ export function InvoicesScreen(): JSX.Element {
                       <span className="block text-sm text-text-2">
                         {formatDateTime(invoice.createdAt)}
                       </span>
+                      {voided ? <Note tone="danger">Satış iptal edildi</Note> : null}
                       {returned ? <Note tone="muted">İade var</Note> : null}
                       {duplicate ? <Note tone="danger">Aynı fişe ikinci istek</Note> : null}
                     </td>
@@ -172,14 +174,16 @@ async function invoiceRows(db: MarketDb): Promise<InvoiceRow[]> {
   // Oldest first to find the request each sale had first, then newest first to show.
   invoices.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
   const saleIds = [...new Set(invoices.map((invoice) => invoice.saleId))];
-  const [sales, returns] = await Promise.all([
+  const [sales, returns, voids] = await Promise.all([
     db.sales.bulkGet(saleIds),
     db.returns.where('saleId').anyOf(saleIds).toArray(),
+    db.saleVoids.where('saleId').anyOf(saleIds).toArray(),
   ]);
   const salesById = new Map(
     sales.filter((sale) => sale !== undefined).map((sale) => [sale.id, sale]),
   );
   const returned = new Set(returns.map((record) => record.saleId));
+  const voided = new Set(voids.map((record) => record.saleId));
   const firstActive = new Set<string>();
   const rows = invoices.map((invoice) => {
     let duplicate = false;
@@ -191,6 +195,7 @@ async function invoiceRows(db: MarketDb): Promise<InvoiceRow[]> {
       invoice,
       sale: salesById.get(invoice.saleId),
       returned: returned.has(invoice.saleId),
+      voided: voided.has(invoice.saleId),
       duplicate,
     };
   });

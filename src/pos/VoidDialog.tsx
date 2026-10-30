@@ -1,8 +1,10 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { SaleReturnedError, SaleVoidedError } from '@/data/errors';
+import { invoiceForSale } from '@/data/invoices';
 import type { Payment, SaleRecord, SaleVoidRecord } from '@/data/types';
 import { voidSale } from '@/data/voids';
 import { Button, Dialog, TextField } from '@/design';
@@ -19,6 +21,7 @@ export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): 
   const { db, settings } = useData();
   const { staff } = useSession();
   const { cutoffMinutes } = useMarketSettings();
+  const invoice = useLiveQuery(() => invoiceForSale(db, sale.id), [db, sale.id]);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -62,6 +65,13 @@ export function VoidDialog({ open, sale, onClose, onVoided }: VoidDialogProps): 
           {` · ${formatTRY(sale.total)}`}
         </p>
         <p className="text-text-2">{givenBack(sale)}</p>
+        {invoice?.status === 'issued' ? (
+          <p role="alert" className="font-medium text-danger">
+            {`Bu satışın faturası kesildi (${invoice.ettn ?? 'ETTN yok'}). Satışı iptal etmek faturayı iptal etmez; faturayı sağlayıcıdan ayrıca iptal edin.`}
+          </p>
+        ) : invoice ? (
+          <p className="text-text-2">Fatura isteği de iptal edilir.</p>
+        ) : null}
         <TextField
           label="İptal nedeni"
           autoComplete="off"

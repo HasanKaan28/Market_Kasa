@@ -2,6 +2,7 @@ import { businessDate } from '@/domain/businessDate';
 import type { MarketDb } from './db';
 import { RecordNotFoundError, SaleReturnedError, SaleVoidedError } from './errors';
 import { deriveId } from './ids';
+import { withdrawInvoicesOf } from './invoices';
 import { addLedgerEntry } from './ledger';
 import { appendOutbox } from './outbox';
 import { recordStockMovement } from './stock';
@@ -34,6 +35,7 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
     db.stockMovements,
     db.stockLevels,
     db.ledger,
+    db.invoices,
     db.outbox,
   ];
   return db.transaction('rw', tables, async () => {
@@ -93,6 +95,8 @@ export async function voidSale(db: MarketDb, input: VoidSaleInput): Promise<Sale
         input.at,
       );
     }
+    // A voided sale is not invoiced; one already issued is left to the provider.
+    await withdrawInvoicesOf(db, sale.id, input.at);
     return record;
   });
 }

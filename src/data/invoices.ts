@@ -1,4 +1,4 @@
-import { isValidTckn, isValidVkn } from '@/domain/taxId';
+import { isValidTaxId, isValidTckn } from '@/domain/taxId';
 import type { MarketDb } from './db';
 import {
   InvoiceExistsError,
@@ -10,7 +10,6 @@ import { newId } from './ids';
 import { appendOutbox } from './outbox';
 import { changedFields, toPatch, withoutUndefined } from './records';
 import type { InvoiceBuyer, InvoiceRecord } from './types';
-import { isVoided } from './voids';
 
 export type InvoiceRequestInput = {
   saleId: string;
@@ -37,7 +36,7 @@ export async function requestInvoice(
     if (!sale) {
       throw new RecordNotFoundError('Sale', input.saleId);
     }
-    if (await isVoided(db, sale.id)) {
+    if ((await db.saleVoids.where('saleId').equals(sale.id).count()) > 0) {
       throw new SaleVoidedError(sale.receiptNo);
     }
     if (await invoiceForSale(db, sale.id)) {
@@ -120,6 +119,28 @@ export async function applyInvoiceResult(
   });
 }
 
+/**
+ * Withdraws the requests of a sale being voided that were not issued yet. An issued invoice stays:
+ * only the provider can cancel it. It runs inside the caller's transaction, which must include
+ * `invoices` and `outbox`.
+ */
+export async function withdrawInvoicesOf(db: MarketDb, saleId: string, at: Date): Promise<void> {
+  const invoices = await db.invoices.where('saleId').equals(saleId).toArray();
+  const stamp = at.toISOString();
+  for (const invoice of invoices) {
+    if (invoice.status !== 'pending' && invoice.status !== 'failed') {
+      continue;
+    }
+    const changed = changedFields(invoice, { status: 'cancelled' as const });
+    await db.invoices.put({ ...invoice, ...changed, updatedAt: stamp });
+    await appendOutbox(
+      db,
+      { kind: 'patch', table: 'invoices', recordId: invoice.id, patch: toPatch(changed, stamp) },
+      at,
+    );
+  }
+}
+
 async function changeInvoice(
   db: MarketDb,
   id: string,
@@ -160,15 +181,15 @@ function checkedBuyer(buyer: InvoiceBuyer): InvoiceBuyer {
   const checked = {
     kind: 'company' as const,
     title: buyer.title.trim(),
-    vkn: buyer.vkn.trim(),
+    taxId: buyer.taxId.trim(),
     taxOffice: buyer.taxOffice.trim(),
     address: buyer.address.trim(),
   };
   if (checked.title === '' || checked.taxOffice === '' || checked.address === '') {
     throw new RangeError('An invoice to a company needs its title, tax office and address');
   }
-  if (!isValidVkn(checked.vkn)) {
-    throw new RangeError(`Not a valid tax number: ${checked.vkn}`);
+  if (!isValidTaxId(checked.taxId)) {
+    throw new RangeError(`Not a valid tax number: ${checked.taxId}`);
   }
   return checked;
 }
