@@ -84,6 +84,9 @@ Son incelemelerde ertelenen küçük bulgular ve ileri aşamalara bırakılan i�
 - İki kasanın alan bazında birleşmesi, kritik seviyesi kesirli bir adetli ürün üretebilir; form sonra kaydetmeyi reddeder. (M3b)
 - Fiyat değişiklikleri için iz kaydı (§2.3). (M3b) — M6b iz kaydı ekranda değişen fiyatları kaydediyor; içe aktarma ve mal kabul fiyatları kaydetmiyor.
 - **Sahip oturumu (M6a I2):** ayarlar, personel ve dışa aktarma için sahibin Supabase Auth oturumu (§8.3); şimdilik sahip rolündeki PIN açıyor.
+- Market ayarı sabit kimlikli tek satır: iki kasa eşitlemeden önce kaydederse sunucuya ilk ulaşan kazanıyor (§7.2 sonuncunun kazanmasını ister). (M6b)
+- İz kaydının bilinmeyen işlemleri (ör. "yetkisiz" işaretli kayıtlar, §8.4) boş satır gösteriyor; açıklama metnine varsayılan dal gerekir. (M6b)
+- Lisans salt-okunurken yerelde yazılan bir tahsilat ya da kasa hareketi sunucuda reddedilirse geri alınacak bir şey yok; salt-okunurda olay yazan bütün formlar kapanmalı ya da sunucu bunları kabul etmeli. (M6b)
 - Sunucu: son aktif sahip kuralı, personel satırlarının denetimi, yönetim değişikliklerinde yetki denetimi için kuyruğa işlemi yapanın eklenmesi (§8.4). (M6a)
 
 ## M3 · Ürün ve stok
@@ -144,6 +147,14 @@ M6a (personel, PIN, izinler) tamamlandı; bu bölümün rol maddeleri ve gün d�
 - Satır indirimi izinsiz kişiye gizleniyor, onaya sunulmuyor.
 - Test eksikleri: oturumdayken rol değişmesi, kilit bitince yanlış PIN, pasif onaylayan, paralel PIN denemesi, yeni PIN'in kilidi kaldırması.
 - Müşteri ve tedarikçi arşivden geri getirilemiyor. (M4b)
+
+M6b (ayarlar, iz kaydı, lisans, personel raporu) tamamlandı. İncelemesinden kalan küçük maddeler:
+
+- İz kaydında silinen alanlar `undefined` olarak kalıyor; eşitlemeden sonra öbür kasada "Ayşe: " diye boş görünüyor.
+- Onay metni "Limit aşımı onayı onayı" diye kelime tekrarlıyor; onay kaydı yazılamazsa hata yutuluyor.
+- Salt-okunur durumu yalnız ödeme penceresi açılırken bakılıyor; açık kalan pencere sınırı geçince satabiliyor.
+- İz kaydı ekranı her değişiklikte bütün ürünleri ve personeli okuyor.
+- Personel tablosundaki "Tutar" iade öncesi satıştır, öyle adlandırılmalı; "Silinmiş personel" çoğu zaman "henüz eşitlenmedi" demektir.
 
 ## M7 · e-Arşiv
 

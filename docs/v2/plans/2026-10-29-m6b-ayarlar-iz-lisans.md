@@ -86,3 +86,20 @@
   - `Summary.byStaff: { staffId?: string; name: string; salesCount; net }[]` (adı personel tablosundan; personelsizler "Personelsiz").
   - Raporlarda "Personel" tablosu (birden çok satır varsa).
 - [ ] **Step 1–5:** `it('sums sales by who made them')`, `it('shows the staff table on the reports screen')`. Commit — `git commit -m "feat(reports): sales by staff"`
+
+## Uygulama notları (2026-10-30)
+
+- **Commitler:** `5819739`, `0338ae4`, `f4b6202`, `0d627c2` (4 görev); inceleme düzeltmeleri `16cfc52`. Son durumda 673 test yeşil.
+- **Son inceleme** (Opus, donmuş worktree): kritik yok, 4 önemli, 8 küçük bulgu. Önemlilerin hepsi düzeltildi, küçükler ertelendi.
+  - **I-1:** Mal kabulde değişen satış fiyatı iz kaydına düşmüyordu. Artık düşüyor.
+  - **I-2:** Kasa kodu değişince açık kasa geride kalıyor, Z ikiye bölünüyordu; başka kasanın kodu da alınabiliyordu. Artık kasa açıkken ya da kod başka kasadaysa kod değişmez.
+  - **I-3:** Açılış stoğu gün dönümünü kullanmıyordu. Artık kullanıyor.
+  - **I-4:** Lisans günü gece yarısı dönüyordu. Artık marketin gün dönümüyle dönüyor.
+- **Bozma denemeleri:** 21 deneme, hepsi kırmızı.
+- **Kararlar:**
+  - Gün dönümü bütün kasaların paylaştığı tek bir ayardır; saat başı 00:00–12:00 seçilir. Yazılmış kayıtların iş günü değişmez.
+  - Market adı, kasa adı ve kodu cihaza aittir; uygulama yeniden açılınca geçerli olur.
+  - İz kaydı (şema v13) personel, ayar, fiyat değişikliklerini ve yetkili onaylarını tutar; PIN ve hash'i hiçbir zaman tutmaz. İçe aktarmanın fiyatları kaydedilmez.
+  - Lisans tarihi sunucudan gelecek (M0b); yokken hiçbir şey kapanmaz. Salt-okunurda yalnız satış kapanır.
+  - Personel tablosu kişinin çaldığı ve iptal edilmemiş satışları gösterir; iadeler kişiden düşülmez.
+- **Ertelenenler:** [ertelenenler.md](../ertelenenler.md) içinde M6 ve M0b bölümlerinde.
