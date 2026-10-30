@@ -292,7 +292,7 @@ describe('applyServerRows', () => {
 
   it('sets aside rows it cannot apply and applies the rest', async () => {
     const rows: ServerRow[] = [
-      { table: 'invoices' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
+      { table: 'notATable' as SyncTable, id: 'c1', serverSeq: 1, row: { id: 'c1' } },
       {
         table: 'stockMovements',
         id: 'm2',
