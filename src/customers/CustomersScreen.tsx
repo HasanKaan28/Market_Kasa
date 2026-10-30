@@ -3,6 +3,7 @@ import { MessageCircle, Plus } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
+import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
 import { normalizeForSearch } from '@/data/text';
 import { Button, ChoiceGroup, TextField, ToastRegion, useToast } from '@/design';
@@ -12,6 +13,7 @@ import { whatsappLink } from '@/pos/receiptText';
 import { CustomerDialog } from './CustomerDialog';
 import { CustomerFormDialog } from './CustomerFormDialog';
 import { reminderText } from './reminder';
+import { V1CustomersDialog } from './V1CustomersDialog';
 import { customerSummaries, formatBalance, type CustomerSummary } from './statement';
 
 type CustomerView = 'all' | 'debtors' | 'reminders';
@@ -29,9 +31,10 @@ export function CustomersScreen(): JSX.Element {
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [view, setView] = useState<CustomerView>('all');
-  const [dialog, setDialog] = useState<{ kind: 'customer'; id: string } | { kind: 'new' } | null>(
-    null,
-  );
+  const session = useSession();
+  const [dialog, setDialog] = useState<
+    { kind: 'customer'; id: string } | { kind: 'new' } | { kind: 'v1' } | null
+  >(null);
   const { cutoffMinutes } = useMarketSettings();
   const summaries = useLiveQuery(
     () => customerSummaries(db, businessDate(new Date(), { cutoffMinutes }), { cutoffMinutes }),
@@ -66,6 +69,10 @@ export function CustomersScreen(): JSX.Element {
               <p className="text-sm text-text-2">{`${summaries.length} müşteri`}</p>
             ) : null}
           </div>
+          {/* Bringing v1's debts over writes the ledger: the owners' job. */}
+          {session.can('admin') ? (
+            <Button onClick={() => setDialog({ kind: 'v1' })}>v1'den aktar</Button>
+          ) : null}
           <Button
             variant="primary"
             icon={<Plus aria-hidden="true" size={18} />}
@@ -193,6 +200,16 @@ export function CustomersScreen(): JSX.Element {
           open
           onClose={() => setDialog(null)}
           onSaved={(message) => {
+            setDialog(null);
+            done(message);
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'v1' ? (
+        <V1CustomersDialog
+          open
+          onClose={() => setDialog(null)}
+          onDone={(message) => {
             setDialog(null);
             done(message);
           }}

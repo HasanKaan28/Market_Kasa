@@ -37,6 +37,40 @@ describe('ImportDialog', () => {
     expect(await stockOf(data.db, cheese?.id ?? '')).toBe(1500);
   });
 
+  it('reads the products of a v1 backup file', async () => {
+    const backup = {
+      backupDate: '2026-10-01T10:00:00.000Z',
+      products: [
+        { barcode: '8690000000017', name: 'Süt 1 L', price: 42.5, taxRate: 1, stock: 12 },
+        { barcode: 'BRK-55', name: 'Domates', price: 29.9, taxRate: 1, stock: 2.5, unit: 'Kg' },
+        { barcode: '8690000000024', name: 'Kola', price: 50, taxRate: 20, stock: 6 },
+      ],
+      customers: [],
+    };
+    const file = new File([JSON.stringify(backup)], 'market_pos_yedek_2026-10-01.json', {
+      type: 'application/json',
+    });
+    const onDone = vi.fn();
+    const { data } = await renderWithData(<ImportDialog open onClose={vi.fn()} onDone={onDone} />);
+    await userEvent.upload(screen.getByLabelText('Dosya seç'), file);
+    expect(await screen.findByLabelText('Satış fiyatı')).toHaveDisplayValue(/Satış fiyatı/);
+    await userEvent.click(screen.getByRole('button', { name: 'Devam' }));
+    expect(
+      await screen.findByText('3 yeni, 0 güncellenecek, 0 aynı, 0 hatalı'),
+    ).toBeInTheDocument();
+    // v1 saved %1 for a product whose VAT was never chosen.
+    expect(
+      screen.getByText(
+        "v1'de KDV'si %1 görünen 2 ürün var. v1 seçilmeyen KDV'yi %1 yazıyordu; kontrol edin.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '3 ürünü içe aktar' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    const tomato = (await data.db.products.toArray()).find((p) => p.name === 'Domates');
+    expect(tomato).toMatchObject({ unit: 'kg', sellPrice: 2990 });
+    expect(tomato?.barcode).toBeUndefined();
+  });
+
   it('lets the user change a guessed column, also in an Excel file', async () => {
     const file = new File(
       [

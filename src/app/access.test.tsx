@@ -287,6 +287,29 @@ describe('access', () => {
     });
   });
 
+  it('leaves bringing v1 customers over to the owners', async () => {
+    const { data, mehmet, kaan } = await team();
+    signedIn(mehmet.id);
+    const { unmount } = await renderWithData(
+      <SessionProvider>
+        <CustomersScreen />
+      </SessionProvider>,
+      data,
+    );
+    expect(await screen.findByRole('button', { name: 'Yeni müşteri' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: "v1'den aktar" })).toBeNull();
+    unmount();
+    signedIn(kaan.id);
+    await renderWithData(
+      <SessionProvider>
+        <CustomersScreen />
+      </SessionProvider>,
+      data,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: "v1'den aktar" }));
+    expect(await screen.findByRole('dialog', { name: "v1'den müşteri aktar" })).toBeInTheDocument();
+  });
+
   it('says when nobody can approve', async () => {
     // Two registers offline can each demote an owner, and the sync leaves none.
     const data = createTestData();

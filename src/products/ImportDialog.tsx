@@ -3,6 +3,7 @@ import { useData } from '@/app/appData';
 import { listCategories } from '@/data/categories';
 import { DuplicateBarcodeError } from '@/data/errors';
 import { Button, Dialog, SelectField } from '@/design';
+import { readV1Backup, v1ProductTable } from '@/import/v1Backup';
 import { decodeText, parseCsv } from './importFile';
 import {
   applyImport,
@@ -44,7 +45,8 @@ const ACTION_LABELS: Record<ImportAction, string> = {
   error: 'Hatalı',
 };
 
-type Loaded = { fileName: string; table: string[][] };
+/** `v1`: read from a v1 backup, whose VAT of %1 may only mean none was chosen. */
+type Loaded = { fileName: string; table: string[][]; v1: boolean };
 type Preview = { rows: ImportRow[]; plan: ImportPlan };
 
 /** Reads a CSV or Excel file, lets the user match its columns, previews the result, imports it. */
@@ -66,15 +68,16 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
       return;
     }
     setPreview(undefined);
-    const table = await readTable(file);
-    if (typeof table === 'string' || table.length === 0) {
+    const read = await readTable(file);
+    if (typeof read === 'string' || read.table.length === 0) {
       setLoaded(undefined);
-      setError(typeof table === 'string' ? table : UNREADABLE);
+      setError(typeof read === 'string' ? read : UNREADABLE);
       return;
     }
+    const { table, v1 } = read;
     const guessed = guessMapping(table[0] ?? []);
     setError(undefined);
-    setLoaded({ fileName: file.name, table });
+    setLoaded({ fileName: file.name, table, v1 });
     setMapping(guessed);
     // A first row that names a known column is a header; otherwise every row is data.
     setHasHeader(Object.keys(guessed).length > 0);
@@ -129,13 +132,13 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
           id={inputId}
           type="file"
           // .xls is listed so an old workbook can be picked and told what to do with it.
-          accept=".csv,.txt,.xlsx,.xls,text/csv"
+          accept=".csv,.txt,.xlsx,.xls,.json,text/csv,application/json"
           aria-describedby={`${inputId}-hint`}
           onChange={(event) => void chooseFile(event)}
           className="min-h-11 rounded-control border border-line-strong bg-surface px-3 py-2 text-base file:mr-3 file:rounded-chip file:border-0 file:bg-bg file:px-3 file:py-1.5 file:font-medium"
         />
         <p id={`${inputId}-hint`} className="text-sm text-muted">
-          Excel'den kaydedilen CSV ya da XLSX. v1'in ürün listesi de okunur.
+          Excel'den kaydedilen CSV ya da XLSX. v1'in ürün listesi ve yedek dosyası (JSON) da okunur.
         </p>
       </div>
       {error ? (
@@ -156,6 +159,7 @@ export function ImportDialog({ open, onClose, onDone }: ImportDialogProps): JSX.
       {preview ? (
         <PreviewStep
           plan={preview.plan}
+          v1VatOne={loaded?.v1 ? preview.rows.filter((row) => row.fields.vatRate === 1).length : 0}
           busy={busy}
           onBack={() => setPreview(undefined)}
           onApply={() => void apply()}
@@ -239,11 +243,14 @@ function ColumnsStep({
 
 function PreviewStep({
   plan,
+  v1VatOne,
   busy,
   onBack,
   onApply,
 }: {
   plan: ImportPlan;
+  /** Products from a v1 backup showing %1 VAT (DESIGN §14). */
+  v1VatOne: number;
   busy: boolean;
   onBack(): void;
   onApply(): void;
@@ -268,6 +275,11 @@ function PreviewStep({
       ) : null}
       {errorRows.length > 0 ? (
         <p className="text-danger">{`Hatalı satırlar: ${listedErrors}`}</p>
+      ) : null}
+      {v1VatOne > 0 ? (
+        <p className="text-warning">
+          {`v1'de KDV'si %1 görünen ${v1VatOne} ürün var. v1 seçilmeyen KDV'yi %1 yazıyordu; kontrol edin.`}
+        </p>
       ) : null}
       <p className="text-sm text-text-2">İçe aktarmayı tek kasadan yapın.</p>
       <div className="overflow-x-auto">
@@ -358,16 +370,21 @@ function shorten(text: string): string {
 
 /** The table in a file: an Excel workbook (a zip) or CSV text; nothing when it cannot be read. */
 /** The file's rows, or why it cannot be read. */
-async function readTable(file: File): Promise<string[][] | string> {
+async function readTable(file: File): Promise<{ table: string[][]; v1: boolean } | string> {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (startsWith(bytes, COMPOUND_FILE)) {
       return OLD_EXCEL;
     }
     if (startsWith(bytes, ZIP) || file.name.toLowerCase().endsWith('.xlsx')) {
-      return readXlsx(bytes);
+      return { table: readXlsx(bytes), v1: false };
     }
-    return parseCsv(decodeText(bytes));
+    const text = decodeText(bytes);
+    const backup = readV1Backup(text);
+    if (backup) {
+      return { table: v1ProductTable(backup), v1: true };
+    }
+    return { table: parseCsv(text), v1: false };
   } catch {
     return UNREADABLE;
   }
