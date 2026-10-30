@@ -1,18 +1,20 @@
 {
+  "name": "Market Kasa",
   "short_name": "Market Kasa",
-  "name": "Market Kasa - Mobil POS & Barkod",
+  "description": "Çevrimdışı çalışan market kasası ve arka ofis",
+  "lang": "tr",
   "icons": [
     {
       "src": "./logo.svg",
       "type": "image/svg+xml",
-      "sizes": "192x192 512x512",
-      "purpose": "any maskable"
+      "sizes": "any",
+      "purpose": "any"
     }
   ],
   "start_url": "./",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "scope": "./"
+  "orientation": "any",
+  "theme_color": "#F5F6F8",
+  "background_color": "#F5F6F8"
 }
