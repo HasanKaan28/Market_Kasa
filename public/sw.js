@@ -1,66 +1,88 @@
-const CACHE_NAME = 'market-pos-v2';
+// Keeps Market Kasa opening without a network. The page registers this file with its version
+// (sw.js?v=2.0.0), so each release installs a new worker with its own cache and drops the last.
+const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
+const CACHE = `mk2-${VERSION}`;
+const SHELL = ['./', './index.html', './manifest.json', './logo.svg'];
+// The built files the page names: the first visit loads them before this worker is in charge.
+const ASSET_REFERENCE = /(?:src|href)="(\.?\/?assets\/[^"]+)"/g;
+
+/**
+ * Keeps the page, its icon and every built file: the build lists them in precache.json (the
+ * camera's scanner and the fonts load later, so the page does not name them). Without that list,
+ * the files the page names.
+ */
+async function cacheShell() {
+  const cache = await caches.open(CACHE);
+  const page = await fetch('./index.html', { cache: 'no-store' });
+  const html = await page.clone().text();
+  const named = [...html.matchAll(ASSET_REFERENCE)].map((match) => match[1]);
+  const listed = await fetch('./precache.json', { cache: 'no-store' })
+    .then((response) => (response.ok ? response.json() : []))
+    .catch(() => []);
+  const assets = [
+    ...new Set([
+      ...named.map((path) => new URL(path, self.location.href).href),
+      ...listed.map((path) => new URL(path, self.location.href).href),
+    ]),
+  ];
+  await cache.addAll([...SHELL.filter((path) => path !== './index.html'), ...assets]);
+  await cache.put('./index.html', page);
+}
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(cacheShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    }).then(() => clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith('mk2-') && key !== CACHE)
+            .map((key) => caches.delete(key)),
+        ),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
-  // 1. Navigation requests (HTML pages): Network-First
-  // This ensures users always get the latest deployed version when online,
-  // falling back to cached version when offline.
-  if (event.request.mode === 'navigate') {
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+  if (request.mode === 'navigate') {
+    // The page first from the network, so a new release is seen; the kept copy when offline.
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          if (response && response.status === 200) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          if (response.ok) {
+            const copy = response.clone();
+            void caches.open(CACHE).then((cache) => cache.put('./index.html', copy));
           }
           return response;
         })
-        .catch(() => {
-          return caches.match(event.request).then((cached) => cached || caches.match('./') || caches.match('/'));
-        })
+        .catch(() => caches.match('./index.html').then((cached) => cached || Response.error())),
     );
     return;
   }
-
-  // 2. Assets (JS, CSS, images): Cache-First with background revalidation
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch in background to update cache for next time
-        fetch(event.request).then((response) => {
-          if (response && response.status === 200 && response.type === 'basic') {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return response;
-      });
-    })
-  );
+  if (url.pathname.includes('/assets/')) {
+    // Built files carry a hash in their name: a kept copy is always the right one.
+    event.respondWith(
+      caches.match(request).then(
+        (cached) =>
+          cached ||
+          fetch(request).then((response) => {
+            if (response.ok) {
+              const copy = response.clone();
+              void caches.open(CACHE).then((cache) => cache.put(request, copy));
+            }
+            return response;
+          }),
+      ),
+    );
+  }
 });

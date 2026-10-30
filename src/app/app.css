@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+@import '../design/tokens.css';
+
+/*
+ * Printing a receipt (see src/pos/printReceipt.tsx): #print-root is laid out off-screen so the
+ * receipt can be measured, and only while a receipt prints is it the one thing on paper.
+ */
+#print-root {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+}
+
+@media print {
+  body.printing-receipt > *:not(#print-root) {
+    display: none !important;
+  }
+
+  body.printing-receipt #print-root {
+    position: static;
+    visibility: visible;
+  }
+}

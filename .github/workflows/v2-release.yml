@@ -1,0 +1,143 @@
+name: v2 release
+
+# Runs only by hand or on a v2.* tag. Nothing here runs on a push to a branch, so merging v2 into
+# main never redeploys the live app (DESIGN K13). The web app reaches GitHub Pages only from a run
+# started by hand with "deploy_pages" ticked.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: 'Deploy the web build to GitHub Pages (replaces the live web app)'
+        type: boolean
+        default: false
+  push:
+    tags: ['v2.*']
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")"
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: market-kasa-web
+          path: dist
+          if-no-files-found: error
+
+  build-android:
+    needs: build-web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run cap:sync
+      - run: chmod +x android/gradlew
+      # A debug build: a signed release build needs the signing key as a repository secret.
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+      - run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/Market-Kasa-${GITHUB_REF_NAME//\//-}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: market-kasa-android
+          path: out/*.apk
+          if-no-files-found: error
+
+  build-windows:
+    needs: build-web
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run electron:installer -- --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: market-kasa-windows
+          path: dist-electron/*.exe
+          if-no-files-found: error
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v2.')
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-files
+          pattern: market-kasa-{android,windows}
+          merge-multiple: true
+      # A draft: nothing is public until someone reads it and presses Publish.
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ github.ref_name }}
+          name: Market Kasa ${{ github.ref_name }}
+          # The APK is debug-signed on a fresh runner, so it cannot update an earlier install: the
+          # old app must be removed, and its data with it.
+          body: |
+            **Kurmadan önce yedek alın.**
+            - v1'den geçiyorsanız: v1'de Ayarlar → Yedek İndir (JSON). v2 kurulunca v1'in verisi okunamaz.
+            - Android: bu APK bir önceki sürümün üstüne kurulamaz; eskisini kaldırmak verisini de siler. Kaldırmadan önce müşterileri ve ürünleri dışa aktarın.
+          generate_release_notes: true
+          files: |
+            release-files/*.apk
+            release-files/*.exe
+
+  deploy-pages:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages
+    needs: build-web
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: market-kasa-web
+          path: dist
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
