@@ -79,3 +79,19 @@ export class LastOwnerError extends Error {
     this.name = 'LastOwnerError';
   }
 }
+
+/** The sale already has an invoice that is not cancelled. */
+export class InvoiceExistsError extends Error {
+  constructor(readonly saleId: string) {
+    super(`The sale already has an invoice: ${saleId}`);
+    this.name = 'InvoiceExistsError';
+  }
+}
+
+/** The invoice is not in a state that allows this: a retry of one not failed, say. */
+export class InvoiceStateError extends Error {
+  constructor(id: string, status: string, action: string) {
+    super(`Invoice ${id} is ${status} and cannot be ${action}`);
+    this.name = 'InvoiceStateError';
+  }
+}

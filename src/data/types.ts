@@ -346,6 +346,32 @@ export type AuditRecord = {
   businessDate: string;
 };
 
+/** Who an invoice is made out to: a person, or a company with its tax details. */
+export type InvoiceBuyer =
+  | { kind: 'person'; name: string; tckn?: string }
+  | { kind: 'company'; title: string; vkn: string; taxOffice: string; address: string };
+
+export type InvoiceStatus = 'pending' | 'issued' | 'failed' | 'cancelled';
+
+/**
+ * An e-Arşiv invoice asked for on a sale (DESIGN §6.3). The register writes the request; the
+ * server's provider adapter issues it and its result comes back with the pull.
+ */
+export type InvoiceRecord = {
+  id: string;
+  saleId: string;
+  buyer: InvoiceBuyer;
+  status: InvoiceStatus;
+  /** The provider's id for the issued invoice. */
+  ettn?: string;
+  /** Why the provider refused it, while it is failed. */
+  error?: string;
+  deviceCode: string;
+  staffId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type OutboxTable =
   | 'products'
   | 'customers'
@@ -363,13 +389,15 @@ export type OutboxTable =
   | 'cashSessions'
   | 'staff'
   | 'settings'
-  | 'auditLog';
+  | 'auditLog'
+  | 'invoices';
 
 export type OutboxOp =
   | { kind: 'insert'; table: OutboxTable; recordId: string; record: object }
   | {
       kind: 'patch';
-      table: 'products' | 'customers' | 'categories' | 'suppliers' | 'staff' | 'settings';
+      table:
+        'products' | 'customers' | 'categories' | 'suppliers' | 'staff' | 'settings' | 'invoices';
       recordId: string;
       patch: object;
     };

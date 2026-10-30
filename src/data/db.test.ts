@@ -24,6 +24,7 @@ describe('openMarketDb', () => {
       'cashSessions',
       'categories',
       'customers',
+      'invoices',
       'ledger',
       'meta',
       'outbox',

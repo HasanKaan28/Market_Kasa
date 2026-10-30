@@ -220,6 +220,21 @@ describe('applyServerRows', () => {
     expect(await db.settings.get('market')).toEqual(row);
   });
 
+  it('applies pulled invoices', async () => {
+    const row = {
+      id: 'i1',
+      saleId: 'sale1',
+      buyer: { kind: 'person', name: 'Ayşe' },
+      status: 'issued',
+      ettn: 'E-1',
+      deviceCode: 'K1',
+      createdAt: at.toISOString(),
+      updatedAt: at.toISOString(),
+    };
+    await applyServerRows(db, [{ table: 'invoices', id: 'i1', serverSeq: 17, row }]);
+    expect(await db.invoices.get('i1')).toEqual(row);
+  });
+
   it('applies pulled staff', async () => {
     const row = {
       id: 's1',

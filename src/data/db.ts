@@ -5,6 +5,7 @@ import type {
   CashSessionRecord,
   CategoryRecord,
   CustomerRecord,
+  InvoiceRecord,
   PurchaseRecord,
   LedgerRecord,
   MarketSettingsRecord,
@@ -45,6 +46,7 @@ export class MarketDb extends Dexie {
   declare staff: Table<StaffRecord, string>;
   declare settings: Table<MarketSettingsRecord, string>;
   declare auditLog: Table<AuditRecord, string>;
+  declare invoices: Table<InvoiceRecord, string>;
 
   constructor(name: string) {
     super(name);
@@ -105,6 +107,8 @@ export class MarketDb extends Dexie {
     this.version(12).stores({ settings: 'id' });
     // v13: who changed what (M6b).
     this.version(13).stores({ auditLog: 'id, occurredAt' });
+    // v14: e-Arşiv invoices asked for on sales (M7).
+    this.version(14).stores({ invoices: 'id, saleId, status, updatedAt' });
   }
 }
 
