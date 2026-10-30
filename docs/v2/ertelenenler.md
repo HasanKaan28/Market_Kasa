@@ -182,8 +182,16 @@ M7 (istemci tarafı) tamamlandı; "Bilgi fişidir" maddesi kapandı. Sağlayıc�
 
 ## M8 · Yayın
 
-- **Güvenlik (M6a I2):** yayındaki uygulamada geliştirici araçları kapanmalı (Electron menüsü ve F12, §8.7). Açık kaldıkça kasiyer cihazdaki oturum kimliğini ya da veritabanını değiştirerek sahip olabilir.
-- Electron: `electron/main.cjs`'de `setWindowOpenHandler` yok; WhatsApp `webSecurity: false` olan bir alt pencerede açılıyor. v2 Electron'da çalışmadan önce bağlantılar sistem tarayıcısına gitmeli. (M2d)
+M8 tamamlandı; geliştirici araçları (M6a I2) ve `setWindowOpenHandler` (M2d) maddeleri kapandı.
+
+- **Önce yapılmalı — Android imzası:** yayın iş akışı her seferinde yeni bir makinede debug imzalı APK üretiyor; yeni APK eskisinin üstüne kurulamıyor, kaldırmak veriyi siliyor. Sabit bir imza anahtarı depo sırrı olarak eklenmeli (yalnız sahip ekleyebilir) ve iş akışı onunla imzalamalı. O zamana kadar README ve sürüm notu "önce dışa aktarın" diyor. (M8 I-3)
+- Electron'da imzalı otomatik güncelleme (§8.7) yok; kurulum imzasız.
+- v1'in kendi service worker önbelleği (`market-pos-v2`) aynı kaynakta silinmiyor; açılışta sayfa isteğinin zaman sınırı yok; `manifest.json` ve `logo.svg` önbellekte ama oradan verilmiyor.
+- Electron: `serveApp` eksik dosyada 404 yerine ağ hatası veriyor; bütün izin istekleri sessizce veriliyor (yalnız kamera verilmeli).
+- v1 aktarma: KDV'si %1 olan ürünler sayılıyor, listelenmiyor (§14 liste ister); KDV 8/18, eksi ya da kesirli adet stok ve 10.000 üstü stok düzeltilemeyen hatalı satır oluyor; `IMP-` ile başlayan uydurma kodlar gerçek barkod sayılıyor; v1 borcu "0 gün" görünüyor; kullanıcılar, satış geçmişi ve tedarikçi hareketleri aktarılmıyor.
+- README: `allowBackup=false` cihazdan cihaza aktarımı durdurmuyor (`dataExtractionRules` gerekir); "v2 v1'i okuyamaz" yalnız masaüstünde doğru.
+- İş akışındaki eylemler etiketle sabitlenmiş, commit SHA ile değil.
+- Kurulum dosyası (NSIS) bu ortamda hiç üretilmedi; v1'in üstüne kurulumu ve asar içindeki yollar yalnız ayarlardan çıkarıldı.
 - Android/Capacitor'da yazdırma ve paylaşım (`window.print` WebView'da çalışmıyor); PDF. (M2d)
 - Sessiz yazdırma: otomatik yazdırma açıkken okuyucu tuşları yazdırma penceresine gidiyor. (M2d)
 - Pilotta denenecek: gerçek termal yazıcıda basılabilir genişlik (48/72 mm), Safari ve iOS'ta yazdırma, büyük bir sepetin WhatsApp metni telefonda. (M2d)
