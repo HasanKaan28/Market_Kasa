@@ -19,7 +19,9 @@ export type V1CustomersDialogProps = {
 
 const ACTION_LABELS: Record<V1CustomerPlan['action'], string> = {
   create: 'Yeni',
-  exists: 'Zaten var',
+  merged: 'Dosyada tekrar: borcu üsttekine eklendi',
+  imported: 'Zaten aktarıldı',
+  exists: "v2'de var: borç aktarılmaz",
   error: 'Hatalı',
 };
 const NOT_A_BACKUP = "Bu bir v1 yedeği değil. v1'de Ayarlar → Yedek İndir (JSON).";
@@ -67,6 +69,9 @@ export function V1CustomersDialog({ open, onClose, onDone }: V1CustomersDialogPr
 
   const count = (action: V1CustomerPlan['action']) =>
     plan?.filter((row) => row.action === action).length ?? 0;
+  // Customers typed into v2 by hand keep their v2 balance; what v1 says they owe is left out.
+  const leftOut =
+    plan?.filter((row) => row.action === 'exists').reduce((sum, row) => sum + row.balance, 0) ?? 0;
 
   return (
     <Dialog
@@ -88,8 +93,8 @@ export function V1CustomersDialog({ open, onClose, onDone }: V1CustomersDialogPr
           className="min-h-11 rounded-control border border-line-strong bg-surface px-3 py-2 text-base file:mr-3 file:rounded-chip file:border-0 file:bg-bg file:px-3 file:py-1.5 file:font-medium"
         />
         <p id={`${inputId}-hint`} className="text-sm text-muted">
-          v1'de Ayarlar → Yedek İndir (JSON). Borçlar "v1'den devreden borç" olarak yazılır; aynı ad
-          ve telefonla zaten olan müşteri atlanır.
+          v1'de Ayarlar → Yedek İndir (JSON). Borçlar "v1'den devreden borç" olarak yazılır. Aynı ad
+          ve telefon dosyada iki kez varsa borçları toplanır; v2'de zaten olan müşteri atlanır.
         </p>
       </div>
       {error ? (
@@ -100,8 +105,13 @@ export function V1CustomersDialog({ open, onClose, onDone }: V1CustomersDialogPr
       {plan ? (
         <div className="flex flex-col gap-3">
           <p className="font-medium">
-            {`${count('create')} yeni, ${count('exists')} zaten var, ${count('error')} hatalı`}
+            {`${count('create')} yeni, ${count('merged')} tekrar, ${count('imported')} zaten aktarıldı, ${count('exists')} v2'de var, ${count('error')} hatalı`}
           </p>
+          {leftOut !== 0 ? (
+            <p className="text-warning">
+              {`Aktarılmayan borç ${formatTRY(leftOut)}: bu müşteriler v2'de zaten var. Borçlarını elle ekleyin.`}
+            </p>
+          ) : null}
           <div className="max-h-80 overflow-auto rounded-control border border-line">
             <table className="w-full min-w-[480px] border-collapse text-left">
               <caption className="sr-only">Önizleme</caption>

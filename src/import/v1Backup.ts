@@ -17,8 +17,12 @@ export type V1CustomerPlan = {
   creditLimit: Kurus;
   /** What the customer owed in v1; below zero when v1 owed them. */
   balance: Kurus;
-  /** `exists`: a customer with this name and phone is already here, or earlier in the file. */
-  action: 'create' | 'exists' | 'error';
+  /**
+   * `merged`: the same name and phone earlier in the file, whose debt this one is added to.
+   * `imported`: brought over from v1 before. `exists`: typed into v2 by hand; its v1 debt is not
+   * added on top, and the preview says how much is left out.
+   */
+  action: 'create' | 'merged' | 'imported' | 'exists' | 'error';
   error?: string;
 };
 
@@ -92,11 +96,23 @@ export function v1ProductTable(backup: V1Backup): string[][] {
 
 /**
  * What bringing v1's customers over would do, without writing anything: who is new, who is here
- * already (same name and phone, in v2 or earlier in the file), and who cannot be brought.
+ * already (same name and phone in v2), whose debt joins an earlier row of the file, and who
+ * cannot be brought.
  */
 export async function planV1Customers(db: MarketDb, backup: V1Backup): Promise<V1CustomerPlan[]> {
-  const seen = new Set((await db.customers.toArray()).map((c) => identity(c.name, c.phone)));
-  return backup.customers.map((customer) => {
+  const [customers, openings] = await Promise.all([
+    db.customers.toArray(),
+    db.ledger.filter((entry) => entry.note === OPENING_NOTE).toArray(),
+  ]);
+  const imported = new Set(openings.map((entry) => entry.customerId));
+  const here = new Map(
+    customers.map(
+      (c) => [identity(c.name, c.phone), imported.has(c.id) ? 'imported' : 'exists'] as const,
+    ),
+  );
+  // The row each customer is created from, so a later duplicate's debt is added to it.
+  const first = new Map<string, V1CustomerPlan>();
+  return backup.customers.map((customer): V1CustomerPlan => {
     const name = text(customer.name).trim();
     const phone = text(customer.phone).replace(/\D/g, '') || undefined;
     const balance = kurus(customer.balance) ?? 0;
@@ -107,11 +123,14 @@ export async function planV1Customers(db: MarketDb, backup: V1Backup): Promise<V
       return { ...row, action: 'error', error: 'Adı yok.' };
     }
     const key = identity(name, phone);
-    if (seen.has(key)) {
-      return { ...row, action: 'exists' };
+    const earlier = first.get(key);
+    if (earlier) {
+      earlier.balance += balance;
+      return { ...row, action: 'merged' };
     }
-    seen.add(key);
-    return { ...row, action: 'create' };
+    const plan: V1CustomerPlan = { ...row, action: here.get(key) ?? 'create' };
+    first.set(key, plan);
+    return plan;
   });
 }
 

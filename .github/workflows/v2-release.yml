@@ -106,6 +106,12 @@ jobs:
           draft: true
           tag_name: ${{ github.ref_name }}
           name: Market Kasa ${{ github.ref_name }}
+          # The APK is debug-signed on a fresh runner, so it cannot update an earlier install: the
+          # old app must be removed, and its data with it.
+          body: |
+            **Kurmadan önce yedek alın.**
+            - v1'den geçiyorsanız: v1'de Ayarlar → Yedek İndir (JSON). v2 kurulunca v1'in verisi okunamaz.
+            - Android: bu APK bir önceki sürümün üstüne kurulamaz; eskisini kaldırmak verisini de siler. Kaldırmadan önce müşterileri ve ürünleri dışa aktarın.
           generate_release_notes: true
           files: |
             release-files/*.apk

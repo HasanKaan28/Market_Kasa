@@ -113,11 +113,11 @@ describe('v1 backup', () => {
     const parsed = readV1Backup(JSON.stringify(backup))!;
     const plan = await planV1Customers(db, parsed);
     expect(plan.map((row) => [row.name, row.action, row.balance, row.creditLimit])).toEqual([
-      ['Ahmet Yılmaz', 'create', 15075, 200000],
+      // v1 had no unique names: the second Ahmet's debt is added to the first, not dropped.
+      ['Ahmet Yılmaz', 'create', 15575, 200000],
       ['Ayşe', 'create', -2000, 50000],
       ['', 'error', 1000, 0],
-      // The same name and phone again in the file.
-      ['Ahmet Yılmaz', 'exists', 500, 0],
+      ['Ahmet Yılmaz', 'merged', 500, 0],
     ]);
     expect(plan[2]?.error).toBe('Adı yok.');
 
@@ -125,16 +125,16 @@ describe('v1 backup', () => {
     expect(result).toEqual({ created: 2, skipped: 2 });
     const ahmet = (await db.customers.toArray()).find((c) => c.name === 'Ahmet Yılmaz')!;
     expect(ahmet).toMatchObject({ phone: '05321112233', creditLimit: 200000 });
-    expect(await customerBalance(db, ahmet.id)).toBe(15075);
+    expect(await customerBalance(db, ahmet.id)).toBe(15575);
     expect(await db.ledger.where('customerId').equals(ahmet.id).first()).toMatchObject({
       kind: 'adjustment',
-      amount: 15075,
+      amount: 15575,
       note: "v1'den devreden borç",
     });
 
     // The same backup again: everyone is already here.
     const again = await planV1Customers(db, parsed);
-    expect(again.map((row) => row.action)).toEqual(['exists', 'exists', 'error', 'exists']);
+    expect(again.map((row) => row.action)).toEqual(['imported', 'imported', 'error', 'merged']);
     expect(await applyV1Customers(db, again, at)).toEqual({ created: 0, skipped: 4 });
     expect(await db.customers.count()).toBe(2);
   });
@@ -142,6 +142,10 @@ describe('v1 backup', () => {
   it('matches a customer already typed into v2 by name and phone', async () => {
     await createCustomer(db, { name: 'ahmet yılmaz', phone: '0532 111 22 33' }, at);
     const plan = await planV1Customers(db, readV1Backup(JSON.stringify(backup))!);
-    expect(plan[0]?.action).toBe('exists');
+    // Typed in by hand: the v1 debt is not added on top, and the preview says so.
+    expect(plan[0]).toMatchObject({ action: 'exists', balance: 15575 });
+    expect(plan[3]?.action).toBe('merged');
+    expect(await applyV1Customers(db, plan, at)).toEqual({ created: 1, skipped: 3 });
+    expect(await db.customers.count()).toBe(2);
   });
 });

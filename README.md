@@ -60,10 +60,17 @@ npm run cap:sync   # builds and copies dist/ into android/
 npm run cap:open   # opens Android Studio
 ```
 
-Android backups are off (`allowBackup="false"`), so the shop's data does not leave the device
-through them.
+Android cloud backups are off (`allowBackup="false"`).
+
+The release workflow builds a **debug-signed** APK on a fresh runner each time, so a new APK
+cannot be installed over the previous one: the old app has to be removed, and its data with it.
+Until a fixed signing key is added as a repository secret, export what you need before updating.
 
 ## Moving from v1
+
+> **Take the backup before installing or updating to v2.** The desktop installer replaces v1
+> in place and the Android app has to be reinstalled; after that, v1 and its data cannot be
+> opened to export them.
 
 v1 keeps its data in its own browser storage, which v2 cannot read. In v1, open Settings and
 press **Yedek İndir (JSON)**, then in v2:

@@ -6,12 +6,25 @@ const SHELL = ['./', './index.html', './manifest.json', './logo.svg'];
 // The built files the page names: the first visit loads them before this worker is in charge.
 const ASSET_REFERENCE = /(?:src|href)="(\.?\/?assets\/[^"]+)"/g;
 
-/** Keeps the page, its icon and every built file the page names. */
+/**
+ * Keeps the page, its icon and every built file: the build lists them in precache.json (the
+ * camera's scanner and the fonts load later, so the page does not name them). Without that list,
+ * the files the page names.
+ */
 async function cacheShell() {
   const cache = await caches.open(CACHE);
   const page = await fetch('./index.html', { cache: 'no-store' });
   const html = await page.clone().text();
-  const assets = [...html.matchAll(ASSET_REFERENCE)].map((match) => match[1]);
+  const named = [...html.matchAll(ASSET_REFERENCE)].map((match) => match[1]);
+  const listed = await fetch('./precache.json', { cache: 'no-store' })
+    .then((response) => (response.ok ? response.json() : []))
+    .catch(() => []);
+  const assets = [
+    ...new Set([
+      ...named.map((path) => new URL(path, self.location.href).href),
+      ...listed.map((path) => new URL(path, self.location.href).href),
+    ]),
+  ];
   await cache.addAll([...SHELL.filter((path) => path !== './index.html'), ...assets]);
   await cache.put('./index.html', page);
 }

@@ -32,5 +32,7 @@ describe('workflows', () => {
     expect(triggers(release)).toContain("tags: ['v2.*']");
     expect(triggers(release)).not.toMatch(/branches/);
     expect(release).toContain('draft: true');
+    // A debug-signed APK cannot update the last one, and v1 cannot be read once replaced.
+    expect(release).toContain('Kurmadan önce yedek alın');
   });
 });
