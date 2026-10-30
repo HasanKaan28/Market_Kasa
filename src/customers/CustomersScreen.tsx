@@ -62,7 +62,9 @@ export function CustomersScreen(): JSX.Element {
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto">
             <h1 className="text-xl font-semibold">Müşteriler</h1>
-            <p className="text-sm text-text-2">{`${summaries?.length ?? 0} müşteri`}</p>
+            {summaries ? (
+              <p className="text-sm text-text-2">{`${summaries.length} müşteri`}</p>
+            ) : null}
           </div>
           <Button
             variant="primary"

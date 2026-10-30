@@ -65,6 +65,14 @@ describe('CustomersScreen', () => {
     expect(rowsOf(table).map((row) => row[0])).toEqual(['Ahmet']);
   });
 
+  it('counts customers only once they are read', async () => {
+    const data = createTestData();
+    await createCustomer(data.db, { name: 'Ahmet' }, new Date());
+    await renderWithData(<CustomersScreen />, data);
+    expect(screen.queryByText('0 müşteri')).not.toBeInTheDocument();
+    expect(await screen.findByText('1 müşteri')).toBeInTheDocument();
+  });
+
   it('finds a customer by name or phone', async () => {
     const data = createTestData();
     await createCustomer(data.db, { name: 'Ahmet Yılmaz', phone: '05321112233' }, daysAgo(1));

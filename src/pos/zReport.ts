@@ -37,7 +37,8 @@ export function zReportModel(
   const { summary, cash } = record;
   const opened = record.openedAt
     ? `Açılış ${formatTime(record.openedAt)}`
-    : summary.salesCount > 0
+    : // Any sale rung up in the Z, voided ones too: the same test as the drawer dialog.
+      summary.salesCount + summary.voidCount - summary.earlierVoidCount > 0
       ? 'Kasa açılmadan satış yapıldı.'
       : 'Kasa açılmadı.';
   // Sales less returns less voids of earlier days make the net; a sale voided within the same Z

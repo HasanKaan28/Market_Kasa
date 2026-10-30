@@ -38,6 +38,8 @@ describe('PosScreen', () => {
     expect(screen.getByRole('status', { name: 'Bildirim' })).toHaveTextContent('Satış tamamlandı');
     expect(await recentSales(data.db)).toHaveLength(1);
     expect(screen.getByText('Sepet boş')).toBeInTheDocument();
+    // Ready for the next customer: typing goes to the search.
+    expect(screen.getByLabelText('Barkod veya ürün adı')).toHaveFocus();
   });
 
   it("keeps selling on the last grace day by the market's day", async () => {

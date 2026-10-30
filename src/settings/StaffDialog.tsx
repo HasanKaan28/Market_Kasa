@@ -60,7 +60,11 @@ export function StaffDialog({
     try {
       await save();
     } catch (error) {
-      setFailure(error instanceof LastOwnerError ? 'Son sahip pasife alınamaz.' : 'Kaydedilemedi.');
+      setFailure(
+        error instanceof LastOwnerError
+          ? 'Son sahip kalmalı: rolü değiştirilemez, pasife alınamaz.'
+          : 'Kaydedilemedi.',
+      );
     } finally {
       setSaving(false);
     }

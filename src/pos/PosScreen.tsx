@@ -187,6 +187,8 @@ export function PosScreen(): JSX.Element {
       });
       dispatch({ type: 'clear' });
       setDialog(null);
+      // Ready for the next customer: typing goes to the search again.
+      searchRef.current?.focus();
       toast.show(`Satış tamamlandı · ${sale.receiptNo}`);
       if (receiptSettings.printing && receiptSettings.autoPrint) {
         void printSale(sale);

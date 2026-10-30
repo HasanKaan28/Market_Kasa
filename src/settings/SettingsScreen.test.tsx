@@ -11,6 +11,7 @@ import { checkPin, createStaff, updateStaff } from '@/data/staff';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 
 const before = () => new Date(Date.now() - 60_000);
+const LAST_OWNER = 'Son sahip kalmalı: rolü değiştirilemez, pasife alınamaz.';
 
 async function team() {
   const data = createTestData();
@@ -106,7 +107,11 @@ describe('SettingsScreen', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Kaan/ }));
     dialog = await screen.findByRole('dialog', { name: 'Kaan' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pasife al' }));
-    expect(await within(dialog).findByText('Son sahip pasife alınamaz.')).toBeInTheDocument();
+    expect(await within(dialog).findByText(LAST_OWNER)).toBeInTheDocument();
+    // Nor made anything but an owner.
+    await userEvent.selectOptions(within(dialog).getByLabelText('Rol'), 'Yönetici');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await within(dialog).findByText(LAST_OWNER)).toBeInTheDocument();
   });
   it('keeps the register code while its drawer is open or taken by another register', async () => {
     const { data, kaan } = await team();

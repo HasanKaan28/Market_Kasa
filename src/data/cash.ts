@@ -35,6 +35,8 @@ export type ExpectedCash = CashBreakdown & {
   since: string;
   /** The register's last Z, when there is one. */
   lastCloseAt?: string;
+  /** Sales rung up on the register since the count started, voided ones included. */
+  salesRungUp: number;
   expected: Kurus;
 };
 
@@ -272,6 +274,7 @@ async function countDrawer(
         session,
         since: from,
         lastCloseAt: last?.closedAt,
+        salesRungUp: records.sales.length,
         ...breakdown,
         expected,
       }),

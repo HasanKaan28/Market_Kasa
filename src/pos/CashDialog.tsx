@@ -14,6 +14,7 @@ import type { CashSessionRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
 import { formatAmount } from '@/reports/reportFormat';
+import { businessDate } from '@/domain/businessDate';
 import { formatDateTime, formatTime } from './format';
 import { printZReport } from './printZReport';
 import { formatDifference, zReportModel } from './zReport';
@@ -162,7 +163,7 @@ function StatusView({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-text-2">
-        {`Açık · ${formatTime(session.openedAt)} · Açılış nakdi ${formatTRY(session.openingCash)}`}
+        {`Açık · ${openedLabel(session.openedAt)} · Açılış nakdi ${formatTRY(session.openingCash)}`}
       </p>
       <Amount label="Beklenen nakit" value={formatAmount(cash.expected)} large />
       <div className="grid grid-cols-2 gap-2">
@@ -254,7 +255,7 @@ function CloseForm({
   const { session } = cash;
   const unopened = session
     ? null
-    : cash.sales > 0
+    : cash.salesRungUp > 0
       ? 'Kasa açılmadan satış yapıldı. Açılış nakdi 0 sayıldı.'
       : 'Kasa açılmadı. Açılış nakdi 0 sayıldı.';
 
@@ -385,6 +386,13 @@ function readAmount(text: string): Kurus | null {
   } catch {
     return null;
   }
+}
+
+/** When the drawer opened: the time, with the date too when it was another day. */
+function openedLabel(openedAt: string): string {
+  return businessDate(new Date(openedAt)) === businessDate(new Date())
+    ? formatTime(openedAt)
+    : formatDateTime(openedAt);
 }
 
 /** One save at a time, with its error: a double click saves once. */
