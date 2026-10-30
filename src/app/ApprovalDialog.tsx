@@ -74,6 +74,11 @@ export function ApprovalDialog({
     >
       {people === undefined ? (
         <p className="text-text-2">Yükleniyor…</p>
+      ) : approvers.length === 0 ? (
+        // Owners demoted on two registers offline can leave nobody once they sync.
+        <p role="alert" className="font-medium text-danger">
+          Bu işlemi onaylayabilecek kimse yok.
+        </p>
       ) : (
         <form noValidate className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
           <SelectField

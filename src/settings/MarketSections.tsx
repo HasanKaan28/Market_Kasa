@@ -104,6 +104,8 @@ export function RegisterSection(): JSX.Element {
   const [deviceName, setDeviceName] = useState(settings.deviceName);
   const [deviceCode, setDeviceCode] = useState(settings.deviceCode);
   const [message, setMessage] = useState<{ text: string; error: boolean }>();
+  // A code with sales on it, which the person has been warned about once.
+  const [warnedCode, setWarnedCode] = useState<string>();
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,8 +119,13 @@ export function RegisterSection(): JSX.Element {
         });
         return;
       }
-      if ((await reportRegisters(db)).includes(code)) {
-        setMessage({ text: `${code} kodunu başka bir kasa kullanıyor.`, error: true });
+      // It may be this register's own old code, or another register's: only the person knows.
+      if (code !== warnedCode && (await reportRegisters(db)).includes(code)) {
+        setWarnedCode(code);
+        setMessage({
+          text: `${code} koduyla daha önce satış yapılmış. Bu kod başka bir kasanınsa fiş numaraları karışır; yine de kullanmak için yeniden kaydedin.`,
+          error: true,
+        });
         return;
       }
     }

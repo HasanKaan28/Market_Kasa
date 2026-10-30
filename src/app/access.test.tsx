@@ -11,6 +11,7 @@ import { CustomersScreen } from '@/customers/CustomersScreen';
 import { ProductsScreen } from '@/products/ProductsScreen';
 import { ReportsScreen } from '@/reports/ReportsScreen';
 import { createTestData, renderWithData } from '@/test/renderWithData';
+import { ApprovalDialog } from './ApprovalDialog';
 import { Screens } from './Screens';
 import { SessionProvider } from './SessionProvider';
 
@@ -220,5 +221,23 @@ describe('access', () => {
     await userEvent.click(within(split).getByRole('button', { name: 'Satışı tamamla' }));
     await approve('Kaan · Sahip', '4821');
     expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+  });
+
+  it('says when nobody can approve', async () => {
+    // Two registers offline can each demote an owner, and the sync leaves none.
+    const data = createTestData();
+    const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, before());
+    await createStaff(data.db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, before());
+    // As the pull writes it: the server row wins.
+    await data.db.staff.update(kaan.id, { role: 'cashier' });
+    await renderWithData(
+      <ApprovalDialog open permission="voidSale" onApproved={vi.fn()} onClose={vi.fn()} />,
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(
+      await within(dialog).findByText('Bu işlemi onaylayabilecek kimse yok.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Onayla' })).toBeNull();
   });
 });

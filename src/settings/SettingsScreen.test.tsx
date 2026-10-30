@@ -113,7 +113,7 @@ describe('SettingsScreen', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await within(dialog).findByText(LAST_OWNER)).toBeInTheDocument();
   });
-  it('keeps the register code while its drawer is open or taken by another register', async () => {
+  it('keeps the register code while its drawer is open, and warns before a code used before', async () => {
     const { data, kaan } = await team();
     await openCashSession(data.db, { deviceCode: 'K1', openingCash: 5000 }, new Date());
     await settingsAs(data, kaan.id);
@@ -144,9 +144,17 @@ describe('SettingsScreen', () => {
     await userEvent.type(within(register).getByLabelText('Kasa kodu'), 'K2');
     await userEvent.click(within(register).getByRole('button', { name: 'Kasayı kaydet' }));
     expect(
-      await within(register).findByText('K2 kodunu başka bir kasa kullanıyor.'),
+      await within(register).findByText(
+        'K2 koduyla daha önce satış yapılmış. Bu kod başka bir kasanınsa fiş numaraları karışır; yine de kullanmak için yeniden kaydedin.',
+      ),
     ).toBeInTheDocument();
     expect(localStorage.getItem('mk2.device')).toBeNull();
+    // It may be this register's own old code: saved on the second try.
+    await userEvent.click(within(register).getByRole('button', { name: 'Kasayı kaydet' }));
+    expect(
+      await within(register).findByText('Kaydedildi. Uygulama yeniden açıldığında geçerli olur.'),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem('mk2.device')).toContain('"deviceCode":"K2"');
   });
 
   it('edits the market and this register', async () => {
