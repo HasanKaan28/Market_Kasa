@@ -65,6 +65,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.1",
+    "@electric-sql/pglite": "0.5.10",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.0.9",
     "@testing-library/jest-dom": "^7.0.1",

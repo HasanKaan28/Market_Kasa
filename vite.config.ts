@@ -18,7 +18,21 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'app',
+          environment: 'jsdom',
+          setupFiles: ['./src/test/setup.ts'],
+          include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts'],
+        },
+      },
+      // The server's SQL runs on PGlite in Node, without the browser setup.
+      {
+        extends: true,
+        test: { name: 'server', environment: 'node', include: ['supabase/tests/**/*.test.ts'] },
+      },
+    ],
   },
 });
