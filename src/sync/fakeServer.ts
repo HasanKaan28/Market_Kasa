@@ -1,4 +1,5 @@
 import type { OutboxItem } from '@/data/types';
+import { EVENT_TABLES } from './apply';
 import type {
   PullRequest,
   PullResponse,
@@ -23,6 +24,7 @@ export class FakeServer implements SyncTransport {
   private readonly appliedOps = new Set<string>();
   private lastSeq = 0;
   private nextFailure: Error | undefined;
+  private ackLost = false;
   private refusal: ((op: OutboxItem) => string | undefined) | undefined;
 
   async push(request: PushRequest): Promise<PushResponse> {
@@ -31,6 +33,15 @@ export class FakeServer implements SyncTransport {
       this.nextFailure = undefined;
       throw failure;
     }
+    const response = this.applyPush(request);
+    if (this.ackLost) {
+      this.ackLost = false;
+      throw new Error('acknowledgement lost');
+    }
+    return response;
+  }
+
+  private applyPush(request: PushRequest): PushResponse {
     const acknowledged: number[] = [];
     const rejected: Rejection[] = [];
     for (const op of request.ops) {
@@ -77,6 +88,11 @@ export class FakeServer implements SyncTransport {
     this.nextFailure = error;
   }
 
+  /** Applies the next push, then loses its answer, as a dropped connection would. */
+  loseNextAck(): void {
+    this.ackLost = true;
+  }
+
   /** Refuses every new operation the rule gives a reason for, as the real server will. */
   refuse(rule: (op: OutboxItem) => string | undefined): void {
     this.refusal = rule;
@@ -93,18 +109,21 @@ export class FakeServer implements SyncTransport {
 
   private apply(op: OutboxItem): void {
     const rows = this.table(op.table);
-    if (op.kind === 'insert') {
-      if (rows.has(op.recordId)) {
-        return;
-      }
+    const stored = rows.get(op.recordId);
+    if (op.kind === 'insert' && !stored) {
       rows.set(op.recordId, { row: clone(op.record), serverSeq: this.bumpSeq() });
+    } else if (op.kind === 'insert' && EVENT_TABLES.has(op.table)) {
+      // An event is written once; a second copy of it changes nothing.
+      return;
     } else {
-      const stored = rows.get(op.recordId);
+      // A patch, or a second insert of an entity (two registers saving the same fixed-id record
+      // offline): merged field by field, so the later arrival wins each field it sends.
       if (!stored) {
         return;
       }
+      const fields = op.kind === 'insert' ? op.record : op.patch;
       const row = { ...stored.row };
-      for (const [key, value] of Object.entries(op.patch)) {
+      for (const [key, value] of Object.entries(fields)) {
         if (value === null) {
           delete row[key];
         } else {
@@ -127,8 +146,12 @@ export class FakeServer implements SyncTransport {
         holders.set(barcode, [...(holders.get(barcode) ?? []), id]);
       }
     }
+    // A live product beats a deleted one; among equals the smallest id keeps the barcode.
+    const deleted = (id: string) => (products.get(id)?.row.deletedAt ? 1 : 0);
     for (const ids of holders.values()) {
-      const [winnerId, ...loserIds] = ids.sort();
+      const [winnerId, ...loserIds] = ids.sort(
+        (x, y) => deleted(x) - deleted(y) || (x < y ? -1 : x > y ? 1 : 0),
+      );
       if (winnerId === undefined || loserIds.length === 0) {
         continue;
       }

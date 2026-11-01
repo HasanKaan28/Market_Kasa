@@ -3,7 +3,7 @@ import { canonicalBarcode } from '@/data/products';
 import { parkRows, type ParkedRow } from './issues';
 import type { ServerRow, SyncTable } from './protocol';
 
-const EVENT_TABLES: ReadonlySet<SyncTable> = new Set([
+export const EVENT_TABLES: ReadonlySet<SyncTable> = new Set([
   'sales',
   'stockMovements',
   'ledger',

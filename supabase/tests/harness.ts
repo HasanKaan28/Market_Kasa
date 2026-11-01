@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PGlite, type Transaction } from '@electric-sql/pglite';
 
-const MIGRATIONS = new URL('../migrations/', import.meta.url);
+// Read from the repository root: under jsdom `import.meta.url` is not a file URL.
+const MIGRATIONS = join(process.cwd(), 'supabase', 'migrations');
 
 /**
  * What Supabase gives every project before our migrations run: the client roles, the `auth`
@@ -53,7 +55,7 @@ export async function createTestServer(): Promise<TestServer> {
   for (const name of readdirSync(MIGRATIONS)
     .filter((file) => file.endsWith('.sql'))
     .sort()) {
-    await db.exec(readFileSync(new URL(name, MIGRATIONS), 'utf8'));
+    await db.exec(readFileSync(join(MIGRATIONS, name), 'utf8'));
   }
 
   const query = async <T>(sql: string, params: unknown[] = []): Promise<T[]> =>

@@ -124,9 +124,10 @@ begin
   if p_barcode is null then
     return;
   end if;
+  -- A live product beats a deleted one, as on the registers (claimBarcode).
   select id into v_winner from app.rows
   where market_id = p_market and tbl = 'products' and row ->> 'barcode' = p_barcode
-  order by id collate "C" limit 1;
+  order by (row ? 'deletedAt'), id collate "C" limit 1;
   if not exists (
     select 1 from app.rows
     where market_id = p_market and tbl = 'products' and row ->> 'barcode' = p_barcode
@@ -157,30 +158,33 @@ begin
     return 'bad_record';
   end if;
 
-  if v_kind = 'insert' then
-    v_fields := p_op -> 'record';
-    if jsonb_typeof(v_fields) is distinct from 'object' then
-      return 'bad_record';
-    end if;
-    v_row := app.normalized(v_table, v_fields);
-    insert into app.rows (market_id, tbl, id, server_seq, row)
-    values (p_market, v_table, v_id, nextval('app.server_seq'), v_row)
-    on conflict do nothing;
-  elsif v_kind = 'patch' then
-    if not (v_table = any (app.entity_tables())) then
-      return 'not_patchable';
-    end if;
-    v_fields := p_op -> 'patch';
-    if jsonb_typeof(v_fields) is distinct from 'object' then
-      return 'bad_record';
-    end if;
-    select row into v_row from app.rows
-    where market_id = p_market and tbl = v_table and id = v_id
-    for update;
-    if not found then
+  if v_kind not in ('insert', 'patch') then
+    return 'unknown_kind';
+  end if;
+  if v_kind = 'patch' and not (v_table = any (app.entity_tables())) then
+    return 'not_patchable';
+  end if;
+  v_fields := p_op -> (case v_kind when 'insert' then 'record' else 'patch' end);
+  if jsonb_typeof(v_fields) is distinct from 'object' then
+    return 'bad_record';
+  end if;
+
+  select row into v_row from app.rows
+  where market_id = p_market and tbl = v_table and id = v_id
+  for update;
+  if not found then
+    if v_kind = 'patch' then
       -- A patch for a record the server never received changes nothing, as on the fake server.
       return null;
     end if;
+    insert into app.rows (market_id, tbl, id, server_seq, row)
+    values (p_market, v_table, v_id, nextval('app.server_seq'), app.normalized(v_table, v_fields));
+  elsif v_table = any (app.event_tables()) then
+    -- An event is written once; a second copy of it changes nothing.
+    return null;
+  else
+    -- A patch, or a second insert of an entity (two registers saving the same fixed-id record
+    -- offline): merged field by field, so the later arrival wins each field it sends.
     -- A null field clears it; every other field replaces the stored one.
     v_row := (v_row || coalesce(
         (select jsonb_object_agg(key, value) from jsonb_each(v_fields) where value <> 'null'::jsonb),
@@ -191,8 +195,6 @@ begin
     v_row := app.normalized(v_table, v_row);
     update app.rows set row = v_row, server_seq = nextval('app.server_seq'), received_at = now()
     where market_id = p_market and tbl = v_table and id = v_id;
-  else
-    return 'unknown_kind';
   end if;
 
   if v_table = 'products' then
