@@ -38,7 +38,9 @@ describe('AppShell', () => {
   it.each([
     ['online', undefined, 'Çevrimiçi'],
     ['offline', undefined, 'Çevrimdışı'],
+    ['offline', 2, 'Çevrimdışı · 2 işlem bekliyor'],
     ['pending', 3, '3 işlem bekliyor'],
+    ['pending', 0, 'Eşitleniyor'],
     ['error', undefined, 'Eşitleme hatası'],
   ] as const)('shows sync state %s', (state, n, label) => {
     render(<AppShell {...base} syncState={state} pendingCount={n} />);

@@ -138,10 +138,11 @@ function SyncBadge({
   state: SyncState;
   pendingCount: number;
 }): JSX.Element {
+  const queued = pendingCount > 0 ? `${pendingCount} işlem bekliyor` : undefined;
   const label = {
     online: 'Çevrimiçi',
-    offline: 'Çevrimdışı',
-    pending: `${pendingCount} işlem bekliyor`,
+    offline: queued ? `Çevrimdışı · ${queued}` : 'Çevrimdışı',
+    pending: queued ?? 'Eşitleniyor',
     error: 'Eşitleme hatası',
   }[state];
   const style = SYNC_STYLES[state];

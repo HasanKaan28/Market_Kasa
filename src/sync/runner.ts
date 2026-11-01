@@ -25,24 +25,49 @@ type SyncRunnerDeps = {
   transport: SyncTransport;
   isOnline: () => boolean;
   now: () => Date;
+  /** How long one request may take before the round is given up as an error. */
+  requestTimeoutMs?: number;
 };
 
 const DEFAULT_INTERVAL_MS = 60_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 /** Runs at most one sync at a time and reports every status change to its subscribers. */
-export function createSyncRunner({ db, transport, isOnline, now }: SyncRunnerDeps): SyncRunner {
-  let current: SyncStatus = { state: 'pending', pendingCount: 0 };
+export function createSyncRunner({
+  db,
+  transport,
+  isOnline,
+  now,
+  requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+}: SyncRunnerDeps): SyncRunner {
+  let current: SyncStatus = { state: isOnline() ? 'pending' : 'offline', pendingCount: 0 };
   let inFlight: Promise<SyncStatus> | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   const listeners = new Set<(status: SyncStatus) => void>();
+  const timed = withTimeout(transport, requestTimeoutMs);
 
   const publish = (next: SyncStatus): SyncStatus => {
     current = next;
     for (const listener of listeners) {
-      listener(next);
+      // One broken listener must not stop the others, or the round that called them.
+      try {
+        listener(next);
+      } catch (error) {
+        console.error('Eşitleme durumu dinleyicisi hata verdi', error);
+      }
     }
     return next;
   };
+
+  // The queue is shown as it is before the first round, not as "0 işlem bekliyor".
+  void pendingCount(db).then(
+    (count) => {
+      if (current.lastSyncedAt === undefined && !inFlight) {
+        publish({ ...current, pendingCount: count });
+      }
+    },
+    () => undefined,
+  );
 
   // Callers fire and forget, so a round reports every failure as a status and never rejects.
   const syncRound = async (): Promise<SyncStatus> => {
@@ -51,7 +76,7 @@ export function createSyncRunner({ db, transport, isOnline, now }: SyncRunnerDep
       if (!isOnline()) {
         return publish({ state: 'offline', pendingCount: await pendingCount(db), lastSyncedAt });
       }
-      await syncOnce(db, transport);
+      await syncOnce(db, timed);
       const pending = await pendingCount(db);
       return publish({
         state: pending > 0 ? 'pending' : 'online',
@@ -95,5 +120,21 @@ export function createSyncRunner({ db, transport, isOnline, now }: SyncRunnerDep
         timer = undefined;
       }
     },
+  };
+}
+
+/** The same transport, where a request that outlives `ms` fails instead of holding the round. */
+function withTimeout(transport: SyncTransport, ms: number): SyncTransport {
+  const race = <T>(request: Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Sunucu ${Math.round(ms / 1000)} saniyede yanıt vermedi`)),
+        ms,
+      );
+      request.then(resolve, reject).finally(() => clearTimeout(timer));
+    });
+  return {
+    push: (request) => race(transport.push(request)),
+    pull: (request) => race(transport.pull(request)),
   };
 }

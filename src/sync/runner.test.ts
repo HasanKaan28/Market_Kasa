@@ -68,4 +68,39 @@ describe('createSyncRunner', () => {
     await vi.waitFor(() => expect(seen).toContain('online'));
     runner.stop();
   });
+
+  it('keeps syncing when a listener throws', async () => {
+    const runner = createSyncRunner({ db, transport: server, isOnline: () => true, now });
+    const seen: string[] = [];
+    runner.subscribe(() => {
+      throw new Error('broken screen');
+    });
+    runner.subscribe((status) => seen.push(status.state));
+    expect(await runner.run()).toMatchObject({ state: 'online' });
+    expect(seen).toContain('online');
+  });
+
+  it('gives up on a request that never answers', async () => {
+    const silent = {
+      push: () => new Promise<never>(() => {}),
+      pull: () => new Promise<never>(() => {}),
+    };
+    const runner = createSyncRunner({
+      db,
+      transport: silent,
+      isOnline: () => true,
+      now,
+      requestTimeoutMs: 50,
+    });
+    expect(await runner.run()).toMatchObject({ state: 'error', pendingCount: 1 });
+    // The stuck round no longer holds the runner: the next one starts and answers.
+    expect(await runner.run()).toMatchObject({ state: 'error' });
+  });
+
+  it('shows the real queue before the first round', async () => {
+    const offline = createSyncRunner({ db, transport: server, isOnline: () => false, now });
+    await vi.waitFor(() => expect(offline.status()).toEqual({ state: 'offline', pendingCount: 1 }));
+    const online = createSyncRunner({ db, transport: server, isOnline: () => true, now });
+    await vi.waitFor(() => expect(online.status()).toEqual({ state: 'pending', pendingCount: 1 }));
+  });
 });

@@ -211,4 +211,46 @@ describe('syncOnce', () => {
     expect(await stockOf(b, milk.id)).toBe(-1000);
     expect(await b.sales.count()).toBe(1);
   });
+
+  it('acknowledges only what it sent', async () => {
+    await sellOneMilk(a);
+    let pushes = 0;
+    const generous: SyncTransport = {
+      async push({ ops }) {
+        pushes += 1;
+        if (pushes > 1) {
+          throw new Error('network down');
+        }
+        const sent = ops.map((op) => op.seq ?? 0);
+        // The server also claims the next queued operation, which it was never sent.
+        return { acknowledged: [...sent, Math.max(...sent) + 1] };
+      },
+      pull: (request) => server.pull(request),
+    };
+    await expect(syncOnce(a, generous, { batchSize: 1 })).rejects.toThrow('network down');
+    expect(await pendingCount(a)).toBe(2);
+  });
+
+  it('stops pulling when the server does not move on', async () => {
+    await sellOneMilk(a);
+    await syncOnce(a, server);
+    const page = await server.pull({ since: 0, limit: 2 });
+    let pulls = 0;
+    const stuck: SyncTransport = {
+      push: (request) => server.push(request),
+      // A full page every time, and a cursor that never advances.
+      async pull({ since }) {
+        pulls += 1;
+        if (pulls > 20) {
+          throw new Error('still pulling');
+        }
+        return { rows: page.rows, latest: since };
+      },
+    };
+    await expect(syncOnce(b, stuck, { batchSize: 2 })).resolves.toMatchObject({ pulled: 2 });
+  });
+
+  it('refuses a batch size below one', async () => {
+    await expect(syncOnce(a, server, { batchSize: 0 })).rejects.toThrow(RangeError);
+  });
 });

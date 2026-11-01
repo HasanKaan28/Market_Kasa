@@ -26,6 +26,9 @@ export async function syncOnce(
 ): Promise<SyncResult> {
   const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
   const overlap = options.overlap ?? DEFAULT_OVERLAP;
+  if (!Number.isInteger(batchSize) || batchSize < 1) {
+    throw new RangeError(`A sync batch holds at least one operation, got ${batchSize}`);
+  }
   let pushed = 0;
   let pushFailure: { error: unknown } | undefined;
   try {
@@ -51,7 +54,12 @@ async function pushOutbox(
     if (ops.length === 0) {
       return pushed;
     }
-    const { acknowledged, rejected = [] } = await transport.push({ ops });
+    const answer = await transport.push({ ops });
+    // Only what was sent can be answered: a sequence the server names but this page did not
+    // carry stays queued, else an operation never sent would vanish.
+    const sent = new Set(ops.map((op) => op.seq));
+    const acknowledged = answer.acknowledged.filter((seq) => sent.has(seq));
+    const rejected = (answer.rejected ?? []).filter(({ seq }) => sent.has(seq));
     await settleOps(db, ops, acknowledged, rejected);
     pushed += acknowledged.length;
     // Ops the server neither acknowledged nor refused stay queued; retry them next round
@@ -102,7 +110,9 @@ async function pullChanges(
       cursor = latest;
       await setPullCursor(db, cursor);
     }
-    if (rows.length < batchSize) {
+    // A short page is the last one; so is a full page that moves the cursor nowhere, which a
+    // broken server would otherwise serve forever.
+    if (rows.length < batchSize || latest <= since) {
       return pulled;
     }
     since = latest;
