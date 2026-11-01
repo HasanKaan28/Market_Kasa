@@ -288,3 +288,161 @@ revoke execute on function public.sync_push(jsonb) from public, anon;
 revoke execute on function public.sync_pull(bigint, integer) from public, anon;
 grant execute on function public.sync_push(jsonb) to authenticated;
 grant execute on function public.sync_pull(bigint, integer) to authenticated;
+
+-- Pairing a register to its market (DESIGN §8.2). The owner signs in on the register, asks for
+-- a one-time code, and the register's own anonymous session claims it. No secret leaves the
+-- server and the owner's session is never kept on the register.
+
+create table app.pairings (
+  code text primary key,
+  market_id text not null references app.markets (id) on delete cascade,
+  created_by uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+alter table app.pairings enable row level security;
+revoke all on app.pairings from public, anon, authenticated;
+
+/** True when the caller signed in with a password (not anonymously) and owns the market. */
+create function app.is_owner(p_market text) returns boolean language sql stable as $$
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) is false
+    and exists (
+      select 1 from app.memberships
+      where market_id = p_market and user_id = auth.uid() and role = 'owner')
+$$;
+
+/** The markets the caller owns, for the pairing screen. */
+create function public.owner_markets() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'name', m.name) order by m.name), '[]')
+  from app.markets m
+  join app.memberships ms on ms.market_id = m.id
+  where ms.user_id = auth.uid() and ms.role = 'owner'
+    and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) is false
+$$;
+
+/** A one-time code, good for ten minutes, that binds one register to this market. */
+create function public.create_pairing(market_id text) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  -- No 0/O or 1/I: the code is read out loud or typed from another screen.
+  v_alphabet constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  v_code text;
+begin
+  if not app.is_owner(market_id) then
+    raise exception 'not_owner';
+  end if;
+  loop
+    v_code := (
+      select string_agg(substr(v_alphabet, 1 + floor(random() * 32)::int, 1), '')
+      from generate_series(1, 8));
+    exit when not exists (select 1 from app.pairings where code = v_code);
+  end loop;
+  insert into app.pairings (code, market_id, created_by, expires_at)
+  values (v_code, market_id, auth.uid(), now() + interval '10 minutes');
+  return v_code;
+end
+$$;
+
+/** Binds the caller's session to the market the code was made for, as a new register. */
+create function public.claim_device(
+  code text, device_code text, device_name text, platform text
+) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_pairing app.pairings;
+  v_market app.markets;
+  v_device_id uuid := gen_random_uuid();
+  v_code text := upper(trim(coalesce(device_code, '')));
+begin
+  if auth.uid() is null then
+    raise exception 'not_signed_in';
+  end if;
+  if platform not in ('windows', 'android', 'web') then
+    raise exception 'bad_platform';
+  end if;
+  if v_code !~ '^[A-Z][A-Z0-9]{0,3}$' then
+    raise exception 'bad_device_code';
+  end if;
+  if exists (select 1 from app.devices where auth_user_id = auth.uid()) then
+    raise exception 'already_registered';
+  end if;
+  -- Claiming marks the code used in the same statement, so two registers cannot share one.
+  update app.pairings set used_at = now()
+  where pairings.code = upper(trim(claim_device.code))
+    and used_at is null and expires_at > now()
+  returning * into v_pairing;
+  if not found then
+    raise exception 'pairing_invalid';
+  end if;
+  perform app.lock_market(v_pairing.market_id);
+  select * into v_market from app.markets where id = v_pairing.market_id;
+  if exists (
+    select 1 from app.devices
+    where market_id = v_pairing.market_id and devices.code = v_code and revoked_at is null
+  ) then
+    raise exception 'device_code_taken';
+  end if;
+  insert into app.devices (id, market_id, auth_user_id, code, name, platform, last_seen_at)
+  values (v_device_id, v_pairing.market_id, auth.uid(), v_code,
+    nullif(trim(coalesce(device_name, '')), ''), platform, now());
+  return jsonb_build_object(
+    'marketId', v_market.id, 'marketName', v_market.name,
+    'deviceId', v_device_id, 'deviceCode', v_code);
+end
+$$;
+
+/** Where the caller's register belongs, or null when it is not one. */
+create function public.my_device() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'marketId', m.id, 'marketName', m.name, 'deviceId', d.id, 'deviceCode', d.code,
+    'revoked', d.revoked_at is not null)
+  from app.devices d join app.markets m on m.id = d.market_id
+  where d.auth_user_id = auth.uid()
+$$;
+
+/** Shuts a register out of the market; its next sync is refused. Owners only. */
+create function public.revoke_device(device_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_device app.devices;
+begin
+  select * into v_device from app.devices where id = device_id;
+  if not found or not app.is_owner(v_device.market_id) then
+    raise exception 'not_owner';
+  end if;
+  perform app.lock_market(v_device.market_id);
+  update app.devices set revoked_at = coalesce(revoked_at, now()) where id = device_id;
+end
+$$;
+
+/** The operator opens a market for an owner who already has an account. Runs as postgres. */
+create function app.create_market(id text, name text, owner_email text) returns void
+language plpgsql as $$
+declare
+  v_owner uuid;
+begin
+  select u.id into v_owner from auth.users u
+  where lower(u.email) = lower(trim(owner_email)) and u.is_anonymous is false;
+  if not found then
+    raise exception 'owner_not_found';
+  end if;
+  insert into app.markets (id, name) values (create_market.id, create_market.name);
+  insert into app.memberships (market_id, user_id, role) values (create_market.id, v_owner, 'owner');
+end
+$$;
+
+revoke execute on function app.is_owner(text) from public, anon, authenticated;
+revoke execute on function app.create_market(text, text, text) from public, anon, authenticated;
+revoke execute on function public.owner_markets() from public, anon;
+revoke execute on function public.create_pairing(text) from public, anon;
+revoke execute on function public.claim_device(text, text, text, text) from public, anon;
+revoke execute on function public.my_device() from public, anon;
+revoke execute on function public.revoke_device(uuid) from public, anon;
+grant execute on function public.owner_markets() to authenticated;
+grant execute on function public.create_pairing(text) to authenticated;
+grant execute on function public.claim_device(text, text, text, text) to authenticated;
+grant execute on function public.my_device() to authenticated;
+grant execute on function public.revoke_device(uuid) to authenticated;

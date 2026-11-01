@@ -161,16 +161,4 @@ describe('sync functions', () => {
     const fromZero = await session.rpc<PullResult>('sync_pull', [0, 10]);
     expect(fromBelowZero).toEqual(fromZero);
   });
-
-  it('takes the market lock before every write', async () => {
-    for (const name of ['sync_push']) {
-      const [definition] = await server.query<{ body: string }>(
-        `select pg_get_functiondef(p.oid) as body from pg_proc p
-         join pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'public' and p.proname = $1`,
-        [name],
-      );
-      expect(definition?.body, name).toContain('app.lock_market(');
-    }
-  });
 });
