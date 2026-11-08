@@ -6,6 +6,7 @@ import { saveDeviceSettings } from '@/app/device';
 import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
 import { currentCashSession } from '@/data/cash';
+import { pendingCount } from '@/data/outbox';
 import { saveMarketSettings } from '@/data/settings';
 import { Button, SelectField, TextField } from '@/design';
 import { licenseState } from '@/domain/license';
@@ -13,6 +14,10 @@ import { ReceiptSettingsDialog } from '@/pos/ReceiptSettingsDialog';
 import { loadReceiptSettings, saveReceiptSettings } from '@/pos/receiptSettings';
 import { formatPeriod } from '@/reports/reportFormat';
 import { reportRegisters } from '@/reports/summary';
+import { deviceClient, ownerClient } from '@/server/client';
+import { SERVER } from '@/server/config';
+import { createPairingCode, currentPlatform, pairDevice } from '@/server/pairing';
+import { PairDialog, PairingAction } from './PairDialog';
 
 // The day may turn on the hour from midnight to noon (DESIGN §9).
 const CUTOFF_OPTIONS = Array.from({ length: 13 }, (_, hour) => ({
@@ -106,6 +111,11 @@ export function RegisterSection(): JSX.Element {
   const [message, setMessage] = useState<{ text: string; error: boolean }>();
   // A code with sales on it, which the person has been warned about once.
   const [warnedCode, setWarnedCode] = useState<string>();
+  const [pairing, setPairing] = useState(false);
+  const queued = useLiveQuery(() => pendingCount(db), [db]) ?? 0;
+  // A paired register's code is the server's: changing it here would split its receipts.
+  const paired = settings.paired === true;
+  const server = SERVER;
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,7 +155,23 @@ export function RegisterSection(): JSX.Element {
       id="register-heading"
       title="Bu kasa"
       description="Fişte ve raporlarda görünen adlar ile fiş numarasının başındaki kasa kodu."
+      action={<PairingAction config={SERVER} paired={paired} onOpen={() => setPairing(true)} />}
     >
+      {pairing && server ? (
+        <PairDialog
+          current={settings}
+          pendingCount={queued}
+          createCode={(input) => createPairingCode({ owner: ownerClient(server), ...input })}
+          claim={(input) =>
+            pairDevice({ device: deviceClient(server), platform: currentPlatform(), ...input })
+          }
+          onPaired={(next) => {
+            saveDeviceSettings(next);
+            window.location.reload();
+          }}
+          onClose={() => setPairing(false)}
+        />
+      ) : null}
       <form className="flex flex-col gap-3" onSubmit={(event) => void save(event)}>
         <div className="grid gap-3 sm:grid-cols-3">
           <TextField
@@ -162,6 +188,7 @@ export function RegisterSection(): JSX.Element {
             label="Kasa kodu"
             autoComplete="off"
             maxLength={4}
+            readOnly={paired}
             value={deviceCode}
             onChange={(event) => setDeviceCode(event.target.value.toUpperCase())}
           />

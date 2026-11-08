@@ -6,6 +6,10 @@ export type DeviceSettings = {
   marketName: string;
   deviceCode: string;
   deviceName: string;
+  /** The local database this register uses; without it, the market's. */
+  databaseId?: string;
+  /** Bound to its market on the server, so it syncs. */
+  paired?: boolean;
 };
 
 export const DEFAULT_DEVICE: DeviceSettings = {
@@ -30,6 +34,10 @@ export function loadDeviceSettings(storage?: Pick<Storage, 'getItem'>): DeviceSe
           marketName: parsed.marketName,
           deviceCode: parsed.deviceCode,
           deviceName: parsed.deviceName,
+          ...(typeof parsed.databaseId === 'string' && MARKET_ID.test(parsed.databaseId)
+            ? { databaseId: parsed.databaseId }
+            : {}),
+          ...(parsed.paired === true ? { paired: true } : {}),
         }
       : DEFAULT_DEVICE;
   } catch {
@@ -37,7 +45,9 @@ export function loadDeviceSettings(storage?: Pick<Storage, 'getItem'>): DeviceSe
   }
 }
 
-function isDeviceSettings(value: unknown): value is DeviceSettings {
+function isDeviceSettings(
+  value: unknown,
+): value is DeviceSettings & { databaseId?: unknown; paired?: unknown } {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
