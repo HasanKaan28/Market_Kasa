@@ -24,6 +24,8 @@ export default defineConfig({
         test: {
           name: 'app',
           environment: 'jsdom',
+          // A local .env.local must not change what the tests see: no server unless a test says so.
+          env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '' },
           setupFiles: ['./src/test/setup.ts'],
           include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts'],
         },

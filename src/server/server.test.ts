@@ -18,6 +18,7 @@ function fakeClient(
   const calls: Call[] = [];
   const auth = {
     signInWithPassword: vi.fn(async () => ({ error: null })),
+    signUp: vi.fn(async () => ({ data: { session: null }, error: null })),
     signInAnonymously: vi.fn(async () => ({ error: null })),
     signOut: vi.fn(async () => ({ error: null })),
     getSession: vi.fn(async () => ({ data: { session: null } })),

@@ -3,13 +3,22 @@ import { clearStoredCarts } from '@/pos/held';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
-import { loadDeviceSettings } from './device';
+import { loadDeviceSettings, saveDeviceSettings } from './device';
 import { Screens } from './Screens';
 import { SessionProvider } from './SessionProvider';
 import { useRoute } from './route';
+import { deviceClient, ownerClient } from '@/server/client';
+import { SERVER } from '@/server/config';
+import { joinMarket, openMarket } from '@/server/onboarding';
+import { currentPlatform } from '@/server/pairing';
+import { WELCOME_SKIPPED, shouldWelcome } from './welcome';
+import { WelcomeScreen } from './WelcomeScreen';
 
 export function App(): JSX.Element {
   const [data] = useState(() => createAppData(loadDeviceSettings()));
+  const [welcome, setWelcome] = useState(() =>
+    shouldWelcome(data.settings, SERVER, window.localStorage),
+  );
   const route = useRoute();
 
   useEffect(() => {
@@ -17,6 +26,45 @@ export function App(): JSX.Element {
     data.runner.start();
     return () => data.runner.stop();
   }, [data]);
+
+  const server = SERVER;
+  if (welcome && server) {
+    const platform = currentPlatform();
+    return (
+      <WelcomeScreen
+        current={data.settings}
+        open={(input) =>
+          openMarket({
+            owner: ownerClient(server),
+            device: deviceClient(server),
+            platform,
+            ...input,
+          })
+        }
+        join={(input) =>
+          joinMarket({
+            owner: ownerClient(server),
+            device: deviceClient(server),
+            platform,
+            ...input,
+          })
+        }
+        onDone={(next) => {
+          if (saveDeviceSettings(next)) {
+            window.location.reload();
+          }
+        }}
+        onSkip={() => {
+          try {
+            window.localStorage.setItem(WELCOME_SKIPPED, '1');
+          } catch {
+            // Without storage the screen returns on the next start; the shop can skip again.
+          }
+          setWelcome(false);
+        }}
+      />
+    );
+  }
 
   return (
     <ErrorBoundary {...(route === 'pos' ? { onReset: resetRegister } : LEAVE_SCREEN)}>

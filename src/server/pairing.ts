@@ -80,7 +80,8 @@ export async function createPairingCode({
     }
     return { code: String(made.data), market };
   } finally {
-    await owner.auth.signOut();
+    // Only this sign-in ends; the owner's sessions on other devices stay.
+    await owner.auth.signOut({ scope: 'local' });
   }
 }
 

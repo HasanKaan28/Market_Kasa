@@ -12,6 +12,10 @@ export type ServerClient = {
   ): PromiseLike<{ data: unknown; error: RpcError | null }>;
   auth: {
     signInWithPassword(credentials: { email: string; password: string }): Promise<AuthResult>;
+    signUp(credentials: {
+      email: string;
+      password: string;
+    }): Promise<{ data: { session: unknown }; error: { message: string } | null }>;
     signInAnonymously(): Promise<AuthResult>;
     signOut(options?: { scope: 'local' | 'global' | 'others' }): Promise<AuthResult>;
     getSession(): Promise<{ data: { session: unknown } }>;
