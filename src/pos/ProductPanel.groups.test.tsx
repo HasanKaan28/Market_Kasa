@@ -37,7 +37,8 @@ describe('ProductPanel while a group loads', () => {
     await renderWithData(<ProductPanel onAdd={vi.fn()} onNewProduct={vi.fn()} />, data);
     await screen.findByRole('button', { name: /Süt/ });
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Ekmek' }));
+    // The groups come from their own query, which may answer after the quick products under load.
+    await userEvent.click(await screen.findByRole('radio', { name: 'Ekmek' }));
     expect(screen.getByRole('heading', { name: 'Ekmek' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Süt/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Bu grupta ürün yok.')).not.toBeInTheDocument();
