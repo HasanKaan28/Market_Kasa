@@ -120,7 +120,7 @@ export async function seedDemo(): Promise<string> {
         at: at(day, 8 + Math.floor((basket * 12) / baskets), Math.floor(random() * 59)),
         lines,
         payments: [{ method, amount: total }],
-        ...(credit ? { customerId: credit.id } : {}),
+        ...(credit ? { customerId: credit.id, allowOverLimit: true } : {}),
       });
     }
   }

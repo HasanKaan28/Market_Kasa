@@ -168,13 +168,18 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # The site (site/) is the front page; the app itself opens under app/.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: site
       - uses: actions/download-artifact@v4
         with:
           name: market-kasa-web
-          path: dist
+          path: pages/app
+      - run: cp -r site/. pages/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: pages
       - id: deployment
         uses: actions/deploy-pages@v4

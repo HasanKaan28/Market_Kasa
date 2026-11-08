@@ -31,3 +31,4 @@ Thumbs.db
 start.sh
 icon.png
 .env.local
+.playwright-mcp/

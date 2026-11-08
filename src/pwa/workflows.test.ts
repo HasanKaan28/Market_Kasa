@@ -88,4 +88,11 @@ describe('workflows', () => {
     const web = job(readFileSync(`${DIR}/v2-release.yml`, 'utf8'), 'build-web');
     expect(web).toMatch(/refs\/tags\/[\s\S]*VITE_SUPABASE_URL[\s\S]*exit 1/);
   });
+
+  it('publishes the site at the root and the app under app/', () => {
+    const deploy = job(readFileSync(`${DIR}/v2-release.yml`, 'utf8'), 'deploy-pages');
+    expect(deploy).toContain('path: pages/app');
+    expect(deploy).toContain('cp -r site/. pages/');
+    expect(deploy).toContain('path: pages');
+  });
 });
