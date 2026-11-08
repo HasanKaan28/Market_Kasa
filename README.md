@@ -4,8 +4,8 @@ An offline-first point of sale and back office for small Turkish grocery shops. 
 codebase runs as a web app (PWA), a Windows desktop app (Electron) and an Android app
 (Capacitor). Every register keeps working without the internet and syncs when it can.
 
-> **Status:** `2.0.0-alpha`, on the `v2` branch. The live app that shops use today is v1, on
-> `main`; v2 does not touch it until the switch-over day (see [Releasing](#releasing)).
+> **Status:** `2.0.0`, on the `v2` branch, syncing through Supabase. v1's code stays on `main`;
+> a `v2.*` tag publishes v2's web app to GitHub Pages (see [Releasing](#releasing)).
 
 ## What it does
 
@@ -42,6 +42,18 @@ npm run build      # dist/
 The data lives in the browser's IndexedDB (Dexie), one database per shop. A fresh browser starts
 empty in open mode: add the owner in Settings → Personel to turn on PIN sign-in.
 
+### Syncing registers
+
+Copy `.env.example` to `.env.local` and fill in the Supabase project's URL and **publishable** key
+(never a secret or `service_role` key). The schema is in `supabase/migrations/`; its tests run on
+PGlite with `npm test`.
+
+1. In the Supabase dashboard, turn on anonymous sign-ins and invite the shop owner by email.
+2. In the SQL editor: `select app.create_market('shop-id', 'Shop name', 'owner@example.com');`
+3. On each register: Settings → Bu kasa → **Sunucuya bağla**. The owner makes an 8-character code
+   ("Kod üret", signing in once; the password is not kept) and the register claims it. Registers
+   bound to the same market see each other's sales, stock and credit.
+
 ### Desktop (Windows)
 
 ```bash
@@ -62,9 +74,9 @@ npm run cap:open   # opens Android Studio
 
 Android cloud backups are off (`allowBackup="false"`).
 
-The release workflow builds a **debug-signed** APK on a fresh runner each time, so a new APK
-cannot be installed over the previous one: the old app has to be removed, and its data with it.
-Until a fixed signing key is added as a repository secret, export what you need before updating.
+Release APKs are signed with one release key (repository secrets `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`), so each version
+installs over the last one and keeps its data. Lose the key and that stops: back it up.
 
 ## Moving from v1
 
@@ -106,27 +118,25 @@ Two workflows run on GitHub Actions:
 - **`v2-ci.yml`** runs lint, type check, tests and a build on every push to `v2` and on pull
   requests.
 - **`v2-release.yml`** runs only when started by hand or by a `v2.*` tag. It builds the web app,
-  a debug APK and the Windows installer as artifacts. On a tag it opens a **draft** release
-  (the tag must equal `v` + the version in `package.json`). It deploys the web app to GitHub
-  Pages only when started by hand with **deploy_pages** ticked.
+  the signed APK and the Windows installer against the server in the repository variables
+  `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. On a tag it opens a **draft** release
+  (the tag must equal `v` + the version in `package.json`) and deploys the web app to GitHub
+  Pages; a run by hand deploys only with **deploy_pages** ticked.
 
 No workflow deploys anything on a push to a branch. v1's workflow, which redeployed Pages and
-republished releases on every push to `main`, is removed on `v2`, so merging `v2` into `main`
-does not replace the live app by itself.
+republished releases on every push to `main`, is removed on `v2`.
 
 The service worker caches by version: bump `version` in `package.json` for each release so
 installed web apps pick up the new files.
 
 ## Not built yet
 
-These need a server and are planned as milestone M0b (see `docs/v2/ertelenenler.md`):
+Planned as milestones M0b-2 and M0b-3 (see `docs/v2/ertelenenler.md`):
 
-- the sync server (Supabase), device registration and the web back office,
-- the e-Arşiv provider adapter that issues, fails or cancels invoices,
-- server-side rules: the last owner, invoice status changes, merging two registers' requests,
-- signed Android builds and signed desktop auto-update.
-
-Until then the registers work fully offline and keep their sync queue.
+- the web back office and the operator panel,
+- the e-Arşiv provider adapter that issues, fails or cancels invoices (requests stay pending),
+- server-side rules: licence, the last owner, permissions, invoice status changes,
+- a signed desktop installer and auto-update (Windows warns before installing).
 
 ## Licence
 

@@ -30,3 +30,4 @@ Thumbs.db
 .idea/
 start.sh
 icon.png
+.env.local
