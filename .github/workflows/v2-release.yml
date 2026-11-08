@@ -146,7 +146,7 @@ jobs:
             **Kurmadan önce yedek alın.**
             - v1'den geçiyorsanız: v1'de Ayarlar → Yedek İndir (JSON). v2 kurulunca v1'in verisi okunamaz.
             - Android: v1'in üstüne kurulamaz; v1'i kaldırmak verisini de siler. v2'nin sonraki sürümleri bunun üstüne kurulur.
-            - Kurulumdan sonra Ayarlar → Bu kasa → Sunucuya bağla: sahibin ürettiği 8 karakterlik kodu girin.
+            - İlk açılışta "Market kur" ile kendi e-postanızla marketi açın. Diğer bilgisayar ve telefonlarda aynı e-posta ve şifreyle "Markete giriş yap": her cihaz sıradaki kasa olur (K2, K3…).
           generate_release_notes: true
           files: |
             release-files/*.apk

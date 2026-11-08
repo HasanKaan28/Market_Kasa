@@ -48,11 +48,13 @@ Copy `.env.example` to `.env.local` and fill in the Supabase project's URL and *
 (never a secret or `service_role` key). The schema is in `supabase/migrations/`; its tests run on
 PGlite with `npm test`.
 
-1. In the Supabase dashboard, turn on anonymous sign-ins and invite the shop owner by email.
-2. In the SQL editor: `select app.create_market('shop-id', 'Shop name', 'owner@example.com');`
-3. On each register: Settings → Bu kasa → **Sunucuya bağla**. The owner makes an 8-character code
-   ("Kod üret", signing in once; the password is not kept) and the register claims it. Registers
-   bound to the same market see each other's sales, stock and credit.
+1. In the Supabase dashboard, turn on anonymous sign-ins. Turn "Confirm email" off unless the
+   project sends email through its own SMTP: the built-in sender only reaches the team.
+2. On the first device, the first screen's **Market kur** signs the shop up with its own email
+   and opens its market; the device becomes register K1.
+3. On every other device, **Markete giriş yap** with the same email and password: it becomes the
+   next register (K2, K3…). The password is never kept on a device. Registers bound to the same
+   market see each other's sales, stock and credit.
 
 ### Desktop (Windows)
 

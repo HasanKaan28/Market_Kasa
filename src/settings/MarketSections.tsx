@@ -3,6 +3,7 @@ import { useState, type FormEvent, type JSX, type ReactNode } from 'react';
 import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { saveDeviceSettings } from '@/app/device';
+import { finishPairing } from '@/app/finishPairing';
 import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
 import { currentCashSession } from '@/data/cash';
@@ -189,7 +190,7 @@ export function RegisterSection(): JSX.Element {
             pairDevice({ device: deviceClient(server), platform: currentPlatform(), ...input })
           }
           onPaired={(next) => {
-            if (!saveDeviceSettings(next)) {
+            if (!finishPairing(next)) {
               return false;
             }
             window.location.reload();

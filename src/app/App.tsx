@@ -3,7 +3,8 @@ import { clearStoredCarts } from '@/pos/held';
 import { createAppData } from './appData';
 import { DataProvider } from './DataProvider';
 import { ErrorBoundary } from './ErrorBoundary';
-import { loadDeviceSettings, saveDeviceSettings } from './device';
+import { loadDeviceSettings } from './device';
+import { finishPairing } from './finishPairing';
 import { Screens } from './Screens';
 import { SessionProvider } from './SessionProvider';
 import { useRoute } from './route';
@@ -50,7 +51,7 @@ export function App(): JSX.Element {
           })
         }
         onDone={(next) => {
-          if (saveDeviceSettings(next)) {
+          if (finishPairing(next)) {
             window.location.reload();
           }
         }}
