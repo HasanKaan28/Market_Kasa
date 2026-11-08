@@ -21,6 +21,11 @@ createRoot(container).render(
   </StrictMode>,
 );
 
+// Development only: `await seedDemo()` in the console fills an empty market for screenshots.
+if (import.meta.env.DEV) {
+  void import('./demo/seedDemo').then(({ seedDemo }) => Object.assign(window, { seedDemo }));
+}
+
 void registerServiceWorker(
   {
     prod: import.meta.env.PROD,
