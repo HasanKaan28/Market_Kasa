@@ -265,7 +265,8 @@ describe('access', () => {
       data,
     );
     expect(await screen.findByText('Zeynep')).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: 'F9' });
+    // The button, not F9: under load the key can land before the register listens for it.
+    await userEvent.click(await screen.findByRole('button', { name: /Son fişler/ }));
     await userEvent.click(await screen.findByRole('button', { name: new RegExp(sale.receiptNo) }));
     await userEvent.click(await screen.findByRole('button', { name: 'Fatura kes' }));
     // Zeynep's own permissions leave invoicing out: an owner approves it.
