@@ -234,6 +234,11 @@ begin
       select 1 from app.applied_ops where market_id = v_device.market_id and op_id = v_op ->> 'opId'
     ) then
       v_reason := null;
+      -- A retry of an edit whose answer was lost. The register has kept replaying it over newer
+      -- rows from other registers; sending the record again gives it the current value.
+      if (v_op ->> 'table') = any (app.entity_tables()) then
+        perform app.resend(v_device.market_id, v_op ->> 'table', v_op ->> 'recordId');
+      end if;
     else
       v_reason := app.apply_op(v_device.market_id, v_op);
       if v_reason is null then

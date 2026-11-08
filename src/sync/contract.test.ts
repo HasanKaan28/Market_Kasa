@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MarketDb } from '@/data/db';
 import { recordCount } from '@/data/counts';
 import { pendingCount, pendingOps } from '@/data/outbox';
-import { createProduct, deleteProduct, findProductByBarcode } from '@/data/products';
+import { createProduct, deleteProduct, findProductByBarcode, updateProduct } from '@/data/products';
 import { recordReturn, returnedQuantities } from '@/data/returns';
 import { recordSale } from '@/data/sales';
 import { loadMarketSettings, saveMarketSettings } from '@/data/settings';
@@ -168,5 +168,37 @@ describe.each(SERVERS)('the $name server', ({ make }) => {
     const counted = (await backend.rows('stockMovements')).filter((row) => row.kind === 'count');
     expect(counted).toHaveLength(2);
     expect(await backend.rows('stockCounts')).toHaveLength(2);
+  });
+
+  it('keeps a retried edit from hiding a later one', async () => {
+    // No overlap: a cursor that never looks back must still see the later edit.
+    const tight = { batchSize: 1, overlap: 0 };
+    const milk = await createProduct(
+      a,
+      { barcode: 'B1', name: 'Süt', sellPrice: 4250, vatRate: 1 },
+      at,
+    );
+    await syncOnce(a, toA, tight);
+    await syncOnce(b, toB, tight);
+    await updateProduct(a, milk.id, { sellPrice: 100 }, later(1));
+    await updateProduct(b, milk.id, { sellPrice: 101 }, later(2));
+    // A's edit lands but its answer is lost; B's later edit lands; A's retry is lost again.
+    backend.loseNextAck();
+    await syncOnce(a, toA, tight).catch(() => undefined);
+    await syncOnce(b, toB, tight);
+    backend.loseNextAck();
+    await syncOnce(a, toA, tight).catch(() => undefined);
+    for (const [db, to] of [
+      [a, toA],
+      [b, toB],
+      [a, toA],
+    ] as const) {
+      await syncOnce(db, to, tight);
+    }
+
+    const [server] = await backend.rows('products');
+    expect(server?.sellPrice).toBe(101);
+    expect((await a.products.get(milk.id))?.sellPrice).toBe(101);
+    expect((await b.products.get(milk.id))?.sellPrice).toBe(101);
   });
 });

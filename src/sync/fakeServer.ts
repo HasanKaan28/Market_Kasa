@@ -56,6 +56,10 @@ export class FakeServer implements SyncTransport {
       if (!this.appliedOps.has(op.opId)) {
         this.apply(op);
         this.appliedOps.add(op.opId);
+      } else if (!EVENT_TABLES.has(op.table)) {
+        // A retry of an edit whose answer was lost. The device has kept replaying it over newer
+        // rows from other devices; sending the record again gives it the current value.
+        this.resend(op.table, op.recordId);
       }
       if (op.seq !== undefined) {
         acknowledged.push(op.seq);
