@@ -78,7 +78,7 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
             export MK_KEYSTORE_PATH="$RUNNER_TEMP/release.p12"
             (cd android && ./gradlew assembleRelease)
-            cp android/app/build/outputs/apk/release/app-release.apk "out/Market-Kasa-${GITHUB_REF_NAME//\//-}.apk"
+            cp android/app/build/outputs/apk/release/app-release.apk out/Market-Kasa.apk
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "::error::ANDROID_KEYSTORE_BASE64 is not set; a release APK must be signed with the release key."
             exit 1
@@ -109,7 +109,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: market-kasa-windows
-          path: dist-electron/*.exe
+          # latest.yml and the blockmap are the desktop update feed: installed apps read them.
+          path: |
+            dist-electron/*.exe
+            dist-electron/*.exe.blockmap
+            dist-electron/latest.yml
           if-no-files-found: error
 
   draft-release:
@@ -139,6 +143,8 @@ jobs:
           files: |
             release-files/*.apk
             release-files/*.exe
+            release-files/*.exe.blockmap
+            release-files/latest.yml
 
   deploy-pages:
     if: (github.event_name == 'workflow_dispatch' && inputs.deploy_pages) || startsWith(github.ref, 'refs/tags/v2.')

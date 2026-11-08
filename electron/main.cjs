@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, dialog, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, net, protocol, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const {
@@ -8,6 +9,7 @@ const {
   isExternalUrl,
   resolveAppFile,
 } = require('./security.cjs');
+const { wireUpdates } = require('./updates.cjs');
 
 const DIST = path.join(__dirname, '../dist');
 const APP_ORIGIN = `app://${APP_HOST}`;
@@ -48,6 +50,8 @@ function createWindow() {
       nodeIntegration: false,
       webSecurity: true,
       devTools: devToolsAllowed(app.isPackaged),
+      // Runs sandboxed; it hands the page only the update calls.
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -116,6 +120,7 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     protocol.handle('app', serveApp);
+    wireUpdates({ autoUpdater, ipcMain, getWindow: () => mainWindow, isPackaged: app.isPackaged });
     createWindow();
 
     app.on('activate', () => {

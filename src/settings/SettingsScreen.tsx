@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
+import { APP_VERSION } from '@/app/version';
 import { useSession } from '@/app/session';
 import { listStaff } from '@/data/staff';
 import { Button, ToastRegion, useToast } from '@/design';
@@ -10,6 +11,8 @@ import { ROLE_LABELS } from '@/domain/permissions';
 import { AuditLog } from './AuditLog';
 import { LicenseSection, MarketSection, ReceiptSection, RegisterSection } from './MarketSections';
 import { StaffDialog } from './StaffDialog';
+import { UpdateSection } from './UpdateSection';
+import { updateTarget } from './updates';
 
 /** The owner's settings: the market, this register, the receipt and the people who work here. */
 export function SettingsScreen(): JSX.Element {
@@ -41,6 +44,7 @@ export function SettingsScreen(): JSX.Element {
         <MarketSection onDone={(message) => done(message)} />
         <RegisterSection />
         <ReceiptSection onDone={(message) => done(message)} />
+        <UpdateSection version={APP_VERSION} {...updateTarget()} />
         <section
           aria-labelledby="staff-heading"
           className="flex flex-col gap-3 rounded-control border border-line bg-surface p-4"
