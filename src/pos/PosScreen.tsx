@@ -303,6 +303,7 @@ export function PosScreen(): JSX.Element {
         deviceName={settings.deviceName}
         syncState={status.state}
         pendingCount={status.pendingCount}
+        syncError={status.error}
         activeNav="pos"
         cart={
           <CartPanel

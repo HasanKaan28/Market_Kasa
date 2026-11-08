@@ -37,6 +37,7 @@ export function StockScreen(): JSX.Element {
         deviceName={settings.deviceName}
         syncState={status.state}
         pendingCount={status.pendingCount}
+        syncError={status.error}
         activeNav="stock"
       >
         <h1 className="text-xl font-semibold">Stok</h1>

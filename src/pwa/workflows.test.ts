@@ -83,4 +83,9 @@ describe('workflows', () => {
     // The site's download button points at releases/latest/download/<name>: the name never changes.
     expect(pkg.build.nsis.artifactName).toBe('Market-Kasa-Setup.${ext}');
   });
+
+  it('refuses to release a build without the server address', () => {
+    const web = job(readFileSync(`${DIR}/v2-release.yml`, 'utf8'), 'build-web');
+    expect(web).toMatch(/refs\/tags\/[\s\S]*VITE_SUPABASE_URL[\s\S]*exit 1/);
+  });
 });

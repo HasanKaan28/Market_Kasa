@@ -126,6 +126,40 @@ describe('PairDialog', () => {
   });
 });
 
+describe('PairDialog recovery', () => {
+  it('offers to take over a register code whose register is gone', async () => {
+    const claim = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error('K2 kodu bu markette kullanılıyor.'), { taken: true }),
+      )
+      .mockResolvedValueOnce(claimed);
+    const props = setup({ claim });
+    await userEvent.clear(screen.getByLabelText('Kasa kodu'));
+    await userEvent.type(screen.getByLabelText('Kasa kodu'), 'K2');
+    await userEvent.type(screen.getByLabelText('Bağlantı kodu'), 'ABCD2345');
+    await userEvent.click(screen.getByRole('button', { name: 'Bağla' }));
+    await userEvent.click(
+      await screen.findByRole('checkbox', {
+        name: 'K2 kasasının yerine geç (eski kasa iptal edilir)',
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Bağla' }));
+
+    expect(claim).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }));
+    expect(props.onPaired).toHaveBeenCalled();
+  });
+
+  it('says when this device could not save the pairing', async () => {
+    setup({ onPaired: vi.fn(() => false) });
+    await userEvent.type(screen.getByLabelText('Bağlantı kodu'), 'ABCD2345');
+    await userEvent.click(screen.getByRole('button', { name: 'Bağla' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Bağlandı ama bu cihazda kaydedilemedi.',
+    );
+  });
+});
+
 describe('PairingAction', () => {
   it('hides pairing when the app has no server', () => {
     const { rerender } = render(<PairingAction config={null} onOpen={() => {}} paired={false} />);
@@ -146,5 +180,20 @@ describe('PairingAction', () => {
       />,
     );
     expect(screen.getByText('Sunucuya bağlı')).toBeInTheDocument();
+  });
+
+  it('offers to pair again when the server no longer knows the register', async () => {
+    const onRepair = vi.fn();
+    render(
+      <PairingAction
+        config={{ url: 'https://x.supabase.co', key: 'sb_publishable_x' }}
+        onOpen={() => {}}
+        paired
+        lost
+        onRepair={onRepair}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Yeniden bağla' }));
+    expect(onRepair).toHaveBeenCalled();
   });
 });

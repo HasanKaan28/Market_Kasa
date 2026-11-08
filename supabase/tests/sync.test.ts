@@ -161,4 +161,12 @@ describe('sync functions', () => {
     const fromZero = await session.rpc<PullResult>('sync_pull', [0, 10]);
     expect(fromBelowZero).toEqual(fromZero);
   });
+
+  it('finds a barcode by index, not by reading every product', async () => {
+    const [index] = await server.query<{ def: string }>(
+      `select indexdef as def from pg_indexes
+       where schemaname = 'app' and tablename = 'rows' and indexdef like '%barcode%'`,
+    );
+    expect(index?.def).toContain(`("row" ->> 'barcode'::text)`);
+  });
 });

@@ -28,6 +28,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # A release built without the server works offline and hides pairing, silently.
+      - name: Release has the server address
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Set the repository variables VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY."
+            exit 1
+          fi
       - name: Tag matches the package version
         if: startsWith(github.ref, 'refs/tags/')
         run: test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")"

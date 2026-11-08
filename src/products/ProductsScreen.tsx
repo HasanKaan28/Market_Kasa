@@ -133,6 +133,7 @@ export function ProductsScreen(): JSX.Element {
         deviceName={settings.deviceName}
         syncState={status.state}
         pendingCount={status.pendingCount}
+        syncError={status.error}
         activeNav="products"
       >
         <div className="flex flex-wrap items-center gap-3">

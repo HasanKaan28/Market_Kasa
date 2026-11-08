@@ -38,6 +38,7 @@ export function SettingsScreen(): JSX.Element {
         deviceName={settings.deviceName}
         syncState={status.state}
         pendingCount={status.pendingCount}
+        syncError={status.error}
         activeNav="settings"
       >
         <h1 className="text-xl font-semibold">Ayarlar</h1>

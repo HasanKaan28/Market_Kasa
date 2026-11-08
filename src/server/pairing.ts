@@ -25,6 +25,9 @@ const MESSAGES: Record<string, string> = {
 };
 const OFFLINE = 'Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.';
 
+/** A refusal because another register holds the code; the person may take it over. */
+export type TakenError = Error & { taken: true };
+
 function explain(message: string, deviceCode?: string): string {
   if (message.includes('device_code_taken')) {
     return `${deviceCode ?? 'Bu'} kodu bu markette kullanılıyor.`;
@@ -88,31 +91,81 @@ export async function pairDevice({
   deviceCode,
   deviceName,
   platform,
+  replace = false,
 }: {
   device: ServerClient;
   code: string;
   deviceCode: string;
   deviceName: string;
   platform: Platform;
+  /** Take the code over from the register that holds it; that register is revoked. */
+  replace?: boolean;
 }): Promise<ClaimedDevice> {
   const registerCode = deviceCode.trim().toUpperCase();
   const { data } = await device.auth.getSession();
-  if (!data.session) {
-    const signIn = await device.auth.signInAnonymously();
-    if (signIn.error) {
-      throw new Error(OFFLINE);
+  if (data.session) {
+    // A claim whose answer was lost already bound this session: take that result. A revoked
+    // register can never claim again with its old session, so it starts a new one.
+    const mine = await currentDevice(device);
+    if (mine && !mine.revoked) {
+      return withoutRevoked(mine);
     }
+    if (mine) {
+      await device.auth.signOut({ scope: 'local' });
+      await signInAnonymously(device);
+    }
+  } else {
+    await signInAnonymously(device);
   }
   const claimed = await device.rpc('claim_device', {
     code: code.trim().toUpperCase(),
     device_code: registerCode,
     device_name: deviceName.trim(),
     platform,
+    replace,
   });
   if (claimed.error) {
-    throw new Error(explain(claimed.error.message, registerCode));
+    if (claimed.error.message.includes('already_registered')) {
+      const mine = await currentDevice(device);
+      if (mine && !mine.revoked) {
+        return withoutRevoked(mine);
+      }
+    }
+    const error = new Error(explain(claimed.error.message, registerCode));
+    if (claimed.error.message.includes('device_code_taken')) {
+      Object.assign(error, { taken: true });
+    }
+    throw error;
   }
   return claimed.data as ClaimedDevice;
+}
+
+async function signInAnonymously(device: ServerClient): Promise<void> {
+  const signIn = await device.auth.signInAnonymously();
+  if (signIn.error) {
+    throw new Error(OFFLINE);
+  }
+}
+
+type MyDevice = ClaimedDevice & { revoked: boolean };
+
+async function currentDevice(device: ServerClient): Promise<MyDevice | null> {
+  const { data, error } = await device.rpc('my_device');
+  return error ? null : ((data ?? null) as MyDevice | null);
+}
+
+function withoutRevoked({ marketId, marketName, deviceId, deviceCode }: MyDevice): ClaimedDevice {
+  return { marketId, marketName, deviceId, deviceCode };
+}
+
+/**
+ * The register's settings once it stops syncing so it can be paired again: its database, and
+ * every queued operation in it, stay where they are.
+ */
+export function unpairedSettings(current: DeviceSettings): DeviceSettings {
+  const unpaired = { ...current, databaseId: current.databaseId ?? current.marketId };
+  delete unpaired.paired;
+  return unpaired;
 }
 
 /**

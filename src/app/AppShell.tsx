@@ -15,6 +15,8 @@ export type AppShellProps = {
   staffName?: string;
   syncState: SyncState;
   pendingCount?: number;
+  /** Why the last sync failed, shown instead of the generic error label. */
+  syncError?: string;
   activeNav: NavKey;
   children?: ReactNode;
   /** The register's cart; screens without one get the full width. */
@@ -39,6 +41,7 @@ export function AppShell({
   staffName,
   syncState,
   pendingCount = 0,
+  syncError,
   activeNav,
   children,
   cart,
@@ -71,7 +74,7 @@ export function AppShell({
           ))}
         </nav>
         <div className="ml-auto flex flex-wrap items-center gap-4">
-          <SyncBadge state={syncState} pendingCount={pendingCount} />
+          <SyncBadge state={syncState} pendingCount={pendingCount} error={syncError} />
           {shownStaff ? <span className="text-sm text-text-2">{shownStaff}</span> : null}
           {session.staff ? (
             <Button
@@ -134,16 +137,18 @@ const SYNC_STYLES: Record<SyncState, { dot: string; text: string }> = {
 function SyncBadge({
   state,
   pendingCount,
+  error,
 }: {
   state: SyncState;
   pendingCount: number;
+  error?: string;
 }): JSX.Element {
   const queued = pendingCount > 0 ? `${pendingCount} işlem bekliyor` : undefined;
   const label = {
     online: 'Çevrimiçi',
     offline: queued ? `Çevrimdışı · ${queued}` : 'Çevrimdışı',
     pending: queued ?? 'Eşitleniyor',
-    error: 'Eşitleme hatası',
+    error: error ?? 'Eşitleme hatası',
   }[state];
   const style = SYNC_STYLES[state];
   return (

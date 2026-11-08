@@ -47,6 +47,11 @@ describe('AppShell', () => {
     expect(screen.getByRole('status')).toHaveTextContent(label);
   });
 
+  it('says why syncing stopped', () => {
+    render(<AppShell {...base} syncState="error" syncError="Kasayı yeniden bağlayın." />);
+    expect(screen.getByRole('status')).toHaveTextContent('Kasayı yeniden bağlayın.');
+  });
+
   it('shows the cart panel it is given and the app version', () => {
     render(<AppShell {...base} syncState="online" cart={<p>Sepet boş</p>} />);
     expect(screen.getByRole('complementary', { name: 'Sepet' })).toHaveTextContent('Sepet boş');

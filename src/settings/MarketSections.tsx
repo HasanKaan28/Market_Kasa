@@ -16,7 +16,9 @@ import { formatPeriod } from '@/reports/reportFormat';
 import { reportRegisters } from '@/reports/summary';
 import { deviceClient, ownerClient } from '@/server/client';
 import { SERVER } from '@/server/config';
-import { createPairingCode, currentPlatform, pairDevice } from '@/server/pairing';
+import { createPairingCode, currentPlatform, pairDevice, unpairedSettings } from '@/server/pairing';
+import { useSyncStatus } from '@/app/appData';
+import { DeviceRevokedError, DeviceUnpairedError } from '@/sync/supabaseTransport';
 import { PairDialog, PairingAction } from './PairDialog';
 
 // The day may turn on the hour from midnight to noon (DESIGN §9).
@@ -104,7 +106,8 @@ export function MarketSection({ onDone }: { onDone(message: string): void }): JS
 
 /** This device's own names and register code; the app reads them when it starts. */
 export function RegisterSection(): JSX.Element {
-  const { db, settings } = useData();
+  const { db, settings, runner } = useData();
+  const status = useSyncStatus(runner);
   const [marketName, setMarketName] = useState(settings.marketName);
   const [deviceName, setDeviceName] = useState(settings.deviceName);
   const [deviceCode, setDeviceCode] = useState(settings.deviceCode);
@@ -116,6 +119,18 @@ export function RegisterSection(): JSX.Element {
   // A paired register's code is the server's: changing it here would split its receipts.
   const paired = settings.paired === true;
   const server = SERVER;
+  const lost =
+    status.error === new DeviceUnpairedError().message ||
+    status.error === new DeviceRevokedError().message;
+
+  async function repair() {
+    if (server) {
+      await deviceClient(server).auth.signOut({ scope: 'local' });
+    }
+    if (saveDeviceSettings(unpairedSettings(settings))) {
+      window.location.reload();
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,7 +170,15 @@ export function RegisterSection(): JSX.Element {
       id="register-heading"
       title="Bu kasa"
       description="Fişte ve raporlarda görünen adlar ile fiş numarasının başındaki kasa kodu."
-      action={<PairingAction config={SERVER} paired={paired} onOpen={() => setPairing(true)} />}
+      action={
+        <PairingAction
+          config={SERVER}
+          paired={paired}
+          lost={lost}
+          onOpen={() => setPairing(true)}
+          onRepair={() => void repair()}
+        />
+      }
     >
       {pairing && server ? (
         <PairDialog
@@ -166,8 +189,11 @@ export function RegisterSection(): JSX.Element {
             pairDevice({ device: deviceClient(server), platform: currentPlatform(), ...input })
           }
           onPaired={(next) => {
-            saveDeviceSettings(next);
+            if (!saveDeviceSettings(next)) {
+              return false;
+            }
             window.location.reload();
+            return true;
           }}
           onClose={() => setPairing(false)}
         />

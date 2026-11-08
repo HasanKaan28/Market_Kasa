@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DEVICE } from '@/app/device';
 import { OWNER_CLIENT_OPTIONS, type ServerClient } from './client';
 import { serverConfig } from './config';
-import { createPairingCode, pairDevice, pairedSettings } from './pairing';
+import { createPairingCode, pairDevice, pairedSettings, unpairedSettings } from './pairing';
 import {
   DeviceRevokedError,
   DeviceUnpairedError,
@@ -144,7 +144,13 @@ describe('pairing', () => {
     expect(calls).toEqual([
       {
         fn: 'claim_device',
-        args: { code: 'ABCD2345', device_code: 'K2', device_name: 'Kasa 2', platform: 'web' },
+        args: {
+          code: 'ABCD2345',
+          device_code: 'K2',
+          device_name: 'Kasa 2',
+          platform: 'web',
+          replace: false,
+        },
       },
     ]);
     expect(claimed).toEqual({
@@ -176,6 +182,67 @@ describe('pairing', () => {
         platform: 'web',
       }),
     ).rejects.toThrow('Kod geçersiz ya da süresi doldu. Yeni kod üretin.');
+  });
+
+  it('picks up a claim whose answer was lost', async () => {
+    const mine = {
+      marketId: 'kursunlu',
+      marketName: 'Kurşunlu Market',
+      deviceId: 'd1',
+      deviceCode: 'K2',
+    };
+    const { client, calls, auth } = fakeClient({
+      claim_device: { error: { message: 'already_registered' } },
+      my_device: { data: { ...mine, revoked: false } },
+    });
+    auth.getSession.mockResolvedValue({ data: { session: { user: {} } } } as never);
+    const claimed = await pairDevice({
+      device: client,
+      code: 'ABCD2345',
+      deviceCode: 'K2',
+      deviceName: 'Kasa 2',
+      platform: 'web',
+    });
+    expect(claimed).toEqual(mine);
+    expect(calls.map((call) => call.fn)).not.toContain('claim_device');
+  });
+
+  it('starts a new session for a revoked register', async () => {
+    const { client, calls, auth } = fakeClient({
+      my_device: {
+        data: { marketId: 'k', marketName: 'K', deviceId: 'old', deviceCode: 'K1', revoked: true },
+      },
+      claim_device: { data: { marketId: 'k', marketName: 'K', deviceId: 'new', deviceCode: 'K1' } },
+    });
+    auth.getSession.mockResolvedValue({ data: { session: { user: {} } } } as never);
+    const claimed = await pairDevice({
+      device: client,
+      code: 'ABCD2345',
+      deviceCode: 'K1',
+      deviceName: 'Kasa 1',
+      platform: 'web',
+      replace: true,
+    });
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(auth.signInAnonymously).toHaveBeenCalled();
+    expect(calls.find((call) => call.fn === 'claim_device')?.args).toMatchObject({ replace: true });
+    expect(claimed.deviceId).toBe('new');
+  });
+
+  it('unpairs a register but keeps its data and queue', () => {
+    const paired = {
+      ...DEFAULT_DEVICE,
+      marketId: 'kursunlu',
+      databaseId: 'kursunlu',
+      paired: true,
+    };
+    expect(unpairedSettings(paired)).toEqual({
+      ...DEFAULT_DEVICE,
+      marketId: 'kursunlu',
+      databaseId: 'kursunlu',
+    });
+    const kept = { ...DEFAULT_DEVICE, marketId: 'kursunlu', paired: true };
+    expect(unpairedSettings(kept).databaseId).toBe('kursunlu');
   });
 
   it('sends this register’s queue to the market when asked', () => {

@@ -91,6 +91,22 @@ describe('pairing', () => {
     expect(await claim(third, await pairing(), 'K1')).toMatchObject({ deviceCode: 'K1' });
   });
 
+  it('takes over a register code only when asked', async () => {
+    const owner = await server.addOwner('a');
+    const old = await server.addUser({ anonymous: true });
+    const fresh = await server.addUser({ anonymous: true });
+    const first = await claim(old, await server.as(owner).rpc('create_pairing', ['a']), 'K1');
+    const code = await server.as(owner).rpc<string>('create_pairing', ['a']);
+    expect(await errorOf(claim(fresh, code, 'K1'))).toContain('device_code_taken');
+
+    const taken = await server
+      .as(fresh)
+      .rpc<Claimed>('claim_device', [code, 'K1', 'Kasa 1', 'web', true]);
+    expect(taken.deviceCode).toBe('K1');
+    expect(await errorOf(server.as(old).rpc('sync_pull', [0, 10]))).toContain('device_revoked');
+    expect(first.deviceId).not.toBe(taken.deviceId);
+  });
+
   it('lets only the owner revoke a device', async () => {
     const owner = await server.addOwner('a');
     const other = await server.addOwner('b');

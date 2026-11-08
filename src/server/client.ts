@@ -13,7 +13,7 @@ export type ServerClient = {
   auth: {
     signInWithPassword(credentials: { email: string; password: string }): Promise<AuthResult>;
     signInAnonymously(): Promise<AuthResult>;
-    signOut(): Promise<AuthResult>;
+    signOut(options?: { scope: 'local' | 'global' | 'others' }): Promise<AuthResult>;
     getSession(): Promise<{ data: { session: unknown } }>;
   };
 };

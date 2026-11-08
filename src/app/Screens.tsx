@@ -49,6 +49,7 @@ function NoAccess({ route }: { route: Route }): JSX.Element {
       deviceName={settings.deviceName}
       syncState={status.state}
       pendingCount={status.pendingCount}
+      syncError={status.error}
       activeNav={route}
     >
       <p className="rounded-control border border-line bg-surface p-5 text-text-2">

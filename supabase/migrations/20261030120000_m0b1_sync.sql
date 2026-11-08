@@ -51,6 +51,8 @@ create table app.rows (
   primary key (market_id, tbl, id)
 );
 create index rows_by_seq on app.rows (market_id, server_seq);
+-- The barcode contest looks a code up on every product write; without this it reads every product.
+create index rows_product_barcode on app.rows (market_id, (row ->> 'barcode')) where tbl = 'products';
 
 create table app.applied_ops (
   market_id text not null references app.markets (id) on delete cascade,
@@ -350,9 +352,12 @@ begin
 end
 $$;
 
-/** Binds the caller's session to the market the code was made for, as a new register. */
+/**
+ * Binds the caller's session to the market the code was made for, as a new register. With
+ * `replace`, a register holding the same code is revoked first: the owner's code is the consent.
+ */
 create function public.claim_device(
-  code text, device_code text, device_name text, platform text
+  code text, device_code text, device_name text, platform text, replace boolean default false
 ) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -383,7 +388,10 @@ begin
   end if;
   perform app.lock_market(v_pairing.market_id);
   select * into v_market from app.markets where id = v_pairing.market_id;
-  if exists (
+  if replace then
+    update app.devices set revoked_at = now()
+    where market_id = v_pairing.market_id and devices.code = v_code and revoked_at is null;
+  elsif exists (
     select 1 from app.devices
     where market_id = v_pairing.market_id and devices.code = v_code and revoked_at is null
   ) then
@@ -443,11 +451,11 @@ revoke execute on function app.is_owner(text) from public, anon, authenticated;
 revoke execute on function app.create_market(text, text, text) from public, anon, authenticated;
 revoke execute on function public.owner_markets() from public, anon;
 revoke execute on function public.create_pairing(text) from public, anon;
-revoke execute on function public.claim_device(text, text, text, text) from public, anon;
+revoke execute on function public.claim_device(text, text, text, text, boolean) from public, anon;
 revoke execute on function public.my_device() from public, anon;
 revoke execute on function public.revoke_device(uuid) from public, anon;
 grant execute on function public.owner_markets() to authenticated;
 grant execute on function public.create_pairing(text) to authenticated;
-grant execute on function public.claim_device(text, text, text, text) to authenticated;
+grant execute on function public.claim_device(text, text, text, text, boolean) to authenticated;
 grant execute on function public.my_device() to authenticated;
 grant execute on function public.revoke_device(uuid) to authenticated;

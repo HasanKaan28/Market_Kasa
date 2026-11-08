@@ -18,8 +18,14 @@ export type PairDialogProps = {
     password: string;
     marketId?: string;
   }): Promise<PairingCodeResult>;
-  claim(input: { code: string; deviceCode: string; deviceName: string }): Promise<ClaimedDevice>;
-  onPaired(settings: DeviceSettings): void;
+  claim(input: {
+    code: string;
+    deviceCode: string;
+    deviceName: string;
+    replace?: boolean;
+  }): Promise<ClaimedDevice>;
+  /** Saves the paired settings; false when this device could not keep them. */
+  onPaired(settings: DeviceSettings): boolean | void;
   onClose(): void;
 };
 
@@ -53,6 +59,8 @@ export function PairDialog({
   }>();
   const [made, setMade] = useState<string>();
   const [error, setError] = useState<string>();
+  // Another register holds the code: set once the server says so, ticked to take it over.
+  const [takeover, setTakeover] = useState<boolean>();
   const [busy, setBusy] = useState(false);
 
   async function makeCode(event: FormEvent<HTMLFormElement>) {
@@ -94,9 +102,17 @@ export function PairDialog({
         code,
         deviceCode: deviceCode.trim().toUpperCase(),
         deviceName,
+        ...(takeover ? { replace: true } : {}),
       });
-      onPaired(pairedSettings(current, claimed, deviceName, keepData === 'send'));
+      if (onPaired(pairedSettings(current, claimed, deviceName, keepData === 'send')) === false) {
+        setError(
+          'Bağlandı ama bu cihazda kaydedilemedi. Tarayıcının depolama iznini kontrol edin.',
+        );
+      }
     } catch (reason) {
+      if ((reason as { taken?: boolean }).taken && takeover === undefined) {
+        setTakeover(false);
+      }
       setError(failed(reason));
     } finally {
       setBusy(false);
@@ -199,6 +215,17 @@ export function PairDialog({
             ]}
           />
         ) : null}
+        {takeover !== undefined ? (
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={takeover}
+              onChange={(event) => setTakeover(event.target.checked)}
+              className="size-5"
+            />
+            {`${deviceCode.trim().toUpperCase()} kasasının yerine geç (eski kasa iptal edilir)`}
+          </label>
+        ) : null}
         {error ? (
           <p role="alert" className="font-medium text-danger">
             {error}
@@ -216,14 +243,22 @@ export function PairDialog({
 export function PairingAction({
   config,
   paired,
+  lost = false,
   onOpen,
+  onRepair,
 }: {
   config: ServerConfig | null;
   paired: boolean;
+  /** The server no longer knows this register, or revoked it. */
+  lost?: boolean;
   onOpen(): void;
+  onRepair?(): void;
 }): JSX.Element | null {
   if (!config) {
     return null;
+  }
+  if (paired && lost) {
+    return <Button onClick={onRepair}>Yeniden bağla</Button>;
   }
   return paired ? (
     <p className="text-sm font-medium text-success">Sunucuya bağlı</p>
