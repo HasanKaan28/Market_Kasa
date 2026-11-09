@@ -41,6 +41,13 @@ describe('SettingsScreen', () => {
     expect(within(nav).queryByRole('link', { name: 'Ayarlar' })).not.toBeInTheDocument();
   });
 
+  it('offers the owner a backup of the whole market', async () => {
+    const { data, kaan } = await team();
+    await settingsAs(data, kaan.id);
+    const section = await screen.findByRole('region', { name: 'Yedek' });
+    expect(within(section).getByRole('button', { name: 'Yedek al' })).toBeEnabled();
+  });
+
   it('adds the first person as the owner and signs them in', async () => {
     const data = createTestData();
     await settingsAs(data);

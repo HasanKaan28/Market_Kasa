@@ -1,0 +1,89 @@
+name: v2 backup
+
+# Every night a full copy of the market data (the `app` schema: markets, registers and every
+# synced record) is taken from Supabase, encrypted on the runner and kept as an artifact for
+# 90 days. The free Supabase plan keeps no backups of its own. The repository is public, so
+# nothing leaves the runner unencrypted. Restore steps: docs/v2/BACKUP.md.
+#
+# Secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_DB_URL     the "Session pooler" connection string from Supabase -> Connect
+#                       (the direct db.<ref>.supabase.co host is IPv6 only; runners have none)
+#   BACKUP_PASSPHRASE   at least 16 characters; without it the backups cannot be opened
+
+on:
+  schedule:
+    # 03:00 in Istanbul.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets
+        run: |
+          if [ -z "$DB_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::Set the repository secrets SUPABASE_DB_URL and BACKUP_PASSPHRASE."
+            exit 1
+          fi
+          if [ "${#PASSPHRASE}" -lt 16 ]; then
+            echo "::error::BACKUP_PASSPHRASE must be at least 16 characters."
+            exit 1
+          fi
+
+      - name: Install the Postgres 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Dump, check and encrypt
+        id: dump
+        run: |
+          set -euo pipefail
+          stamp="$(TZ=Europe/Istanbul date +%F)"
+          dir="market-kasa-$stamp"
+          mkdir "$dir"
+          # The market data, schema and all. Privileges stay in: a restore without them would
+          # leave the server's functions callable by anyone (they are revoked from anon).
+          pg_dump "$DB_URL" --schema=app --no-owner --format=custom --file="$dir/app.dump"
+          # The accounts the markets and registers belong to (app.memberships and app.devices
+          # point at them), for a restore into a new project. -t ignores -n, hence two dumps.
+          pg_dump "$DB_URL" --data-only --table=auth.users --table=auth.identities --format=custom --file="$dir/auth.dump"
+          pg_restore --list "$dir/app.dump" > /dev/null
+          pg_restore --list "$dir/auth.dump" > /dev/null
+          # What the copy holds, as counts only: nothing of the data reaches the log.
+          psql "$DB_URL" -At -c "select 'markets', count(*) from app.markets union all select 'devices', count(*) from app.devices union all select 'records', count(*) from app.rows" \
+            | sed 's/|/: /'
+          tar -cf "$dir.tar" "$dir"
+          rm -rf "$dir"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 --output "$dir.tar.gpg" "$dir.tar" 3<<< "$PASSPHRASE"
+          rm -f "$dir.tar"
+          # The encrypted file must open again with the same passphrase before it is kept.
+          gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 3 --decrypt "$dir.tar.gpg" 3<<< "$PASSPHRASE" \
+            | tar -t | grep -qx "$dir/app.dump"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Keep the encrypted copy for 90 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-kasa-backup-${{ steps.dump.outputs.stamp }}
+          path: market-kasa-${{ steps.dump.outputs.stamp }}.tar.gpg
+          retention-days: 90
+          if-no-files-found: error

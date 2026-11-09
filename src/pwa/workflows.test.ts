@@ -95,4 +95,24 @@ describe('workflows', () => {
     expect(deploy).toContain('cp -r site/. pages/');
     expect(deploy).toContain('path: pages');
   });
+
+  it('backs the server up every night, encrypted before it leaves the runner', () => {
+    // The repository is public: anyone signed in to GitHub can download its artifacts.
+    const backup = readFileSync(`${DIR}/v2-backup.yml`, 'utf8');
+    expect(triggers(backup)).toContain("- cron: '0 0 * * *'");
+    expect(triggers(backup)).toContain('workflow_dispatch');
+    expect(triggers(backup)).not.toMatch(/push|pull_request/);
+    expect(backup).toContain('contents: read');
+    expect(backup).toContain('secrets.SUPABASE_DB_URL');
+    expect(backup).toContain('secrets.BACKUP_PASSPHRASE');
+    expect(backup).toMatch(/pg_dump .*--schema=app/);
+    expect(backup).toMatch(/gpg .*--symmetric.*--cipher-algo AES256/);
+    expect(backup).toMatch(/pg_dump .*--table=auth\.users/);
+    // Nothing unencrypted is left behind for the upload to pick up.
+    expect(backup).toContain('rm -rf "$dir"');
+    expect(backup).toContain('rm -f "$dir.tar"');
+    const upload = backup.slice(backup.indexOf('actions/upload-artifact'));
+    expect(upload).toMatch(/path: .*\.gpg/);
+    expect(upload).toContain('retention-days: 90');
+  });
 });
