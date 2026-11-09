@@ -1,6 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus } from 'lucide-react';
-import { useState, type JSX, type KeyboardEvent, type Ref } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent,
+  type Ref,
+  type RefObject,
+} from 'react';
 import { useData } from '@/app/appData';
 import { listCategories } from '@/data/categories';
 import {
@@ -13,7 +22,9 @@ import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { CameraButton } from './CameraButton';
+import { formatQty } from './format';
 import { looksLikeBarcode } from './keyboard';
+import { readMultiplier } from './multiplier';
 
 /** The group of the quick products, which comes before the categories. */
 const QUICK = 'quick';
@@ -21,11 +32,17 @@ const QUICK = 'quick';
 const SEARCH = 'search';
 
 export type ProductPanelProps = {
-  onAdd(product: ProductRecord): void;
+  /** `qtyMilli` when a count was typed before a star ("10*"); otherwise one. */
+  onAdd(product: ProductRecord, qtyMilli?: number): void;
   onNewProduct(barcode?: string): void;
   /** A code read by the camera, handled as the register handles a scanner's. */
   onScan?(code: string): void;
   searchRef?: Ref<HTMLInputElement>;
+  /**
+   * Filled with a function the register calls on a scan: it hands over the count typed before a
+   * star, if any, and clears the search. A scanner's keys never reach the search's own handlers.
+   */
+  takeCountRef?: RefObject<(() => number | undefined) | null>;
 };
 
 /** Search by name or barcode, the quick-product grid, and the way to add a missing product. */
@@ -34,11 +51,35 @@ export function ProductPanel({
   onNewProduct,
   onScan,
   searchRef,
+  takeCountRef,
 }: ProductPanelProps): JSX.Element {
   const { db } = useData();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState(QUICK);
-  const term = query.trim();
+  const multiplier = readMultiplier(query);
+  const term = multiplier ? multiplier.rest : query.trim();
+  // Read by the register on a scan, which comes after this render has been committed.
+  const latestQuery = useRef(query);
+  useLayoutEffect(() => {
+    latestQuery.current = query;
+  });
+
+  useEffect(() => {
+    if (!takeCountRef) {
+      return;
+    }
+    takeCountRef.current = () => {
+      const counted = readMultiplier(latestQuery.current);
+      if (!counted) {
+        return undefined;
+      }
+      setQuery('');
+      return counted.qtyMilli;
+    };
+    return () => {
+      takeCountRef.current = null;
+    };
+  }, [takeCountRef]);
   const categories = useLiveQuery(() => listCategories(db), [db]);
   // A category deleted here or on another register falls back to the quick products.
   const category = categories?.find((item) => item.id === group);
@@ -57,7 +98,11 @@ export function ProductPanel({
   const products = answer?.key === listKey ? answer.products : undefined;
 
   function choose(product: ProductRecord) {
-    onAdd(product);
+    if (multiplier) {
+      onAdd(product, multiplier.qtyMilli);
+    } else {
+      onAdd(product);
+    }
     setQuery('');
   }
 
@@ -81,7 +126,11 @@ export function ProductPanel({
       <TextField
         ref={searchRef}
         label="Barkod veya ürün adı"
-        hint="Okuyucu ile okutun ya da yazmaya başlayın."
+        hint={
+          multiplier
+            ? `Sıradaki ürün ${formatQty(multiplier.qtyMilli)} ${multiplier.qtyMilli % 1000 === 0 ? 'adet' : 'kg'} eklenir.`
+            : 'Okuyucu ile okutun ya da yazmaya başlayın. Önce “10*” yazarsanız 10 adet eklenir.'
+        }
         type="search"
         autoComplete="off"
         value={query}

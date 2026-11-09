@@ -24,7 +24,7 @@ export type CartLine = {
 export type Cart = { id: string; lines: CartLine[]; cartDiscount: Kurus };
 
 export type CartAction =
-  | { type: 'add'; product: ProductRecord }
+  | { type: 'add'; product: ProductRecord; qtyMilli?: number }
   | { type: 'increment' | 'decrement' | 'remove'; productId: string }
   | { type: 'clear' }
   | { type: 'renew' }
@@ -51,9 +51,10 @@ function applyAction(cart: Cart, action: CartAction): Cart {
   switch (action.type) {
     case 'add': {
       const { product } = action;
+      const amount = action.qtyMilli ?? ONE;
       const line = findLine(cart, product.id);
       if (line) {
-        return withQuantity(cart, product.id, line.qtyMilli + ONE);
+        return withQuantity(cart, product.id, line.qtyMilli + amount);
       }
       const added: CartLine = {
         productId: product.id,
@@ -61,7 +62,7 @@ function applyAction(cart: Cart, action: CartAction): Cart {
         unit: product.unit,
         unitPrice: product.sellPrice,
         vatRate: product.vatRate,
-        qtyMilli: ONE,
+        qtyMilli: amount,
         lineDiscount: 0,
       };
       return { ...cart, lines: [...cart.lines, added] };

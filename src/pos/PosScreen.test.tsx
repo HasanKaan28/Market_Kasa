@@ -427,4 +427,50 @@ describe('PosScreen', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Kamerayla okut' }));
     expect(await screen.findByText('1 kalem')).toBeInTheDocument();
   });
+
+  it('adds ten of a product scanned after "10*"', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    const search = screen.getByLabelText('Barkod veya ürün adı');
+    await userEvent.type(search, '10*');
+    expect(await screen.findByText('Sıradaki ürün 10 adet eklenir.')).toBeInTheDocument();
+    scan(milk.barcode);
+    expect(await screen.findByText('10 × ₺42,50')).toBeInTheDocument();
+    expect(search).toHaveValue('');
+    // The count is used once: the next scan adds one more.
+    scan(milk.barcode);
+    expect(await screen.findByText('11 × ₺42,50')).toBeInTheDocument();
+  });
+
+  it('adds a counted amount of a quick product or a search result', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, { ...milk, isQuick: true }, new Date());
+    const search = screen.getByLabelText('Barkod veya ürün adı');
+    await userEvent.type(search, '3*');
+    await userEvent.click(await screen.findByRole('button', { name: /Süt/ }));
+    expect(await screen.findByText('3 × ₺42,50')).toBeInTheDocument();
+    await userEvent.type(search, '2*süt');
+    await userEvent.click(await screen.findByRole('button', { name: /^Süt ₺/ }));
+    expect(await screen.findByText('5 × ₺42,50')).toBeInTheDocument();
+  });
+
+  it('weighs with "1,5*" and refuses half a piece', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, milk, new Date());
+    await createProduct(
+      data.db,
+      { barcode: '2000000000017', name: 'Domates', sellPrice: 3490, vatRate: 1, unit: 'kg' },
+      new Date(),
+    );
+    const search = screen.getByLabelText('Barkod veya ürün adı');
+    await userEvent.type(search, '1,5*');
+    scan('2000000000017');
+    expect(await screen.findByText('1,5 kg × ₺34,90')).toBeInTheDocument();
+    await userEvent.type(search, '1,5*');
+    scan(milk.barcode);
+    expect(
+      await screen.findByText('Süt adetle satılır: miktarı tam sayı yazın (ör. 2*).'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 kalem')).toBeInTheDocument();
+  });
 });

@@ -26,6 +26,7 @@ import { DiscountDialog } from './DiscountDialog';
 import { HELD_STORAGE_KEY, holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld } from './held';
 import { HeldCartsDialog } from './HeldCartsDialog';
 import { useBarcodeScanner, useShortcuts } from './keyboard';
+import { fitsUnit } from './multiplier';
 import { LineDialog } from './LineDialog';
 import { NewProductDialog } from './NewProductDialog';
 import { PaymentDialog } from './PaymentDialog';
@@ -76,6 +77,8 @@ export function PosScreen(): JSX.Element {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
+  // The count typed before a star in the search ("10*"), handed over on a scan.
+  const takeCountRef = useRef<(() => number | undefined) | null>(null);
   const hasItems = cart.lines.length > 0;
   const editedLine =
     dialog?.kind === 'line'
@@ -119,8 +122,12 @@ export function PosScreen(): JSX.Element {
     }
   }, [current]);
 
-  function add(product: ProductRecord) {
-    dispatch({ type: 'add', product });
+  function add(product: ProductRecord, qtyMilli?: number) {
+    if (qtyMilli !== undefined && !fitsUnit(qtyMilli, product.unit)) {
+      toast.show(`${product.name} adetle satılır: miktarı tam sayı yazın (ör. 2*).`);
+      return;
+    }
+    dispatch({ type: 'add', product, ...(qtyMilli !== undefined ? { qtyMilli } : {}) });
   }
 
   // Once the licence has run out, nothing more is sold (DESIGN §8.6); the rest stays readable.
@@ -146,9 +153,10 @@ export function PosScreen(): JSX.Element {
       toast.show('Önce açık pencereyi kapatın.');
       return;
     }
+    const counted = takeCountRef.current?.();
     const product = await findProductByBarcode(db, code);
     if (product) {
-      add(product);
+      add(product, counted);
     } else {
       guarded('addProduct', () => setDialog({ kind: 'newProduct', barcode: code }));
     }
@@ -326,6 +334,7 @@ export function PosScreen(): JSX.Element {
           }
           onScan={(code) => void handleScan(code)}
           searchRef={searchRef}
+          takeCountRef={takeCountRef}
         />
         <div className="mt-auto flex flex-wrap gap-2">
           <Button kbd="F8" disabled={!hasItems} onClick={hold}>

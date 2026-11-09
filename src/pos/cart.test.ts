@@ -39,6 +39,13 @@ describe('cart', () => {
     expect(cartTotals(cart)).toMatchObject({ total: 56640, vatTotal: 561 });
   });
 
+  it('adds a counted amount at once', () => {
+    let cart = cartReducer(emptyCart('c'), { type: 'add', product: ekmek, qtyMilli: 10_000 });
+    expect(cart.lines.map((l) => [l.name, l.qtyMilli])).toEqual([['Ekmek', 10_000]]);
+    cart = cartReducer(cart, { type: 'add', product: ekmek, qtyMilli: 3_000 });
+    expect(cart.lines.map((l) => [l.name, l.qtyMilli])).toEqual([['Ekmek', 13_000]]);
+  });
+
   it('removes a line when it is decremented to zero', () => {
     const cart = cartReducer(cartReducer(emptyCart('c'), { type: 'add', product: cay }), {
       type: 'decrement',
