@@ -4,7 +4,7 @@
   "description": "Market Kasa POS - Modern Market ve Bakkal Satış Sistemi",
   "author": "Kurşunlu Market",
   "private": true,
-  "version": "2.0.8",
+  "version": "2.0.9",
   "type": "module",
   "main": "electron/main.cjs",
   "engines": {
