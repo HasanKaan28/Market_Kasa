@@ -1,14 +1,31 @@
-// Desktop updates from the GitHub release: the app checks when it starts and when asked, says what
-// it found, and downloads and installs only when the person presses "Güncelle".
+// Desktop updates from the GitHub release, with nothing for the shop to do: the app looks for a new
+// release when it starts and every few hours, downloads it in the background and installs it when
+// the app closes. An update found while the app is just starting goes in at once; one found while
+// the register is at work waits, so no sale is cut short. "Güncelle" installs it at any time.
+
+/** How often a register left open all day looks for a new release. */
+const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
+/** An update ready this soon after the app opens is installed at once: nobody is selling yet. */
+const STARTING_MS = 2 * 60 * 1000;
 
 /**
  * Connects electron-updater to the window. Status reaches the page on `updates:status`; the page
  * calls `updates:check` and `updates:install`. A build that is not installed never checks.
  */
-function wireUpdates({ autoUpdater, ipcMain, getWindow, isPackaged }) {
-  autoUpdater.autoDownload = false;
-  // A downloaded update the person did not install now goes in when the app closes.
+function wireUpdates({
+  autoUpdater,
+  ipcMain,
+  getWindow,
+  isPackaged,
+  now = Date.now,
+  every = setInterval,
+}) {
+  autoUpdater.autoDownload = true;
+  // A downloaded update nobody installed goes in when the app closes.
   autoUpdater.autoInstallOnAppQuit = true;
+  const startedAt = now();
+  let installRequested = false;
+  let downloaded;
 
   const send = (status) => {
     const window = getWindow();
@@ -23,15 +40,23 @@ function wireUpdates({ autoUpdater, ipcMain, getWindow, isPackaged }) {
   autoUpdater.on('download-progress', (progress) =>
     send({ kind: 'downloading', percent: Math.round(progress.percent) }),
   );
-  autoUpdater.on('update-downloaded', (info) => {
-    send({ kind: 'installing', version: info.version });
+  const install = (version) => {
+    send({ kind: 'installing', version });
     // Not silent, so the installer's progress shows; the app opens again when it is done.
     autoUpdater.quitAndInstall(false, true);
+  };
+  autoUpdater.on('update-downloaded', (info) => {
+    downloaded = info.version;
+    if (installRequested || now() - startedAt < STARTING_MS) {
+      install(info.version);
+    } else {
+      send({ kind: 'ready', version: info.version });
+    }
   });
   // An offline shop is normal: the page says the check failed, nothing more.
   autoUpdater.on('error', () => send({ kind: 'error' }));
 
-  ipcMain.handle('updates:check', async () => {
+  const check = async () => {
     if (!isPackaged) {
       return;
     }
@@ -40,9 +65,15 @@ function wireUpdates({ autoUpdater, ipcMain, getWindow, isPackaged }) {
     } catch {
       send({ kind: 'error' });
     }
-  });
+  };
+  ipcMain.handle('updates:check', check);
   ipcMain.handle('updates:install', async () => {
     if (!isPackaged) {
+      return;
+    }
+    installRequested = true;
+    if (downloaded) {
+      install(downloaded);
       return;
     }
     try {
@@ -51,6 +82,11 @@ function wireUpdates({ autoUpdater, ipcMain, getWindow, isPackaged }) {
       send({ kind: 'error' });
     }
   });
+
+  if (isPackaged) {
+    void check();
+    every(() => void check(), CHECK_EVERY_MS);
+  }
 }
 
 module.exports = { wireUpdates };

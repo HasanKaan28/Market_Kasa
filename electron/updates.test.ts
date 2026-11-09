@@ -32,15 +32,57 @@ function setup() {
     isDestroyed: () => false,
     webContents: { send: (_c: string, s: unknown) => sent.push(s) },
   };
-  wireUpdates({ autoUpdater: updater, ipcMain: ipc, getWindow: () => window, isPackaged: true });
-  return { updater, ipc, sent };
+  const clock = { now: 0 };
+  const timers: { ms: number; run: () => void }[] = [];
+  wireUpdates({
+    autoUpdater: updater,
+    ipcMain: ipc,
+    getWindow: () => window,
+    isPackaged: true,
+    now: () => clock.now,
+    every: (run: () => void, ms: number) => timers.push({ ms, run }),
+  });
+  return { updater, ipc, sent, clock, timers };
 }
 
+const MINUTE = 60_000;
+
 describe('desktop updates', () => {
-  it('asks before downloading and tells the window what it found', async () => {
-    const { updater, ipc, sent } = setup();
-    expect(updater.autoDownload).toBe(false);
+  it('looks for a new release when it starts and every few hours, and downloads it unasked', () => {
+    const { updater, timers } = setup();
+    expect(updater.autoDownload).toBe(true);
     expect(updater.autoInstallOnAppQuit).toBe(true);
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(timers).toHaveLength(1);
+    expect(timers[0]?.ms).toBe(4 * 60 * MINUTE);
+    timers[0]?.run();
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(2);
+  });
+
+  it('installs at once an update that is ready while the app is just starting', () => {
+    const { updater, sent, clock } = setup();
+    clock.now = 30_000;
+    updater.emit('update-downloaded', { version: '2.0.5' });
+    expect(sent.at(-1)).toEqual({ kind: 'installing', version: '2.0.5' });
+    expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true);
+  });
+
+  it('leaves a register at work alone: the update waits for the app to close or for a press', async () => {
+    const { updater, ipc, sent, clock } = setup();
+    clock.now = 10 * MINUTE;
+    updater.emit('update-downloaded', { version: '2.0.5' });
+    expect(sent.at(-1)).toEqual({ kind: 'ready', version: '2.0.5' });
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
+
+    await ipc.handlers.get('updates:install')?.();
+    expect(sent.at(-1)).toEqual({ kind: 'installing', version: '2.0.5' });
+    expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true);
+    expect(updater.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it('tells the window what it found', async () => {
+    const { updater, ipc, sent } = setup();
+    sent.length = 0;
 
     await ipc.handlers.get('updates:check')?.();
     expect(updater.checkForUpdates).toHaveBeenCalled();
@@ -53,7 +95,8 @@ describe('desktop updates', () => {
   });
 
   it('downloads, shows progress and installs when asked', async () => {
-    const { updater, ipc, sent } = setup();
+    const { updater, ipc, sent, clock } = setup();
+    clock.now = 10 * MINUTE;
     updater.emit('update-available', { version: '2.0.1' });
     await ipc.handlers.get('updates:install')?.();
     expect(updater.downloadUpdate).toHaveBeenCalled();
@@ -76,8 +119,16 @@ describe('desktop updates', () => {
   it('does nothing in a build that is not installed', async () => {
     const updater = fakeUpdater();
     const ipc = fakeIpc();
-    wireUpdates({ autoUpdater: updater, ipcMain: ipc, getWindow: () => null, isPackaged: false });
+    const every = vi.fn();
+    wireUpdates({
+      autoUpdater: updater,
+      ipcMain: ipc,
+      getWindow: () => null,
+      isPackaged: false,
+      every,
+    });
     await ipc.handlers.get('updates:check')?.();
     expect(updater.checkForUpdates).not.toHaveBeenCalled();
+    expect(every).not.toHaveBeenCalled();
   });
 });

@@ -35,6 +35,17 @@ describe('UpdateSection', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Kuruluyor; uygulama yeniden açılacak.');
   });
 
+  it('says a downloaded update goes in when the app closes, and installs it now on a press', async () => {
+    const { bridge, emit } = desktop();
+    render(<UpdateSection version="2.0.4" desktop={bridge} />);
+    emit({ kind: 'ready', version: '2.0.5' });
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Sürüm 2.0.5 indirildi; program kapanınca kendiliğinden kurulur.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Şimdi kur (2.0.5)' }));
+    expect(bridge.install).toHaveBeenCalled();
+  });
+
   it('says the desktop app is up to date or could not check', async () => {
     const { bridge, emit } = desktop();
     render(<UpdateSection version="2.0.0" desktop={bridge} />);

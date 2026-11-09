@@ -70,13 +70,19 @@ export function UpdateSection({
         ? `İndiriliyor %${status.percent}`
         : status?.kind === 'installing'
           ? 'Kuruluyor; uygulama yeniden açılacak.'
-          : status?.kind === 'available'
-            ? `Yeni sürüm ${status.version} hazır.`
-            : status && STATUS_TEXT[status.kind];
+          : status?.kind === 'ready'
+            ? `Sürüm ${status.version} indirildi; program kapanınca kendiliğinden kurulur.`
+            : status?.kind === 'available'
+              ? `Yeni sürüm ${status.version} hazır.`
+              : status && STATUS_TEXT[status.kind];
     action =
       status?.kind === 'available' ? (
         <Button variant="primary" onClick={() => void desktop.install()}>
           {`Güncelle (${status.version})`}
+        </Button>
+      ) : status?.kind === 'ready' ? (
+        <Button variant="primary" onClick={() => void desktop.install()}>
+          {`Şimdi kur (${status.version})`}
         </Button>
       ) : status?.kind === 'current' || status?.kind === 'error' ? (
         <Button onClick={() => void desktop.check()}>Denetle</Button>

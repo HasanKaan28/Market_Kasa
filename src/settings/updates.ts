@@ -6,6 +6,8 @@ export type UpdateStatus =
   | { kind: 'available'; version: string }
   | { kind: 'current' }
   | { kind: 'downloading'; percent: number }
+  /** Downloaded while the register was at work; it goes in when the app closes. */
+  | { kind: 'ready'; version: string }
   | { kind: 'installing'; version: string }
   | { kind: 'error' };
 
