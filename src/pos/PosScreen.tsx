@@ -416,6 +416,10 @@ export function PosScreen(): JSX.Element {
           >
             Kasa
           </Button>
+          {/* The customer's screen: on the desktop app it opens on a second monitor. */}
+          <Button onClick={() => window.open('#/display', 'mk-customer-display', 'popup')}>
+            Müşteri ekranı
+          </Button>
         </div>
       </AppShell>
 

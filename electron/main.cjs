@@ -1,4 +1,14 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, net, protocol, shell } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  dialog,
+  ipcMain,
+  net,
+  protocol,
+  screen,
+  shell,
+} = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -9,6 +19,7 @@ const {
   isExternalUrl,
   resolveAppFile,
 } = require('./security.cjs');
+const { displayBounds, isDisplayUrl } = require('./display.cjs');
 const { wireUpdates } = require('./updates.cjs');
 
 const DIST = path.join(__dirname, '../dist');
@@ -55,12 +66,46 @@ function createWindow() {
     },
   });
 
-  // Links such as WhatsApp go to the system browser; no window of ours ever opens on them.
+  // Links such as WhatsApp go to the system browser. The one window of ours that opens is the
+  // customer display, full screen on a second monitor when there is one.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isDisplayUrl(url)) {
+      const { bounds, fullscreen } = displayBounds(
+        screen.getAllDisplays(),
+        screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id,
+      );
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          ...bounds,
+          fullscreen,
+          title: 'Market Kasa · Müşteri ekranı',
+          autoHideMenuBar: true,
+          backgroundColor: '#F5F6F8',
+          webPreferences: {
+            contextIsolation: true,
+            sandbox: true,
+            nodeIntegration: false,
+            webSecurity: true,
+            devTools: devToolsAllowed(app.isPackaged),
+          },
+        },
+      };
+    }
     if (isExternalUrl(url)) {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
+  });
+  // The display stays on its page and opens nothing itself.
+  mainWindow.webContents.on('did-create-window', (child) => {
+    child.setMenu(null);
+    child.webContents.on('will-navigate', (event, url) => {
+      if (!isDisplayUrl(url)) {
+        event.preventDefault();
+      }
+    });
+    child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   });
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(`${APP_ORIGIN}/`)) {

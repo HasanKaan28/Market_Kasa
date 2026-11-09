@@ -542,4 +542,15 @@ describe('PosScreen', () => {
     scan('8690000000029');
     expect(await screen.findByText('36 × ₺42,50')).toBeInTheDocument();
   });
+
+  it('opens the customer display in a window of its own', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      await renderWithData(<PosScreen />);
+      await userEvent.click(screen.getByRole('button', { name: 'Müşteri ekranı' }));
+      expect(open).toHaveBeenCalledWith('#/display', 'mk-customer-display', 'popup');
+    } finally {
+      open.mockRestore();
+    }
+  });
 });

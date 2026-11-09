@@ -7,6 +7,8 @@ import '@fontsource/ibm-plex-sans/700.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from './app/App';
+import { loadDeviceSettings } from './app/device';
+import { CustomerDisplay } from './display/CustomerDisplay';
 import './app/app.css';
 import { registerServiceWorker } from './pwa/register';
 
@@ -15,9 +17,12 @@ if (!container) {
   throw new Error('Root element #root is missing');
 }
 
+// The customer display is its own window: it shows the register's cart and starts nothing else.
+const customerDisplay = window.location.hash === '#/display';
+
 createRoot(container).render(
   <StrictMode>
-    <App />
+    {customerDisplay ? <CustomerDisplay marketName={loadDeviceSettings().marketName} /> : <App />}
   </StrictMode>,
 );
 
