@@ -13,6 +13,7 @@ import { formatTRY } from '@/domain/money';
 import { formatStock } from '@/pos/format';
 import { CameraButton } from '@/pos/CameraButton';
 import { useBarcodeScanner } from '@/pos/keyboard';
+import { LabelDialog } from '@/labels/LabelDialog';
 import { BulkPriceDialog } from './BulkPriceDialog';
 import { CategoriesDialog } from './CategoriesDialog';
 import { downloadText, productsToCsv } from './exportCsv';
@@ -34,6 +35,7 @@ type OpenDialog =
   | { kind: 'categories' }
   | { kind: 'import' }
   | { kind: 'bulkPrice' }
+  | { kind: 'labels' }
   | null;
 
 /** The catalogue: every product with its stock and category, and the way to add or change one. */
@@ -147,6 +149,7 @@ export function ProductsScreen(): JSX.Element {
           >
             Toplu fiyat
           </Button>
+          <Button onClick={() => setDialog({ kind: 'labels' })}>Etiket yazdır</Button>
           <Button onClick={() => setDialog({ kind: 'import' })}>İçe aktar</Button>
           {session.can('admin') ? (
             <Button
@@ -228,6 +231,7 @@ export function ProductsScreen(): JSX.Element {
           onDone={saved}
         />
       ) : null}
+      {dialog?.kind === 'labels' ? <LabelDialog open onClose={close} /> : null}
       <ToastRegion message={toast.message} />
     </>
   );

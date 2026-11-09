@@ -95,6 +95,12 @@ describe('ProductsScreen', () => {
     expect(screen.getByRole('row', { name: /Simit/ })).toHaveTextContent('Kritik');
   });
 
+  it('opens the label printer', async () => {
+    await renderWithData(<ProductsScreen />);
+    await userEvent.click(screen.getByRole('button', { name: 'Etiket yazdır' }));
+    expect(await screen.findByRole('dialog', { name: 'Etiket yazdır' })).toBeInTheDocument();
+  });
+
   it('opens a product when its barcode is scanned', async () => {
     const data = createTestData();
     await createProduct(
