@@ -16,8 +16,6 @@ export type UpdateStatus =
 export type DesktopUpdates = {
   check(): Promise<unknown>;
   install(): Promise<unknown>;
-  /** Puts off a startup install until the app closes. */
-  defer(): Promise<unknown>;
   onStatus(callback: (status: UpdateStatus) => void): () => void;
 };
 

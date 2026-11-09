@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react';
-import { Button, Logo } from '@/design';
+import { Logo } from '@/design';
 import type { DesktopUpdates, UpdateStatus } from '@/settings/updates';
 
 type Shown =
@@ -8,12 +8,10 @@ type Shown =
 
 /**
  * The desktop app's "Güncelleme yükleniyor" screen: over everything while an update found at
- * start downloads, since the app will close and reopen when it is done. "Sonra kur" puts it off
- * until the app closes, so a slow line never keeps the register from selling.
+ * start downloads, since the app will close and reopen when it is done. It cannot be put off.
  */
 export function UpdateOverlay({ desktop }: { desktop?: DesktopUpdates }): JSX.Element | null {
   const [shown, setShown] = useState<Shown | null>(null);
-  const [putOff, setPutOff] = useState(false);
 
   useEffect(() => {
     if (!desktop) {
@@ -43,7 +41,7 @@ export function UpdateOverlay({ desktop }: { desktop?: DesktopUpdates }): JSX.El
     });
   }, [desktop]);
 
-  if (!desktop || !shown || (putOff && shown.kind === 'downloading')) {
+  if (!desktop || !shown) {
     return null;
   }
 
@@ -82,15 +80,6 @@ export function UpdateOverlay({ desktop }: { desktop?: DesktopUpdates }): JSX.El
                 style={{ width: `${shown.percent}%` }}
               />
             </div>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setPutOff(true);
-                void desktop.defer();
-              }}
-            >
-              Sonra kur
-            </Button>
           </>
         )}
       </div>

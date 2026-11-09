@@ -73,16 +73,9 @@ describe('desktop updates', () => {
     expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true);
   });
 
-  it('lets the shop put off a startup install until the app closes', async () => {
-    const { updater, ipc, sent, clock } = setup();
-    clock.now = 30_000;
-    updater.emit('update-available', { version: '2.0.5' });
-    await ipc.handlers.get('updates:defer')?.();
-    updater.emit('download-progress', { percent: 10 });
-    expect(sent.at(-1)).toEqual({ kind: 'downloading', percent: 10, installNow: false });
-    updater.emit('update-downloaded', { version: '2.0.5' });
-    expect(sent.at(-1)).toEqual({ kind: 'ready', version: '2.0.5' });
-    expect(updater.quitAndInstall).not.toHaveBeenCalled();
+  it('offers no way to put off a startup install: it always goes in', () => {
+    const { ipc } = setup();
+    expect(ipc.handlers.has('updates:defer')).toBe(false);
   });
 
   it('leaves a register at work alone: the update waits for the app to close or for a press', async () => {

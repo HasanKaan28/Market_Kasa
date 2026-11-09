@@ -1,5 +1,4 @@
 import { act, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { DesktopUpdates, UpdateStatus } from '@/settings/updates';
 import { UpdateOverlay } from './UpdateOverlay';
@@ -9,7 +8,6 @@ function desktop() {
   const bridge: DesktopUpdates = {
     check: vi.fn(async () => undefined),
     install: vi.fn(async () => undefined),
-    defer: vi.fn(async () => undefined),
     onStatus(callback) {
       listener = callback;
       return () => {
@@ -48,16 +46,12 @@ describe('UpdateOverlay', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('lets the shop put it off and get back to work', async () => {
+  it('has no way to put the update off: it always goes in', () => {
     const { bridge, emit } = desktop();
     render(<UpdateOverlay desktop={bridge} />);
     emit({ kind: 'downloading', percent: 5, installNow: true });
-    await userEvent.click(screen.getByRole('button', { name: 'Sonra kur' }));
-    expect(bridge.defer).toHaveBeenCalled();
-    expect(screen.queryByRole('dialog')).toBeNull();
-    // Progress still arriving from before the press does not bring it back.
-    emit({ kind: 'downloading', percent: 6, installNow: true });
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('gives up on a failed download and lets the register work', () => {

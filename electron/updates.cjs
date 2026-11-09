@@ -1,8 +1,8 @@
 // Desktop updates from the GitHub release, with nothing for the shop to do: the app looks for a new
 // release when it starts and every few hours, downloads it in the background and installs it when
-// the app closes. An update found while the app is just starting goes in as soon as it is downloaded,
-// with the page showing the download over everything; "Sonra kur" puts it off. One found while the
-// register is at work waits, so no sale is cut short. "Güncelle" installs it at any time.
+// the app closes. An update found while the app is just starting always goes in as soon as it is
+// downloaded, with the page showing the download over everything. One found while the register is
+// at work waits, so no sale is cut short. "Güncelle" installs it at any time.
 
 /** How often a register left open all day looks for a new release. */
 const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
@@ -11,7 +11,7 @@ const STARTING_MS = 2 * 60 * 1000;
 
 /**
  * Connects electron-updater to the window. Status reaches the page on `updates:status`; the page
- * calls `updates:check`, `updates:install` and `updates:defer`. A build that is not installed never checks.
+ * calls `updates:check` and `updates:install`. A build that is not installed never checks.
  */
 function wireUpdates({
   autoUpdater,
@@ -27,7 +27,8 @@ function wireUpdates({
   const startedAt = now();
   let installRequested = false;
   // Set when an update is found while the app is starting: it goes in when downloaded, however
-  // long a slow line takes, unless the shop puts it off ("Sonra kur").
+  // long a slow line takes. There is no putting it off: a shop that never closes the app would
+  // otherwise never get it.
   let installOnArrival = false;
   let downloaded;
   const installNow = () => installRequested || installOnArrival;
@@ -78,14 +79,6 @@ function wireUpdates({
     }
   };
   ipcMain.handle('updates:check', check);
-  // "Sonra kur": the download goes on, and the update goes in when the app closes.
-  ipcMain.handle('updates:defer', () => {
-    installOnArrival = false;
-    installRequested = false;
-    if (downloaded) {
-      send({ kind: 'ready', version: downloaded });
-    }
-  });
   ipcMain.handle('updates:install', async () => {
     if (!isPackaged) {
       return;

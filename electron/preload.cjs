@@ -5,7 +5,6 @@ contextBridge.exposeInMainWorld('marketKasa', {
   updates: {
     check: () => ipcRenderer.invoke('updates:check'),
     install: () => ipcRenderer.invoke('updates:install'),
-    defer: () => ipcRenderer.invoke('updates:defer'),
     onStatus(callback) {
       const listener = (_event, status) => callback(status);
       ipcRenderer.on('updates:status', listener);
