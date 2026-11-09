@@ -196,14 +196,8 @@ p {
   text-decoration: none;
 }
 .brand__mark {
-  display: grid;
-  place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: var(--radius);
-  background: var(--text);
-  color: var(--bg);
-  font-weight: 700;
 }
 .top nav {
   display: flex;

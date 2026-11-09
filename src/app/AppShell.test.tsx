@@ -52,6 +52,11 @@ describe('AppShell', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Kasayı yeniden bağlayın.');
   });
 
+  it('shows the Market Kasa logo beside the market name', () => {
+    const { container } = render(<AppShell {...base} syncState="online" />);
+    expect(container.querySelector('header img[src$="logo.svg"]')).not.toBeNull();
+  });
+
   it('shows the cart panel it is given and the app version', () => {
     render(<AppShell {...base} syncState="online" cart={<p>Sepet boş</p>} />);
     expect(screen.getByRole('complementary', { name: 'Sepet' })).toHaveTextContent('Sepet boş');

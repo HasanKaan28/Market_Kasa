@@ -32,3 +32,5 @@ start.sh
 icon.png
 .env.local
 .playwright-mcp/
+# The Windows app icon (electron-builder reads it at build time).
+!build/icon.png

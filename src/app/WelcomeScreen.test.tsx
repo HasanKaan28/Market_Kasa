@@ -129,4 +129,9 @@ describe('WelcomeScreen', () => {
     expect(shouldWelcome({ ...DEFAULT_DEVICE, paired: true }, server, storage)).toBe(false);
     expect(shouldWelcome(DEFAULT_DEVICE, server, { getItem: () => '1' })).toBe(false);
   });
+
+  it('greets with the Market Kasa logo', () => {
+    setup();
+    expect(document.querySelector('main img[src$="logo.svg"]')).not.toBeNull();
+  });
 });

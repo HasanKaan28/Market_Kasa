@@ -1,6 +1,6 @@
 import { Lock } from 'lucide-react';
 import type { JSX, ReactNode } from 'react';
-import { Button } from '@/design';
+import { Button, Logo } from '@/design';
 import type { SyncState } from '@/sync/runner';
 import { LicenseBanner } from './LicenseBanner';
 import { ROUTE_PERMISSIONS, type Route } from './route';
@@ -52,12 +52,7 @@ export function AppShell({
     <div className="flex min-h-dvh flex-col">
       <header className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-line bg-surface px-5 py-2.5">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="flex size-9 items-center justify-center rounded-control bg-text text-base font-bold text-white"
-          >
-            {marketName.charAt(0)}
-          </span>
+          <Logo />
           <div className="flex flex-col leading-tight">
             <span className="text-[15px] font-semibold">{marketName}</span>
             <span className="text-sm text-muted">{deviceName}</span>

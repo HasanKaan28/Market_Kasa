@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type JSX } from 'react';
-import { Button, SelectField, TextField } from '@/design';
+import { Button, Logo, SelectField, TextField } from '@/design';
 import type { OnboardingResult } from '@/server/onboarding';
 import { pairedSettings, type OwnedMarket } from '@/server/pairing';
 import type { DeviceSettings } from './device';
@@ -112,12 +112,7 @@ export function WelcomeScreen({
     <main className="flex min-h-dvh items-center justify-center bg-bg p-4">
       <div className="flex w-full max-w-md flex-col gap-6 rounded-control border border-line bg-surface p-6">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="flex size-10 items-center justify-center rounded-control bg-text text-lg font-bold text-white"
-          >
-            K
-          </span>
+          <Logo className="size-11" />
           <div>
             <h1 className="text-xl font-semibold">Market Kasa</h1>
             <p className="text-sm text-text-2">
