@@ -3,7 +3,10 @@ const path = require('path');
 
 const APP_HOST = 'market';
 
-/** What the page may load and talk to: its own files, product names from Open Food Facts. */
+/**
+ * What the page may load and talk to: its own files, the market's server on Supabase (sign-up,
+ * pairing and every sync) and product names from Open Food Facts.
+ */
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
@@ -11,7 +14,7 @@ const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "media-src 'self' blob: mediastream:",
-  "connect-src 'self' https://world.openfoodfacts.org",
+  "connect-src 'self' https://*.supabase.co https://world.openfoodfacts.org",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",

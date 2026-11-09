@@ -61,7 +61,8 @@ describe('electron security', () => {
       'img-src': "'self' data: blob:",
       'font-src': "'self' data:",
       'media-src': "'self' blob: mediastream:",
-      'connect-src': "'self' https://world.openfoodfacts.org",
+      // The market's server: without it the desktop register could never sync or be set up.
+      'connect-src': "'self' https://*.supabase.co https://world.openfoodfacts.org",
       'object-src': "'none'",
       'base-uri': "'none'",
       'form-action': "'none'",
