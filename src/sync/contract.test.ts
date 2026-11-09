@@ -78,8 +78,8 @@ describe.each(SERVERS)('the $name server', ({ make }) => {
     await syncOnce(b, toB);
     await syncOnce(a, toA);
 
-    expect(await loadMarketSettings(a)).toEqual({ cutoffMinutes: 120 });
-    expect(await loadMarketSettings(b)).toEqual({ cutoffMinutes: 120 });
+    expect(await loadMarketSettings(a)).toMatchObject({ cutoffMinutes: 120 });
+    expect(await loadMarketSettings(b)).toMatchObject({ cutoffMinutes: 120 });
   });
 
   it('lets a deleted product give up its barcode', async () => {

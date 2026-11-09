@@ -1,3 +1,4 @@
+import type { ScaleConfig } from '@/domain/scaleBarcode';
 import type { LedgerKind } from '@/domain/ledger';
 import type { Kurus } from '@/domain/money';
 import type { Permission, Role } from '@/domain/permissions';
@@ -316,6 +317,8 @@ export type MarketSettingsRecord = {
   id: 'market';
   /** Minutes after midnight the business day turns, 0 to 720. */
   cutoffMinutes: number;
+  /** How the shop's scale prints its labels; absent means the common format. */
+  scale?: ScaleConfig;
   createdAt: string;
   updatedAt: string;
 };

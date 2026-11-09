@@ -12,6 +12,7 @@ import { SessionProvider } from '@/app/SessionProvider';
 import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { cartReducer, emptyCart, loadCart } from './cart';
+import { withCheckDigit } from '@/domain/scaleBarcode';
 import { checkout, singlePayment } from './checkout';
 import { PosScreen } from './PosScreen';
 
@@ -472,5 +473,59 @@ describe('PosScreen', () => {
       await screen.findByText('Süt adetle satılır: miktarı tam sayı yazın (ör. 2*).'),
     ).toBeInTheDocument();
     expect(screen.getByText('1 kalem')).toBeInTheDocument();
+  });
+
+  it('sells the weight a scale label carries', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    // The scale's item 123, stored as the shop typed it.
+    await createProduct(
+      data.db,
+      { barcode: '00123', name: 'Kaşar', sellPrice: 40000, vatRate: 1, unit: 'kg' },
+      new Date(),
+    );
+    scan(withCheckDigit('270012301250'));
+    expect(await screen.findByText('1,25 kg × ₺400,00')).toBeInTheDocument();
+    // A second label of the same cheese adds its own weight.
+    scan(withCheckDigit('270012300500'));
+    expect(await screen.findByText('1,75 kg × ₺400,00')).toBeInTheDocument();
+  });
+
+  it('turns a price label into a weight when the scale prints prices', async () => {
+    const data = createTestData();
+    await saveMarketSettings(
+      data.db,
+      { scale: { enabled: true, prefixes: ['28'], codeDigits: 5, value: 'price' } },
+      new Date(),
+    );
+    await createProduct(
+      data.db,
+      { barcode: '2800123', name: 'Kaşar', sellPrice: 40000, vatRate: 1, unit: 'kg' },
+      new Date(),
+    );
+    await renderWithData(<PosScreen />, data);
+    // 150,00 ₺ at 400,00 ₺/kg.
+    scan(withCheckDigit('280012315000'));
+    expect(await screen.findByText('0,375 kg × ₺400,00')).toBeInTheDocument();
+  });
+
+  it('offers a new product for a scale item it does not know, under the item code', async () => {
+    await renderWithData(<PosScreen />);
+    scan(withCheckDigit('270099901250'));
+    expect(await screen.findByText('2700999')).toBeInTheDocument();
+    expect(screen.getByText('Kilo ile satılır; fiyatı 1 kg için yazın.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Ürün adı'), 'Sucuk');
+    await userEvent.type(screen.getByLabelText('Satış fiyatı'), '600');
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet ve sepete ekle' }));
+    expect(await screen.findByText('1,25 kg × ₺600,00')).toBeInTheDocument();
+  });
+
+  it('warns once when a product sells below what it cost', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(data.db, { ...milk, buyPrice: 5000 }, new Date());
+    scan(milk.barcode);
+    expect(
+      await screen.findByText('Süt alış fiyatının altında satılıyor. Fiyatı kontrol edin.'),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('1 kalem')).toBeInTheDocument();
   });
 });

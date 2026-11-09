@@ -170,7 +170,7 @@ describe('SettingsScreen', () => {
     await userEvent.selectOptions(await screen.findByLabelText('Gün dönümü'), '02:00');
     await userEvent.click(screen.getByRole('button', { name: 'Market ayarını kaydet' }));
     expect(await screen.findByText('Market ayarı kaydedildi.')).toBeInTheDocument();
-    expect(await loadMarketSettings(data.db)).toEqual({ cutoffMinutes: 120 });
+    expect(await loadMarketSettings(data.db)).toMatchObject({ cutoffMinutes: 120 });
     const license = screen.getByRole('region', { name: 'Lisans' });
     expect(within(license).getByText(/Bilinmiyor/)).toBeInTheDocument();
     const register = screen.getByRole('region', { name: 'Bu kasa' });

@@ -25,6 +25,13 @@ import { CashDialog } from './CashDialog';
 import { DiscountDialog } from './DiscountDialog';
 import { HELD_STORAGE_KEY, holdCart, loadHeld, MAX_HELD, saveHeld, takeHeld } from './held';
 import { HeldCartsDialog } from './HeldCartsDialog';
+import { loadMarketSettings } from '@/data/settings';
+import {
+  readScaleBarcode,
+  scaleItemCodes,
+  scaleQtyMilli,
+  type ScaleConfig,
+} from '@/domain/scaleBarcode';
 import { useBarcodeScanner, useShortcuts } from './keyboard';
 import { fitsUnit } from './multiplier';
 import { LineDialog } from './LineDialog';
@@ -53,7 +60,13 @@ type OpenDialog =
   | { kind: 'discount' }
   | { kind: 'line'; productId: string }
   | { kind: 'receiptSettings' }
-  | { kind: 'newProduct'; barcode?: string }
+  /** `scaleAmount`: the weight or price on the scale label that named this new item. */
+  | {
+      kind: 'newProduct';
+      barcode?: string;
+      scaleAmount?: number;
+      scaleValue?: ScaleConfig['value'];
+    }
   | { kind: 'held' }
   | { kind: 'receipts' }
   | { kind: 'drawer' }
@@ -127,7 +140,51 @@ export function PosScreen(): JSX.Element {
       toast.show(`${product.name} adetle satılır: miktarı tam sayı yazın (ör. 2*).`);
       return;
     }
+    // Once per cart line: a price under cost is usually a price nobody updated.
+    const first = !cart.lines.some((line) => line.productId === product.id);
+    if (first && product.buyPrice > 0 && product.sellPrice < product.buyPrice) {
+      toast.show(`${product.name} alış fiyatının altında satılıyor. Fiyatı kontrol edin.`);
+    }
     dispatch({ type: 'add', product, ...(qtyMilli !== undefined ? { qtyMilli } : {}) });
+  }
+
+  /** A scale label: the product under its item code, at the weight or price it carries. */
+  async function addFromScale(code: string): Promise<boolean> {
+    // Read here, not from the live settings: the first scan after start may beat their load.
+    const { scale } = await loadMarketSettings(db);
+    const read = readScaleBarcode(code, scale);
+    if (!read) {
+      return false;
+    }
+    let product: ProductRecord | undefined;
+    for (const itemCode of scaleItemCodes(read)) {
+      product = await findProductByBarcode(db, itemCode);
+      if (product) {
+        break;
+      }
+    }
+    if (!product) {
+      guarded('addProduct', () =>
+        setDialog({
+          kind: 'newProduct',
+          barcode: `${read.prefix}${read.itemCode}`,
+          scaleAmount: read.amount,
+          scaleValue: scale.value,
+        }),
+      );
+      return true;
+    }
+    const qtyMilli = scaleQtyMilli(read.amount, product, scale.value);
+    if (qtyMilli === null) {
+      toast.show(
+        product.unit === 'piece'
+          ? `${product.name} adetle satılır; terazi etiketi okunamadı. Ürünü kg olarak kaydedin.`
+          : `${product.name} için fiyat yok; terazi etiketi okunamadı.`,
+      );
+      return true;
+    }
+    add(product, qtyMilli);
+    return true;
   }
 
   // Once the licence has run out, nothing more is sold (DESIGN §8.6); the rest stays readable.
@@ -157,6 +214,8 @@ export function PosScreen(): JSX.Element {
     const product = await findProductByBarcode(db, code);
     if (product) {
       add(product, counted);
+    } else if (await addFromScale(code)) {
+      return;
     } else {
       guarded('addProduct', () => setDialog({ kind: 'newProduct', barcode: code }));
     }
@@ -406,9 +465,14 @@ export function PosScreen(): JSX.Element {
         <NewProductDialog
           open
           barcode={dialog.barcode}
+          {...(dialog.scaleAmount !== undefined ? { unit: 'kg' as const } : {})}
           onClose={close}
           onCreated={(product) => {
-            add(product);
+            const weighed =
+              dialog.scaleAmount === undefined || dialog.scaleValue === undefined
+                ? undefined
+                : scaleQtyMilli(dialog.scaleAmount, product, dialog.scaleValue);
+            add(product, weighed ?? undefined);
             close();
           }}
         />

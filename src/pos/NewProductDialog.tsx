@@ -2,7 +2,7 @@ import { useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { DuplicateBarcodeError } from '@/data/errors';
 import { createProduct } from '@/data/products';
-import type { ProductRecord } from '@/data/types';
+import type { ProductRecord, ProductUnit } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, TextField } from '@/design';
 import { formatTRY, parseTRY, type Kurus } from '@/domain/money';
 import { MAX_UNIT_PRICE, type VatRate } from '@/domain/pricing';
@@ -11,6 +11,8 @@ import { VAT_OPTIONS } from './format';
 export type NewProductDialogProps = {
   open: boolean;
   barcode?: string;
+  /** `kg` for an item a scale label named: its price is per kilo. */
+  unit?: ProductUnit;
   onClose(): void;
   onCreated(product: ProductRecord): void;
 };
@@ -21,6 +23,7 @@ type Errors = { name?: string; price?: string; form?: string };
 export function NewProductDialog({
   open,
   barcode,
+  unit,
   onClose,
   onCreated,
 }: NewProductDialogProps): JSX.Element {
@@ -56,7 +59,7 @@ export function NewProductDialog({
     try {
       const product = await createProduct(
         db,
-        { barcode, name, sellPrice, vatRate, isQuick },
+        { barcode, name, sellPrice, vatRate, isQuick, ...(unit ? { unit } : {}) },
         new Date(),
       );
       onCreated(product);
@@ -79,6 +82,9 @@ export function NewProductDialog({
           <p className="text-text-2">
             Barkod: <span className="font-mono text-text">{barcode}</span>
           </p>
+        ) : null}
+        {unit === 'kg' ? (
+          <p className="text-text-2">Kilo ile satılır; fiyatı 1 kg için yazın.</p>
         ) : null}
         <TextField
           label="Ürün adı"
