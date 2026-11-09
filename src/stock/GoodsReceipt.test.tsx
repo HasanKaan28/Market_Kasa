@@ -349,4 +349,22 @@ describe('GoodsReceipt', () => {
     );
     expect((await data.db.purchases.toArray())[0]).not.toHaveProperty('supplierId');
   });
+
+  it('receives a whole case when its case barcode is scanned', async () => {
+    const data = createTestData();
+    await createProduct(
+      data.db,
+      { ...milk, packs: [{ barcode: '8690000000029', qtyMilli: 12000 }] },
+      at,
+    );
+    await renderWithData(<GoodsReceipt onDone={vi.fn()} />, data);
+    await scan('8690000000029');
+    await waitFor(async () =>
+      expect(within(await lineOf('Süt')).getByLabelText('Miktar')).toHaveValue('12'),
+    );
+    await scan('8690000000029');
+    await waitFor(async () =>
+      expect(within(await lineOf('Süt')).getByLabelText('Miktar')).toHaveValue('24'),
+    );
+  });
 });

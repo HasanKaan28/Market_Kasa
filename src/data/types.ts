@@ -7,6 +7,9 @@ import type { Summary } from '@/reports/summary';
 
 export type ProductUnit = 'piece' | 'kg';
 
+/** A case or pack sold or received under its own barcode: scanning it counts `qtyMilli`. */
+export type ProductPack = { barcode: string; qtyMilli: number };
+
 export type ProductRecord = {
   id: string;
   barcode?: string;
@@ -18,6 +21,10 @@ export type ProductRecord = {
   vatRate: VatRate;
   isQuick: boolean;
   criticalLevelMilli: number;
+  /** Cases and packs under barcodes of their own (koli, paket). */
+  packs?: ProductPack[];
+  /** The packs' barcodes, kept beside them so the database can look them up. */
+  packCodes?: string[];
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;

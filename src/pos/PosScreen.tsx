@@ -10,7 +10,7 @@ import { AppShell } from '@/app/AppShell';
 import { recordApproval } from '@/data/audit';
 import { CreditLimitError } from '@/data/errors';
 import { invoiceForSale } from '@/data/invoices';
-import { findProductByBarcode } from '@/data/products';
+import { findProductByBarcode, findProductByCode } from '@/data/products';
 import { saleStatus } from '@/data/returns';
 import type { Payment, ProductRecord, SaleRecord } from '@/data/types';
 import { Button, ToastRegion, useToast } from '@/design';
@@ -211,9 +211,14 @@ export function PosScreen(): JSX.Element {
       return;
     }
     const counted = takeCountRef.current?.();
-    const product = await findProductByBarcode(db, code);
-    if (product) {
-      add(product, counted);
+    const found = await findProductByCode(db, code);
+    if (found) {
+      const { product, qtyMilli: pack } = found;
+      // "2*" before a case barcode is two cases.
+      add(
+        product,
+        pack === undefined ? counted : counted === undefined ? pack : (pack * counted) / 1000,
+      );
     } else if (await addFromScale(code)) {
       return;
     } else {

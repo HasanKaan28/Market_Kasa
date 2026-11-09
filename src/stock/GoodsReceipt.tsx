@@ -5,7 +5,12 @@ import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
-import { findProductByBarcode, productsById, searchProducts } from '@/data/products';
+import {
+  findProductByBarcode,
+  findProductByCode,
+  productsById,
+  searchProducts,
+} from '@/data/products';
 import { listSuppliers } from '@/data/suppliers';
 import { recordPurchase } from '@/data/purchases';
 import type { ProductRecord, PurchasePayment } from '@/data/types';
@@ -85,9 +90,9 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
     saveDraft(draft);
   }, [draft]);
 
-  function add(product: ProductRecord) {
+  function add(product: ProductRecord, qtyMilli?: number) {
     setBumped(draft.lines.some((line) => line.productId === product.id) ? product.id : undefined);
-    setDraft((current) => addProduct(current, product));
+    setDraft((current) => addProduct(current, product, qtyMilli));
     setQuery('');
   }
 
@@ -101,6 +106,11 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   // A scanned code is always a barcode; typed text only when it looks like one, as at the register.
   // A deleted product's code opens it to be brought back, as the products screen does.
   async function addByBarcode(code: string, typed = false) {
+    const pack = await findProductByCode(db, code);
+    if (pack) {
+      add(pack.product, pack.qtyMilli);
+      return;
+    }
     const product = await findProductByBarcode(db, code, { includeDeleted: true });
     if (product && !product.deletedAt) {
       add(product);

@@ -8,7 +8,7 @@ import { appendOutbox } from './outbox';
 import { changedFields, toPatch, withoutUndefined } from './records';
 import { recordStockMovement } from './stock';
 import { normalizeForSearch } from './text';
-import type { ProductRecord, ProductUnit } from './types';
+import type { ProductPack, ProductRecord, ProductUnit } from './types';
 
 export type NewProduct = {
   barcode?: string;
@@ -20,6 +20,8 @@ export type NewProduct = {
   vatRate: VatRate;
   isQuick?: boolean;
   criticalLevelMilli?: number;
+  /** Cases and packs under their own barcodes; an empty list clears them. */
+  packs?: readonly ProductPack[];
 };
 
 /** An empty string for `barcode` or `categoryId` clears it. */
@@ -28,6 +30,7 @@ export type ProductPatch = Partial<NewProduct>;
 type ProductFields = Omit<ProductRecord, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>;
 
 const BARCODE = /^[0-9A-Za-z-]{1,32}$/;
+const MAX_PACKS = 20;
 const DEFAULT_SEARCH_LIMIT = 50;
 
 /** `openingStockMilli` is what is on the shelf now; it is written as a count movement. */
@@ -64,10 +67,17 @@ export async function createProduct(
     updatedAt: stamp,
   };
 
-  assertWholePieces(record.unit, [openingStockMilli, record.criticalLevelMilli]);
+  assertWholePieces(record.unit, [
+    openingStockMilli,
+    record.criticalLevelMilli,
+    ...packQuantities(record),
+  ]);
+  assertOwnCodesDiffer(record);
   const tables = [db.products, db.stockMovements, db.stockLevels, db.outbox];
   await db.transaction('rw', tables, async () => {
-    await claimBarcode(db, record.barcode, record.id, at);
+    for (const code of ownCodes(record)) {
+      await claimBarcode(db, code, record.id, at);
+    }
     await db.products.add(record);
     await appendOutbox(db, { kind: 'insert', table: 'products', recordId: record.id, record }, at);
     if (openingStockMilli > 0) {
@@ -102,13 +112,19 @@ export async function updateProduct(
     if (!current) {
       throw new RecordNotFoundError('Product', id);
     }
+    const changed = changedFields(current, changes);
+    const updated = withoutUndefined({ ...current, ...changed, updatedAt: stamp });
+    if ('unit' in changed || 'criticalLevelMilli' in changed || 'packs' in changed) {
+      assertWholePieces(updated.unit, [updated.criticalLevelMilli, ...packQuantities(updated)]);
+    }
+    assertOwnCodesDiffer(updated);
     if ('barcode' in changes) {
       await claimBarcode(db, changes.barcode, id, at);
     }
-    const changed = changedFields(current, changes);
-    const updated = withoutUndefined({ ...current, ...changed, updatedAt: stamp });
-    if ('unit' in changed || 'criticalLevelMilli' in changed) {
-      assertWholePieces(updated.unit, [updated.criticalLevelMilli]);
+    if ('packs' in changes) {
+      for (const code of updated.packCodes ?? []) {
+        await claimBarcode(db, code, id, at);
+      }
     }
     await db.products.put(updated);
     await appendOutbox(
@@ -283,7 +299,64 @@ function validateFields(input: ProductPatch): Partial<ProductFields> {
   if (input.isQuick !== undefined) {
     fields.isQuick = input.isQuick;
   }
+  if (input.packs !== undefined) {
+    if (input.packs.length > MAX_PACKS) {
+      throw new RangeError(`A product takes at most ${MAX_PACKS} pack barcodes`);
+    }
+    const packs = input.packs.map((pack) => {
+      const barcode = canonicalBarcode(pack.barcode);
+      if (barcode === undefined) {
+        throw new RangeError('A pack needs a barcode');
+      }
+      assertSafeInteger(pack.qtyMilli, 'qtyMilli');
+      if (pack.qtyMilli <= 0) {
+        throw new RangeError(`A pack holds more than nothing, got ${pack.qtyMilli}`);
+      }
+      return { barcode, qtyMilli: pack.qtyMilli };
+    });
+    fields.packs = packs.length > 0 ? packs : undefined;
+    fields.packCodes = packs.length > 0 ? packs.map((pack) => pack.barcode) : undefined;
+  }
   return fields;
+}
+
+const packQuantities = (product: Pick<ProductRecord, 'packs'>) =>
+  (product.packs ?? []).map((pack) => pack.qtyMilli);
+
+/** The product's own barcode and its packs' barcodes. */
+const ownCodes = (product: Pick<ProductRecord, 'barcode' | 'packCodes'>) => [
+  ...(product.barcode ? [product.barcode] : []),
+  ...(product.packCodes ?? []),
+];
+
+/** One code stands for one thing: the product itself or one of its packs, never two of them. */
+function assertOwnCodesDiffer(product: Pick<ProductRecord, 'barcode' | 'packCodes'>): void {
+  const codes = ownCodes(product);
+  if (new Set(codes).size !== codes.length) {
+    throw new RangeError('A product and its packs each need a barcode of their own');
+  }
+}
+
+/**
+ * The live product a code was scanned for: by its own barcode it is one of it; by a pack barcode
+ * it is the pack (`qtyMilli`). None for text that is no barcode.
+ */
+export async function findProductByCode(
+  db: MarketDb,
+  code: string,
+): Promise<{ product: ProductRecord; qtyMilli?: number } | undefined> {
+  const own = await findProductByBarcode(db, code);
+  if (own) {
+    return { product: own };
+  }
+  const barcode = code.trim().toUpperCase();
+  if (!BARCODE.test(barcode)) {
+    return undefined;
+  }
+  const holders = await db.products.where('packCodes').equals(barcode).toArray();
+  const product = holders.find((holder) => !holder.deletedAt);
+  const pack = product?.packs?.find((item) => item.barcode === barcode);
+  return product && pack ? { product, qtyMilli: pack.qtyMilli } : undefined;
 }
 
 /**
@@ -325,6 +398,16 @@ async function claimBarcode(
   if (barcode === undefined) {
     return;
   }
+  // Another product's pack: a live one keeps it, a deleted one gives it up.
+  for (const packHolder of await db.products.where('packCodes').equals(barcode).toArray()) {
+    if (packHolder.id === ownerId) {
+      continue;
+    }
+    if (!packHolder.deletedAt) {
+      throw new DuplicateBarcodeError(barcode, packHolder.name);
+    }
+    await releasePack(db, packHolder, barcode, at);
+  }
   const holder = await db.products.where('barcode').equals(barcode).first();
   if (!holder || holder.id === ownerId) {
     return;
@@ -343,6 +426,39 @@ async function claimBarcode(
       table: 'products',
       recordId: holder.id,
       patch: { barcode: null, updatedAt: stamp },
+    },
+    at,
+  );
+}
+
+/** A deleted product gives up one of its pack barcodes to a product that claims it. */
+async function releasePack(
+  db: MarketDb,
+  holder: ProductRecord,
+  barcode: string,
+  at: Date,
+): Promise<void> {
+  const stamp = at.toISOString();
+  const packs = (holder.packs ?? []).filter((pack) => pack.barcode !== barcode);
+  const released = { ...holder, updatedAt: stamp };
+  delete released.packs;
+  delete released.packCodes;
+  if (packs.length > 0) {
+    released.packs = packs;
+    released.packCodes = packs.map((pack) => pack.barcode);
+  }
+  await db.products.put(released);
+  await appendOutbox(
+    db,
+    {
+      kind: 'patch',
+      table: 'products',
+      recordId: holder.id,
+      patch: {
+        packs: released.packs ?? null,
+        packCodes: released.packCodes ?? null,
+        updatedAt: stamp,
+      },
     },
     at,
   );

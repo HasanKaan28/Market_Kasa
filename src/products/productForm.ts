@@ -22,10 +22,17 @@ export type ProductDraft = {
   criticalLevel: string;
   isQuick: boolean;
   openingStock: string;
+  /** Case and pack barcodes as typed; a row left wholly empty is dropped. */
+  packs: PackDraft[];
 };
 
+export type PackDraft = { barcode: string; qty: string };
+
 export type DraftErrors = Partial<
-  Record<'barcode' | 'name' | 'sellPrice' | 'buyPrice' | 'criticalLevel' | 'openingStock', string>
+  Record<
+    'barcode' | 'name' | 'sellPrice' | 'buyPrice' | 'criticalLevel' | 'openingStock' | 'packs',
+    string
+  >
 >;
 
 export type ReadDraft =
@@ -48,6 +55,7 @@ const FIELD_OF: Record<Exclude<keyof ProductDraft, 'openingStock'>, keyof ReadFi
   vatRate: 'vatRate',
   criticalLevel: 'criticalLevelMilli',
   isQuick: 'isQuick',
+  packs: 'packs',
 };
 
 /**
@@ -92,6 +100,10 @@ export function draftOf(product?: ProductRecord, barcode?: string): ProductDraft
       product && product.criticalLevelMilli > 0 ? formatQtyInput(product.criticalLevelMilli) : '',
     isQuick: product?.isQuick ?? false,
     openingStock: '',
+    packs: (product?.packs ?? []).map((pack) => ({
+      barcode: pack.barcode,
+      qty: formatQtyInput(pack.qtyMilli),
+    })),
   };
 }
 
@@ -110,6 +122,7 @@ export function readDraft(draft: ProductDraft): ReadDraft {
   const buyPrice = readPrice(draft.buyPrice, 'buyPrice', errors);
   const criticalLevelMilli = readQuantity(draft.criticalLevel, draft.unit, 'criticalLevel', errors);
   const openingStockMilli = readQuantity(draft.openingStock, draft.unit, 'openingStock', errors);
+  const packs = readPacks(draft.packs, draft.unit, errors);
   if (Object.keys(errors).length > 0) {
     return { errors };
   }
@@ -124,9 +137,46 @@ export function readDraft(draft: ProductDraft): ReadDraft {
       vatRate: draft.vatRate,
       isQuick: draft.isQuick,
       criticalLevelMilli,
+      packs,
     },
     openingStockMilli,
   };
+}
+
+/** The packs typed, rows left empty dropped; the first row that cannot be read is named. */
+function readPacks(
+  rows: readonly PackDraft[],
+  unit: ProductUnit,
+  errors: DraftErrors,
+): { barcode: string; qtyMilli: number }[] {
+  const packs: { barcode: string; qtyMilli: number }[] = [];
+  for (const [index, row] of rows.entries()) {
+    const name = `Koli ${index + 1}`;
+    if (row.barcode.trim() === '' && row.qty.trim() === '') {
+      continue;
+    }
+    let barcode: string | undefined;
+    try {
+      barcode = canonicalBarcode(row.barcode);
+    } catch {
+      errors.packs = `${name}: barkod yalnız harf, rakam ve - içerebilir.`;
+      return [];
+    }
+    if (barcode === undefined) {
+      errors.packs = `${name}: barkod gerekli.`;
+      return [];
+    }
+    const qtyMilli = parseQuantity(row.qty.trim(), unit);
+    if (qtyMilli === null || qtyMilli <= 0) {
+      const fractional = unit === 'piece' && parseQuantity(row.qty.trim(), 'kg') !== null;
+      errors.packs = fractional
+        ? `${name}: adet için tam sayı girin.`
+        : `${name}: içindeki miktarı girin.`;
+      return [];
+    }
+    packs.push({ barcode, qtyMilli });
+  }
+  return packs;
 }
 
 /** What one unit earns at these prices, once both are typed. */

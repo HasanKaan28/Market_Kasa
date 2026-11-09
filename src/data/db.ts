@@ -109,6 +109,8 @@ export class MarketDb extends Dexie {
     this.version(13).stores({ auditLog: 'id, occurredAt' });
     // v14: e-Arşiv invoices asked for on sales (M7).
     this.version(14).stores({ invoices: 'id, saleId, status, updatedAt' });
+    // v15: a product's case and pack barcodes, looked up when scanned.
+    this.version(15).stores({ products: 'id, &barcode, name, updatedAt, *packCodes' });
   }
 }
 

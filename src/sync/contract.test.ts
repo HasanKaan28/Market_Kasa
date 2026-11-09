@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MarketDb } from '@/data/db';
 import { recordCount } from '@/data/counts';
 import { pendingCount, pendingOps } from '@/data/outbox';
-import { createProduct, deleteProduct, findProductByBarcode, updateProduct } from '@/data/products';
+import {
+  createProduct,
+  deleteProduct,
+  findProductByBarcode,
+  findProductByCode,
+  updateProduct,
+} from '@/data/products';
 import { recordReturn, returnedQuantities } from '@/data/returns';
 import { recordSale } from '@/data/sales';
 import { loadMarketSettings, saveMarketSettings } from '@/data/settings';
@@ -69,6 +75,28 @@ describe.each(SERVERS)('the $name server', ({ make }) => {
     expect(await pendingCount(a)).toBe(0);
     expect(await backend.rows('sales')).toHaveLength(1);
     expect(await backend.rows('stockMovements')).toHaveLength(1);
+  });
+
+  it('carries case barcodes to the other register, and their removal', async () => {
+    const water = await createProduct(
+      a,
+      {
+        barcode: 'B1',
+        name: 'Su',
+        sellPrice: 1000,
+        vatRate: 1,
+        packs: [{ barcode: 'K12', qtyMilli: 12000 }],
+      },
+      at,
+    );
+    await syncOnce(a, toA);
+    await syncOnce(b, toB);
+    expect(await findProductByCode(b, 'K12')).toMatchObject({ qtyMilli: 12000 });
+
+    await updateProduct(a, water.id, { packs: [] }, later(1));
+    await syncOnce(a, toA);
+    await syncOnce(b, toB);
+    expect(await findProductByCode(b, 'K12')).toBeUndefined();
   });
 
   it('merges a second insert of a record', async () => {

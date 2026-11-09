@@ -528,4 +528,18 @@ describe('PosScreen', () => {
     ).toBeInTheDocument();
     expect(await screen.findByText('1 kalem')).toBeInTheDocument();
   });
+
+  it('adds a whole case when its case barcode is scanned, and counts cases after "2*"', async () => {
+    const { data } = await renderWithData(<PosScreen />);
+    await createProduct(
+      data.db,
+      { ...milk, packs: [{ barcode: '8690000000029', qtyMilli: 12000 }] },
+      new Date(),
+    );
+    scan('8690000000029');
+    expect(await screen.findByText('12 × ₺42,50')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Barkod veya ürün adı'), '2*');
+    scan('8690000000029');
+    expect(await screen.findByText('36 × ₺42,50')).toBeInTheDocument();
+  });
 });

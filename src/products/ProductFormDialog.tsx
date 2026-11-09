@@ -102,10 +102,19 @@ export function ProductFormDialog({
     try {
       onSaved(await action());
     } catch (error) {
-      setErrors(
+      const taken =
         error instanceof DuplicateBarcodeError
-          ? { barcode: `Bu barkod “${error.holderName}” ürününde kayıtlı.` }
-          : { form: failure },
+          ? `Bu barkod “${error.holderName}” ürününde kayıtlı.`
+          : undefined;
+      const onPack =
+        error instanceof DuplicateBarcodeError &&
+        draft.packs.some((pack) => pack.barcode.trim().toUpperCase() === error.barcode);
+      setErrors(
+        taken === undefined
+          ? { form: failure }
+          : onPack
+            ? { packs: `${(error as DuplicateBarcodeError).barcode}: ${taken}` }
+            : { barcode: taken },
       );
     } finally {
       setBusy(false);
@@ -288,6 +297,75 @@ export function ProductFormDialog({
               onChange={(event) => set('openingStock', event.target.value)}
             />
           ) : null}
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">Koli / paket barkodları</p>
+            <p className="text-sm text-text-2">
+              Koli okutulunca içindeki miktar kadar eklenir (kasada ve mal kabulde).
+            </p>
+            {draft.packs.map((pack, index) => (
+              <div
+                key={index}
+                role="group"
+                aria-label={`Koli ${index + 1}`}
+                className="flex flex-wrap items-end gap-2"
+              >
+                <div className="min-w-0 flex-[2_1_180px]">
+                  <TextField
+                    label="Koli barkodu"
+                    className="font-mono"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={pack.barcode}
+                    onChange={(event) =>
+                      set(
+                        'packs',
+                        draft.packs.map((item, at) =>
+                          at === index ? { ...item, barcode: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+                <div className="w-32">
+                  <TextField
+                    label="İçindeki miktar"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={pack.qty}
+                    onChange={(event) =>
+                      set(
+                        'packs',
+                        draft.packs.map((item, at) =>
+                          at === index ? { ...item, qty: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    set(
+                      'packs',
+                      draft.packs.filter((_, at) => at !== index),
+                    )
+                  }
+                >
+                  Koliyi çıkar
+                </Button>
+              </div>
+            ))}
+            {errors.packs ? (
+              <p role="alert" className="text-sm font-medium text-danger">
+                {errors.packs}
+              </p>
+            ) : null}
+            <div>
+              <Button onClick={() => set('packs', [...draft.packs, { barcode: '', qty: '' }])}>
+                Koli barkodu ekle
+              </Button>
+            </div>
+          </div>
           <label className="flex min-h-11 cursor-pointer items-center gap-3">
             <input
               type="checkbox"

@@ -44,14 +44,24 @@ export const DELETED_PRODUCT_LINE = 'Bu ürün silinmiş; satırı çıkarın.';
 const STORAGE_KEY = 'mk2.goodsReceipt';
 const ONE = 1000;
 
-/** Adds a product, or counts it up by one when it is already there (a rescan). */
-export function addProduct(draft: ReceiptDraft, product: ProductRecord): ReceiptDraft {
+/**
+ * Adds a product, or counts it up when it is already there (a rescan): by one, or by a case's
+ * contents (`qtyMilli`) when its case barcode was scanned.
+ */
+export function addProduct(
+  draft: ReceiptDraft,
+  product: ProductRecord,
+  qtyMilli: number = ONE,
+): ReceiptDraft {
   if (draft.lines.some((line) => line.productId === product.id)) {
     return {
       ...draft,
       lines: draft.lines.map((line) =>
         line.productId === product.id
-          ? { ...line, qty: formatQtyInput((parseQuantity(line.qty, line.unit) ?? 0) + ONE) }
+          ? {
+              ...line,
+              qty: formatQtyInput((parseQuantity(line.qty, line.unit) ?? 0) + qtyMilli),
+            }
           : line,
       ),
     };
@@ -60,7 +70,7 @@ export function addProduct(draft: ReceiptDraft, product: ProductRecord): Receipt
     productId: product.id,
     name: product.name,
     unit: product.unit,
-    qty: '1',
+    qty: formatQtyInput(qtyMilli),
   };
   return { ...draft, lines: [...draft.lines, line] };
 }
