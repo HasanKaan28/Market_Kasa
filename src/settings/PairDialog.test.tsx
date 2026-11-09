@@ -196,4 +196,22 @@ describe('PairingAction', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Yeniden bağla' }));
     expect(onRepair).toHaveBeenCalled();
   });
+
+  it('takes a device tried offline back to the first screen', async () => {
+    const onWelcome = vi.fn();
+    const onOpen = vi.fn();
+    render(
+      <PairingAction
+        config={{ url: 'https://x.supabase.co', key: 'sb_publishable_x' }}
+        onOpen={onOpen}
+        onWelcome={onWelcome}
+        paired={false}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Market kur ya da giriş yap' }));
+    expect(onWelcome).toHaveBeenCalled();
+    // The code is still there for a register an owner pairs by hand.
+    await userEvent.click(screen.getByRole('button', { name: 'Kodla bağla' }));
+    expect(onOpen).toHaveBeenCalled();
+  });
 });

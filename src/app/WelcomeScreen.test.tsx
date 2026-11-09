@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DEVICE } from './device';
-import { shouldWelcome } from './welcome';
+import { reopenWelcome, shouldWelcome } from './welcome';
 import { WelcomeScreen } from './WelcomeScreen';
 
 const claimed = {
@@ -133,5 +133,16 @@ describe('WelcomeScreen', () => {
   it('greets with the Market Kasa logo', () => {
     setup();
     expect(document.querySelector('main img[src$="logo.svg"]')).not.toBeNull();
+  });
+
+  it('comes back once the shop asks for it after trying offline', () => {
+    const stored = new Map([['mk2.welcomeSkipped', '1']]);
+    const storage = {
+      getItem: (key: string) => stored.get(key) ?? null,
+      removeItem: (key: string) => void stored.delete(key),
+    };
+    expect(shouldWelcome(DEFAULT_DEVICE, server, storage)).toBe(false);
+    reopenWelcome(storage);
+    expect(shouldWelcome(DEFAULT_DEVICE, server, storage)).toBe(true);
   });
 });

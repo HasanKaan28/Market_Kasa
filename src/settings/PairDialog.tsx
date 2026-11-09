@@ -246,6 +246,7 @@ export function PairingAction({
   lost = false,
   onOpen,
   onRepair,
+  onWelcome,
 }: {
   config: ServerConfig | null;
   paired: boolean;
@@ -253,6 +254,8 @@ export function PairingAction({
   lost?: boolean;
   onOpen(): void;
   onRepair?(): void;
+  /** Back to the first screen ("Market kur" / "Markete giriş yap"), for a device tried offline. */
+  onWelcome?(): void;
 }): JSX.Element | null {
   if (!config) {
     return null;
@@ -260,9 +263,18 @@ export function PairingAction({
   if (paired && lost) {
     return <Button onClick={onRepair}>Yeniden bağla</Button>;
   }
-  return paired ? (
-    <p className="text-sm font-medium text-success">Sunucuya bağlı</p>
-  ) : (
-    <Button onClick={onOpen}>Sunucuya bağla</Button>
+  if (paired) {
+    return <p className="text-sm font-medium text-success">Sunucuya bağlı</p>;
+  }
+  if (!onWelcome) {
+    return <Button onClick={onOpen}>Sunucuya bağla</Button>;
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button variant="primary" onClick={onWelcome}>
+        Market kur ya da giriş yap
+      </Button>
+      <Button onClick={onOpen}>Kodla bağla</Button>
+    </div>
   );
 }

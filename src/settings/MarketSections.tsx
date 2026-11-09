@@ -4,6 +4,7 @@ import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
 import { saveDeviceSettings } from '@/app/device';
 import { finishPairing } from '@/app/finishPairing';
+import { reopenWelcome } from '@/app/welcome';
 import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
 import { currentCashSession } from '@/data/cash';
@@ -178,6 +179,10 @@ export function RegisterSection(): JSX.Element {
           lost={lost}
           onOpen={() => setPairing(true)}
           onRepair={() => void repair()}
+          onWelcome={() => {
+            reopenWelcome(window.localStorage);
+            window.location.reload();
+          }}
         />
       }
     >

@@ -19,3 +19,12 @@ export function shouldWelcome(
     return true;
   }
 }
+
+/** Brings the first screen back on the next start, after the shop chose to try offline. */
+export function reopenWelcome(storage: Pick<Storage, 'removeItem'>): void {
+  try {
+    storage.removeItem(WELCOME_SKIPPED);
+  } catch {
+    // Without storage the flag was never kept, so the screen shows anyway.
+  }
+}
