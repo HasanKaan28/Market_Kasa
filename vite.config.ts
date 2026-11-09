@@ -26,6 +26,8 @@ export default defineConfig({
           environment: 'jsdom',
           // A local .env.local must not change what the tests see: no server unless a test says so.
           env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '' },
+          // Screen tests that pass alone in a second can pass 5 s when every worker is busy.
+          testTimeout: 15_000,
           setupFiles: ['./src/test/setup.ts'],
           include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts'],
         },

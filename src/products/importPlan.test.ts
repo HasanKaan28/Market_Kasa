@@ -287,7 +287,8 @@ describe('applyImport', () => {
     const plan = planImport(rows, [], [], new Map());
     expect(await applyImport(db, plan, rows, at)).toEqual({ created: 5000, updated: 0 });
     expect(await db.products.count()).toBe(5000);
-  });
+    // Five thousand writes take a few seconds on a loaded machine; the limit is for a hang.
+  }, 20_000);
 
   it('restores a deleted product that the file names', async () => {
     const old = await createProduct(
