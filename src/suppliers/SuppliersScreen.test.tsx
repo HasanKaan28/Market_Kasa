@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/app/App';
+import { createProduct } from '@/data/products';
+import { recordPurchase } from '@/data/purchases';
 import { addSupplierInvoice, recordSupplierPayment } from '@/data/supplierLedger';
 import { archiveSupplier, createSupplier, supplierBalance } from '@/data/suppliers';
 import { createTestData, renderWithData } from '@/test/renderWithData';
@@ -200,5 +202,63 @@ describe('SupplierDialog', () => {
     await renderWithData(<SuppliersScreen />, data);
     const table = await screen.findByRole('table', { name: 'Tedarikçiler' });
     expect(rowsOf(table)).toEqual([['PınarArşivli', '—', '₺300,00']]);
+  });
+
+  it('lists the supplier’s invoices and opens what each one holds', async () => {
+    const data = createTestData();
+    const eti = await createSupplier(data.db, { name: 'Eti' }, at);
+    const biskuvi = await createProduct(
+      data.db,
+      { name: 'Bisküvi', sellPrice: 1500, buyPrice: 1000, vatRate: 1 },
+      at,
+    );
+    const kek = await createProduct(data.db, { name: 'Kek', sellPrice: 2500, vatRate: 1 }, at);
+    await recordPurchase(
+      data.db,
+      {
+        deviceCode: 'K1',
+        supplierId: eti.id,
+        invoiceNo: 'F-77',
+        payment: 'on_account',
+        lines: [
+          { productId: biskuvi.id, qtyMilli: 24_000, buyPrice: 1100 },
+          { productId: kek.id, qtyMilli: 2_000, free: true },
+        ],
+      },
+      at,
+    );
+    await recordPurchase(
+      data.db,
+      {
+        deviceCode: 'K1',
+        supplierId: eti.id,
+        invoiceNo: 'F-78',
+        payment: 'cash',
+        lines: [{ productId: kek.id, qtyMilli: 10_000, buyPrice: 1800 }],
+      },
+      new Date('2026-10-22T09:00:00Z'),
+    );
+    await renderWithData(
+      <SupplierDialog open supplierId={eti.id} onClose={vi.fn()} onDone={vi.fn()} />,
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Eti' });
+    const invoices = await within(dialog).findByRole('list', { name: 'Faturalar' });
+    // Newest first; a cash invoice owes nothing but still belongs to the supplier.
+    const buttons = within(invoices).getAllByRole('button');
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      '22.10.2026Fatura F-78 · Peşin₺180,00',
+      '20.10.2026Fatura F-77 · Veresiye₺264,00',
+    ]);
+
+    await userEvent.click(buttons[1] as HTMLElement);
+    const lines = await within(dialog).findByRole('table', { name: 'Fatura F-77' });
+    expect(rowsOf(lines)).toEqual([
+      ['Bisküvi', '24 adet', '₺11,00', '₺264,00'],
+      ['Kek', '2 adet', 'Bedelsiz', '₺0,00'],
+    ]);
+    expect(buttons[1]).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(buttons[1] as HTMLElement);
+    expect(within(dialog).queryByRole('table', { name: 'Fatura F-77' })).not.toBeInTheDocument();
   });
 });

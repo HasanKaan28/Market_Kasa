@@ -209,3 +209,14 @@ function assertPrice(price: Kurus): void {
     throw new RangeError(`A price must be between 0 and ${MAX_UNIT_PRICE}, got ${price}`);
   }
 }
+
+/** A supplier's goods receipts, newest first: paid or owed, every one is theirs. */
+export async function listSupplierPurchases(
+  db: MarketDb,
+  supplierId: string,
+): Promise<PurchaseRecord[]> {
+  const purchases = await db.purchases
+    .filter((purchase) => purchase.supplierId === supplierId)
+    .toArray();
+  return purchases.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+}

@@ -10,6 +10,7 @@ import { printStatement } from '@/customers/printStatement';
 import { Button, Dialog } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { SupplierFormDialog } from './SupplierFormDialog';
+import { SupplierInvoices } from './SupplierInvoices';
 import { SupplierPaymentForm } from './SupplierPaymentForm';
 import { formatSupplierBalance, SUPPLIER_CREDIT_LABEL, supplierStatement } from './statement';
 
@@ -159,6 +160,7 @@ export function SupplierDialog({
               onCancel={() => setPanel(null)}
             />
           ) : null}
+          <SupplierInvoices supplierId={supplierId} />
           {lines.length === 0 ? (
             <p className="text-text-2">Bu tedarikçinin hareketi yok.</p>
           ) : (
