@@ -83,6 +83,21 @@ describe('GoodsReceipt', () => {
     expect(screen.queryByRole('group', { name: 'Süt' })).not.toBeInTheDocument();
   });
 
+  it('records the son kullanma tarihi written on a line', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    const onDone = vi.fn();
+    await renderWithData(<GoodsReceipt onDone={onDone} />, data);
+    await scan('8690000000017');
+    const line = await lineOf('Süt');
+    await userEvent.type(within(line).getByLabelText('SKT'), '2026-11-20');
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(await data.db.purchases.toArray()).toMatchObject([
+      { lines: [{ name: 'Süt', expiresOn: '2026-11-20' }] },
+    ]);
+  });
+
   it('keeps the draft across a reload', async () => {
     const data = createTestData();
     await createProduct(data.db, milk, at);

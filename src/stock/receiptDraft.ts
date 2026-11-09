@@ -1,4 +1,4 @@
-import type { PurchaseInput } from '@/data/purchases';
+import { isDate, type PurchaseInput } from '@/data/purchases';
 import type { ProductRecord, ProductUnit, PurchasePayment } from '@/data/types';
 import { formatTRY, parseTRY } from '@/domain/money';
 import { lineTotal, MAX_UNIT_PRICE, withVat } from '@/domain/pricing';
@@ -21,6 +21,8 @@ export type DraftLine = {
   sellPrice?: string;
   /** Came free: no cost, and the product keeps its buy price. */
   free?: boolean;
+  /** Son kullanma tarihi as the date box gives it, `YYYY-MM-DD`; empty when none. */
+  expiry?: string;
 };
 
 export type ReceiptDraft = {
@@ -165,6 +167,11 @@ export function readDraftLines(
       errors.set(line.productId, priceError);
       continue;
     }
+    const expiresOn = line.expiry?.trim() || undefined;
+    if (expiresOn !== undefined && !isDate(expiresOn)) {
+      errors.set(line.productId, 'Son kullanma tarihi geçerli bir tarih olmalı.');
+      continue;
+    }
     lines.push({
       productId: line.productId,
       qtyMilli,
@@ -179,6 +186,7 @@ export function readDraftLines(
             : { buyPrice }
           : {}),
       ...(typeof sellPrice === 'number' ? { sellPrice } : {}),
+      ...(expiresOn !== undefined ? { expiresOn } : {}),
     });
   }
   return { lines, errors };
@@ -221,7 +229,7 @@ function isDraftLine(line: unknown): boolean {
   const fields = line as Record<string, unknown>;
   return (
     ['productId', 'name', 'qty'].every((key) => typeof fields[key] === 'string') &&
-    ['buyPrice', 'sellPrice'].every(
+    ['buyPrice', 'sellPrice', 'expiry'].every(
       (key) => fields[key] === undefined || typeof fields[key] === 'string',
     ) &&
     ['undefined', 'boolean'].includes(typeof fields.free) &&

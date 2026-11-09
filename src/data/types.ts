@@ -111,6 +111,8 @@ export type PurchaseLine = {
   cost: Kurus;
   /** Came free: no cost, and the product keeps its buy price. */
   free?: boolean;
+  /** Son kullanma tarihi of this delivery, `YYYY-MM-DD`; absent when none was written. */
+  expiresOn?: string;
 };
 
 /** How a delivery was paid: on the spot, or owed to the supplier (its ledger gets the invoice). */

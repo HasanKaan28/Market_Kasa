@@ -37,7 +37,7 @@ const PAYMENTS: readonly { value: PurchasePayment; label: string }[] = [
   { value: 'on_account', label: 'Açık hesap' },
 ];
 
-type LineField = 'qty' | 'buyPrice' | 'sellPrice';
+type LineField = 'qty' | 'buyPrice' | 'sellPrice' | 'expiry';
 type PriceField = 'buyPrice' | 'sellPrice';
 
 export type GoodsReceiptProps = {
@@ -412,7 +412,7 @@ function ReceiptLine({
           onClick={onRemove}
         />
       </div>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-4">
         <TextField
           label="Miktar"
           hint={unit === 'kg' ? 'Kilogram' : 'Adet'}
@@ -439,6 +439,13 @@ function ReceiptLine({
           value={shownPrice(line, product, 'sellPrice')}
           placeholder={keptPrice(product, 'sellPrice')}
           onChange={(event) => onChange('sellPrice', event.target.value)}
+        />
+        <TextField
+          label="SKT"
+          hint="Son kullanma tarihi, isteğe bağlı"
+          type="date"
+          value={line.expiry ?? ''}
+          onChange={(event) => onChange('expiry', event.target.value)}
         />
       </div>
       <label className="flex min-h-11 cursor-pointer items-center gap-3">

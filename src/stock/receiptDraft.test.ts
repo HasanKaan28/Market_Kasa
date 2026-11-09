@@ -208,3 +208,38 @@ describe('receiptDraft', () => {
     expect(loadDraft({ getItem: () => stored })).toEqual(EMPTY_DRAFT);
   });
 });
+
+describe('a receipt line’s expiry date', () => {
+  const milk = product('milk');
+  const products = new Map([['milk', milk]]);
+  const line = { productId: 'milk', name: 'milk', unit: 'piece' as const, qty: '12' };
+
+  it('goes with the line when one is written, and is left out when not', () => {
+    const draft = { ...EMPTY_DRAFT, lines: [{ ...line, expiry: '2026-11-20' }] };
+    expect(readDraftLines(draft, products).lines).toEqual([
+      { productId: 'milk', qtyMilli: 12000, expiresOn: '2026-11-20' },
+    ]);
+    const without = { ...EMPTY_DRAFT, lines: [{ ...line, expiry: '' }] };
+    expect(readDraftLines(without, products).lines).toEqual([
+      { productId: 'milk', qtyMilli: 12000 },
+    ]);
+  });
+
+  it('stops a line whose date cannot be read', () => {
+    const draft = { ...EMPTY_DRAFT, lines: [{ ...line, expiry: '2026-02-30' }] };
+    expect(readDraftLines(draft, products).errors.get('milk')).toBe(
+      'Son kullanma tarihi geçerli bir tarih olmalı.',
+    );
+  });
+
+  it('survives a reload of the draft', () => {
+    const stored = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => void stored.set(key, value),
+    };
+    const draft = { ...EMPTY_DRAFT, lines: [{ ...line, expiry: '2026-11-20' }] };
+    saveDraft(draft, storage);
+    expect(loadDraft(storage)).toEqual(draft);
+  });
+});

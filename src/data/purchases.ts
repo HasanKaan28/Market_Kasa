@@ -29,6 +29,8 @@ export type PurchaseInput = {
      * added to the line total, as a VAT-exclusive invoice does.
      */
     cost?: Kurus;
+    /** The delivery's son kullanma tarihi, `YYYY-MM-DD`. */
+    expiresOn?: string;
   }[];
   /** Who delivered; needed when the delivery is owed (`on_account`). */
   supplierId?: string;
@@ -87,6 +89,9 @@ export async function recordPurchase(
         throw new RecordNotFoundError('Product', line.productId);
       }
       assertQuantity(line.qtyMilli, product.unit);
+      if (line.expiresOn !== undefined && !isDate(line.expiresOn)) {
+        throw new RangeError(`An expiry date is YYYY-MM-DD, got "${line.expiresOn}"`);
+      }
       // A buy price typed as nothing is free goods: a receipt never sets a buy price to 0.
       const free = line.free === true || line.buyPrice === 0;
       const buyPrice = free ? 0 : (line.buyPrice ?? product.buyPrice);
@@ -112,6 +117,7 @@ export async function recordPurchase(
           buyPrice,
           cost: free ? 0 : lineCost(line.cost, line.qtyMilli, buyPrice),
           ...(free ? { free: true } : {}),
+          ...(line.expiresOn !== undefined ? { expiresOn: line.expiresOn } : {}),
         },
       });
     }
@@ -219,4 +225,13 @@ export async function listSupplierPurchases(
     .filter((purchase) => purchase.supplierId === supplierId)
     .toArray();
   return purchases.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+}
+
+/** A real calendar day written `YYYY-MM-DD`. */
+export function isDate(text: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return false;
+  }
+  const date = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
 }

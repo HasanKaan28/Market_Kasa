@@ -4,19 +4,24 @@ import { AppShell } from '@/app/AppShell';
 import { ChoiceGroup, ToastRegion, useToast } from '@/design';
 import type { ProductRecord } from '@/data/types';
 import { CriticalStock } from './CriticalStock';
+import { ExpiringStock } from './ExpiringStock';
 import { GoodsReceipt } from './GoodsReceipt';
 import { StockCount } from './StockCount';
 import { addProduct, loadDraft, saveDraft } from './receiptDraft';
 
-type StockView = 'receive' | 'count' | 'critical';
+type StockView = 'receive' | 'count' | 'critical' | 'expiry';
 
 const VIEWS: readonly { value: StockView; label: string }[] = [
   { value: 'receive', label: 'Mal kabul' },
   { value: 'count', label: 'Sayım' },
   { value: 'critical', label: 'Kritik stok' },
+  { value: 'expiry', label: 'SKT yaklaşanlar' },
 ];
 
-/** Stock work: receiving goods, counting the shelf and the products that are running out. */
+/**
+ * Stock work: receiving goods, counting the shelf, the products that are running out and the
+ * deliveries whose son kullanma tarihi is near.
+ */
 export function StockScreen(): JSX.Element {
   const { settings, runner } = useData();
   const status = useSyncStatus(runner);
@@ -51,6 +56,7 @@ export function StockScreen(): JSX.Element {
         {view === 'receive' ? <GoodsReceipt onDone={toast.show} /> : null}
         {view === 'count' ? <StockCount onDone={toast.show} /> : null}
         {view === 'critical' ? <CriticalStock onReceive={receive} /> : null}
+        {view === 'expiry' ? <ExpiringStock /> : null}
       </AppShell>
       <ToastRegion message={toast.message} />
     </>
