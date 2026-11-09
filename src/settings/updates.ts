@@ -3,9 +3,10 @@ import { Capacitor } from '@capacitor/core';
 /** What the desktop app's updater reports (electron/updates.cjs). */
 export type UpdateStatus =
   | { kind: 'checking' }
-  | { kind: 'available'; version: string }
+  /** `installNow`: found while the app was starting, so it goes in once downloaded. */
+  | { kind: 'available'; version: string; installNow?: boolean }
   | { kind: 'current' }
-  | { kind: 'downloading'; percent: number }
+  | { kind: 'downloading'; percent: number; installNow?: boolean }
   /** Downloaded while the register was at work; it goes in when the app closes. */
   | { kind: 'ready'; version: string }
   | { kind: 'installing'; version: string }
@@ -15,6 +16,8 @@ export type UpdateStatus =
 export type DesktopUpdates = {
   check(): Promise<unknown>;
   install(): Promise<unknown>;
+  /** Puts off a startup install until the app closes. */
+  defer(): Promise<unknown>;
   onStatus(callback: (status: UpdateStatus) => void): () => void;
 };
 

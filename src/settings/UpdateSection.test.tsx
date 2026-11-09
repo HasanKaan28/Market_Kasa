@@ -8,6 +8,7 @@ function desktop() {
   const bridge: DesktopUpdates = {
     check: vi.fn(async () => undefined),
     install: vi.fn(async () => undefined),
+    defer: vi.fn(async () => undefined),
     onStatus(callback) {
       listener = callback;
       return () => {

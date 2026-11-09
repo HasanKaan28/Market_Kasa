@@ -59,17 +59,37 @@ describe('desktop updates', () => {
     expect(updater.checkForUpdates).toHaveBeenCalledTimes(2);
   });
 
-  it('installs at once an update that is ready while the app is just starting', () => {
+  it('installs at once an update found while the app is just starting, however long it takes', () => {
     const { updater, sent, clock } = setup();
     clock.now = 30_000;
+    updater.emit('update-available', { version: '2.0.5' });
+    expect(sent.at(-1)).toEqual({ kind: 'available', version: '2.0.5', installNow: true });
+    // A slow line: the download ends well after the start, and still goes in.
+    clock.now = 9 * MINUTE;
+    updater.emit('download-progress', { percent: 63.2 });
+    expect(sent.at(-1)).toEqual({ kind: 'downloading', percent: 63, installNow: true });
     updater.emit('update-downloaded', { version: '2.0.5' });
     expect(sent.at(-1)).toEqual({ kind: 'installing', version: '2.0.5' });
     expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true);
   });
 
+  it('lets the shop put off a startup install until the app closes', async () => {
+    const { updater, ipc, sent, clock } = setup();
+    clock.now = 30_000;
+    updater.emit('update-available', { version: '2.0.5' });
+    await ipc.handlers.get('updates:defer')?.();
+    updater.emit('download-progress', { percent: 10 });
+    expect(sent.at(-1)).toEqual({ kind: 'downloading', percent: 10, installNow: false });
+    updater.emit('update-downloaded', { version: '2.0.5' });
+    expect(sent.at(-1)).toEqual({ kind: 'ready', version: '2.0.5' });
+    expect(updater.quitAndInstall).not.toHaveBeenCalled();
+  });
+
   it('leaves a register at work alone: the update waits for the app to close or for a press', async () => {
     const { updater, ipc, sent, clock } = setup();
     clock.now = 10 * MINUTE;
+    updater.emit('update-available', { version: '2.0.5' });
+    expect(sent.at(-1)).toEqual({ kind: 'available', version: '2.0.5', installNow: false });
     updater.emit('update-downloaded', { version: '2.0.5' });
     expect(sent.at(-1)).toEqual({ kind: 'ready', version: '2.0.5' });
     expect(updater.quitAndInstall).not.toHaveBeenCalled();
@@ -88,7 +108,10 @@ describe('desktop updates', () => {
     expect(updater.checkForUpdates).toHaveBeenCalled();
     updater.emit('checking-for-update');
     updater.emit('update-available', { version: '2.0.1' });
-    expect(sent).toEqual([{ kind: 'checking' }, { kind: 'available', version: '2.0.1' }]);
+    expect(sent).toEqual([
+      { kind: 'checking' },
+      { kind: 'available', version: '2.0.1', installNow: true },
+    ]);
 
     updater.emit('update-not-available', { version: '2.0.0' });
     expect(sent.at(-1)).toEqual({ kind: 'current' });
@@ -102,7 +125,7 @@ describe('desktop updates', () => {
     expect(updater.downloadUpdate).toHaveBeenCalled();
 
     updater.emit('download-progress', { percent: 41.6 });
-    expect(sent.at(-1)).toEqual({ kind: 'downloading', percent: 42 });
+    expect(sent.at(-1)).toEqual({ kind: 'downloading', percent: 42, installNow: true });
     updater.emit('update-downloaded', { version: '2.0.1' });
     expect(sent.at(-1)).toEqual({ kind: 'installing', version: '2.0.1' });
     expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true);

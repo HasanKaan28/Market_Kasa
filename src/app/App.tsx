@@ -14,8 +14,21 @@ import { joinMarket, openMarket } from '@/server/onboarding';
 import { currentPlatform } from '@/server/pairing';
 import { WELCOME_SKIPPED, shouldWelcome } from './welcome';
 import { WelcomeScreen } from './WelcomeScreen';
+import { UpdateOverlay } from './UpdateOverlay';
+import { updateTarget } from '@/settings/updates';
 
+/** The app, with the desktop's startup-update screen over whatever is showing. */
 export function App(): JSX.Element {
+  const [desktop] = useState(() => updateTarget().desktop);
+  return (
+    <>
+      <AppContent />
+      <UpdateOverlay {...(desktop ? { desktop } : {})} />
+    </>
+  );
+}
+
+function AppContent(): JSX.Element {
   const [data] = useState(() => createAppData(loadDeviceSettings()));
   const [welcome, setWelcome] = useState(() =>
     shouldWelcome(data.settings, SERVER, window.localStorage),
