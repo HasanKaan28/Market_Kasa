@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Test and tool output
+coverage/
+.playwright-mcp/
+
 # Production builds & packaging
 dist/
 dist-electron/
@@ -26,3 +30,7 @@ Thumbs.db
 .idea/
 start.sh
 icon.png
+.env.local
+.playwright-mcp/
+# The Windows app icon (electron-builder reads it at build time).
+!build/icon.png

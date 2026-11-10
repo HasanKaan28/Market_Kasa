@@ -1,14 +1,51 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  dialog,
+  ipcMain,
+  net,
+  protocol,
+  screen,
+  shell,
+} = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const {
+  APP_HOST,
+  CONTENT_SECURITY_POLICY,
+  devToolsAllowed,
+  isExternalUrl,
+  resolveAppFile,
+} = require('./security.cjs');
+const { displayBounds, isDisplayUrl } = require('./display.cjs');
+const { wireUpdates } = require('./updates.cjs');
 
-// Tekil Kopya Kilidi (Single Instance Lock)
+const DIST = path.join(__dirname, '../dist');
+const APP_ORIGIN = `app://${APP_HOST}`;
+
+// The app is served from its own origin rather than file://, so web security and the sandbox
+// can stay on and its data lives under one stable origin.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
+
 const gotTheLock = app.requestSingleInstanceLock();
 
-// Chromium bayrakları: file:// protokolünden yerel ES modüllerinin ve stil dosyalarının engelsiz yüklenmesi için
-app.commandLine.appendSwitch('allow-file-access-from-files');
-app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
-
 let mainWindow = null;
+
+async function serveApp(request) {
+  const file = resolveAppFile(DIST, request.url);
+  if (!file) {
+    return new Response('Not found', { status: 404 });
+  }
+  const response = await net.fetch(pathToFileURL(file).toString());
+  const headers = new Headers(response.headers);
+  headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  headers.set('X-Content-Type-Options', 'nosniff');
+  return new Response(response.body, { status: response.status, headers });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -16,56 +53,100 @@ function createWindow() {
     height: 820,
     minWidth: 1024,
     minHeight: 650,
-    title: 'Market Kasa - Masaüstü POS',
-    backgroundColor: '#020617', // Slate 950
-    autoHideMenuBar: false,
+    title: 'Market Kasa',
+    backgroundColor: '#F5F6F8',
     webPreferences: {
-      nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
-      webSecurity: false
-    }
-  });
-
-  // dist/index.html dosyasını yükle
-  const indexPath = path.join(__dirname, '../dist/index.html');
-  mainWindow.loadFile(indexPath);
-
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error('Yükleme hatası:', errorCode, errorDescription, validatedURL);
-  });
-
-  const menuTemplate = [
-    {
-      label: 'Görünüm',
-      submenu: [
-        { role: 'reload', label: 'Yenile (F5)' },
-        { role: 'forceReload', label: 'Zorla Yenile' },
-        { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Tam Ekran (F11)' },
-        { role: 'toggleDevTools', label: 'Geliştirici Araçları' }
-      ]
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      devTools: devToolsAllowed(app.isPackaged),
+      // Runs sandboxed; it hands the page only the update calls.
+      preload: path.join(__dirname, 'preload.cjs'),
     },
-    {
-      label: 'Yardım',
-      submenu: [
-        {
-          label: 'Market Kasa Hakkında',
-          click: () => {
-            const { dialog } = require('electron');
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: 'Market Kasa POS',
-              message: 'Market Kasa POS - Windows Masaüstü Sürümü\nSürüm: 1.0.0\nGoogle Drive & Yerel Ağ Canlı Senkronizasyon Destekli'
-            });
-          }
-        }
-      ]
-    }
-  ];
+  });
 
-  const menu = Menu.buildFromTemplate(menuTemplate);
-  Menu.setApplicationMenu(menu);
+  // Links such as WhatsApp go to the system browser. The one window of ours that opens is the
+  // customer display, full screen on a second monitor when there is one.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isDisplayUrl(url)) {
+      const { bounds, fullscreen } = displayBounds(
+        screen.getAllDisplays(),
+        screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id,
+      );
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          ...bounds,
+          fullscreen,
+          title: 'Market Kasa · Müşteri ekranı',
+          autoHideMenuBar: true,
+          backgroundColor: '#F5F6F8',
+          webPreferences: {
+            contextIsolation: true,
+            sandbox: true,
+            nodeIntegration: false,
+            webSecurity: true,
+            devTools: devToolsAllowed(app.isPackaged),
+          },
+        },
+      };
+    }
+    if (isExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+  // The display stays on its page and opens nothing itself.
+  mainWindow.webContents.on('did-create-window', (child) => {
+    child.setMenu(null);
+    child.webContents.on('will-navigate', (event, url) => {
+      if (!isDisplayUrl(url)) {
+        event.preventDefault();
+      }
+    });
+    child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(`${APP_ORIGIN}/`)) {
+      event.preventDefault();
+    }
+  });
+
+  mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, url) => {
+    console.error('Load failed:', errorCode, errorDescription, url);
+  });
+
+  const view = [
+    { role: 'reload', label: 'Yenile (F5)' },
+    { role: 'forceReload', label: 'Zorla yenile' },
+    { type: 'separator' },
+    { role: 'togglefullscreen', label: 'Tam ekran (F11)' },
+  ];
+  if (devToolsAllowed(app.isPackaged)) {
+    view.push({ role: 'toggleDevTools', label: 'Geliştirici araçları' });
+  }
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { label: 'Görünüm', submenu: view },
+      {
+        label: 'Yardım',
+        submenu: [
+          {
+            label: 'Market Kasa hakkında',
+            click: () =>
+              dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'Market Kasa',
+                message: `Market Kasa\nSürüm ${app.getVersion()}`,
+              }),
+          },
+        ],
+      },
+    ]),
+  );
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -83,6 +164,8 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    protocol.handle('app', serveApp);
+    wireUpdates({ autoUpdater, ipcMain, getWindow: () => mainWindow, isPackaged: app.isPackaged });
     createWindow();
 
     app.on('activate', () => {

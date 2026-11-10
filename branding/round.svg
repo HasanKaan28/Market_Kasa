@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3060F0"/>
+      <stop offset="1" stop-color="#1D43C2"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+  <g transform="translate(35.8 35.8) scale(0.86)">
+<!-- The register's slot -->
+  <rect x="92" y="108" width="328" height="52" rx="26" fill="#0F1B4D"/>
+  <!-- The receipt, torn at the bottom -->
+  <path fill="#FFFFFF" d="M138 134h236v258l-19.7 16-19.6-16-19.7 16-19.7-16-19.6 16-19.7-16-19.7 16-19.6-16-19.7 16-19.7-16-19.6 16L138 392z"/>
+  <!-- The slot's lip over the paper -->
+  <rect x="92" y="108" width="328" height="34" rx="17" fill="#0F1B4D"/>
+  <!-- Lines on the receipt; the last, darker one is the total -->
+  <rect x="174" y="190" width="164" height="22" rx="11" fill="#C7D3F7"/>
+  <rect x="174" y="236" width="118" height="22" rx="11" fill="#C7D3F7"/>
+  <rect x="174" y="300" width="164" height="34" rx="17" fill="#2350D8"/>
+  </g>
+</svg>
