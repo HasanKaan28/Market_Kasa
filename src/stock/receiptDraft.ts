@@ -1,4 +1,5 @@
-import { isDate, type PurchaseInput } from '@/data/purchases';
+import { isDate } from '@/data/dates';
+import type { PurchaseInput } from '@/data/purchases';
 import type { ProductRecord, ProductUnit, PurchasePayment } from '@/data/types';
 import { formatTRY, parseTRY } from '@/domain/money';
 import { lineTotal, MAX_UNIT_PRICE, withVat } from '@/domain/pricing';
@@ -35,6 +36,8 @@ export type ReceiptDraft = {
   payment?: PurchasePayment;
   /** Paid in cash from elsewhere than the drawer. */
   fromDrawer?: boolean;
+  /** The invoice's own date from the date box, `YYYY-MM-DD`; empty for today. */
+  invoiceDate?: string;
 };
 
 export const EMPTY_DRAFT: ReceiptDraft = { lines: [], note: '' };
@@ -225,7 +228,9 @@ function isDraft(value: unknown): value is ReceiptDraft {
     typeof note === 'string' &&
     Array.isArray(lines) &&
     lines.every(isDraftLine) &&
-    [supplierId, invoiceNo].every((field) => field === undefined || typeof field === 'string') &&
+    [supplierId, invoiceNo, (value as Record<string, unknown>).invoiceDate].every(
+      (field) => field === undefined || typeof field === 'string',
+    ) &&
     ['undefined', 'boolean'].includes(typeof (value as Record<string, unknown>).pricesExclusive) &&
     ['undefined', 'boolean'].includes(typeof (value as Record<string, unknown>).fromDrawer) &&
     (payment === undefined || ['cash', 'card', 'on_account'].includes(payment as string))

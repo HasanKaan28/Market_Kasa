@@ -1,6 +1,7 @@
 import type { MarketDb } from '@/data/db';
 import type { SupplierLedgerRecord, SupplierPaymentMethod, SupplierRecord } from '@/data/types';
 import { formatBalance } from '@/customers/statement';
+import { documentDay } from '@/data/supplierLedger';
 import type { Kurus } from '@/domain/money';
 
 export type SupplierSummary = {
@@ -55,7 +56,13 @@ export async function supplierStatement(
   supplierId: string,
 ): Promise<SupplierStatementLine[]> {
   const entries = await db.supplierLedger.where('supplierId').equals(supplierId).toArray();
-  entries.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id));
+  // By the documents' own dates: an invoice typed in a day late goes where it belongs.
+  entries.sort(
+    (a, b) =>
+      documentDay(a).localeCompare(documentDay(b)) ||
+      a.occurredAt.localeCompare(b.occurredAt) ||
+      a.id.localeCompare(b.id),
+  );
   let running = 0;
   return entries.map((entry) => {
     running += entry.amount;

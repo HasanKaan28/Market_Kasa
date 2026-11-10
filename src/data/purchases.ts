@@ -10,7 +10,8 @@ import { appendOutbox } from './outbox';
 import { updateProduct, type ProductPatch } from './products';
 import { withoutUndefined } from './records';
 import { recordStockMovement } from './stock';
-import { addSupplierInvoice } from './supplierLedger';
+import { isDate } from './dates';
+import { addSupplierInvoice, assertDocumentDate, documentDay } from './supplierLedger';
 import type { ProductRecord, PurchaseLine, PurchasePayment, PurchaseRecord } from './types';
 
 export type PurchaseInput = {
@@ -37,6 +38,8 @@ export type PurchaseInput = {
   invoiceNo?: string;
   /** Cash when not said. */
   payment?: PurchasePayment;
+  /** The invoice's own date, `YYYY-MM-DD`, when it is typed in on a later day. */
+  invoiceDate?: string;
   /** A cash payment came out of the register's drawer; false when paid from elsewhere. */
   fromDrawer?: boolean;
   note?: string;
@@ -59,6 +62,7 @@ export async function recordPurchase(
     throw new RangeError('A goods receipt needs at least one line');
   }
   const payment = input.payment ?? 'cash';
+  assertDocumentDate(input.invoiceDate, at, input.cutoffMinutes);
   if (payment === 'on_account' && !input.supplierId) {
     throw new RangeError('A delivery on account needs its supplier');
   }
@@ -132,6 +136,7 @@ export async function recordPurchase(
       payment,
       note: input.note?.trim() || undefined,
       staffId: input.staffId,
+      documentDate: input.invoiceDate,
       occurredAt: at.toISOString(),
       businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
     });
@@ -176,6 +181,7 @@ export async function recordPurchase(
           amount: record.total,
           purchaseId: id,
           note: record.invoiceNo,
+          documentDate: input.invoiceDate,
           staffId: input.staffId,
           cutoffMinutes: input.cutoffMinutes,
         },
@@ -224,14 +230,8 @@ export async function listSupplierPurchases(
   const purchases = await db.purchases
     .filter((purchase) => purchase.supplierId === supplierId)
     .toArray();
-  return purchases.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
-}
-
-/** A real calendar day written `YYYY-MM-DD`. */
-export function isDate(text: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return false;
-  }
-  const date = new Date(`${text}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+  return purchases.sort(
+    (a, b) =>
+      documentDay(b).localeCompare(documentDay(a)) || b.occurredAt.localeCompare(a.occurredAt),
+  );
 }

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { useEffect, useState, type JSX, type KeyboardEvent } from 'react';
 import { useActor } from '@/app/actor';
+import { istanbulToday } from '@/data/dates';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
@@ -202,6 +203,7 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           note: draft.note,
           ...(supplierId !== '' ? { supplierId } : {}),
           invoiceNo: draft.invoiceNo,
+          ...(draft.invoiceDate ? { invoiceDate: draft.invoiceDate } : {}),
           payment,
           ...(payment === 'cash' ? { fromDrawer } : {}),
         },
@@ -305,6 +307,16 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           value={draft.invoiceNo ?? ''}
           onChange={(event) =>
             setDraft((current) => ({ ...current, invoiceNo: event.target.value }))
+          }
+        />
+        <TextField
+          label="Fatura tarihi"
+          hint="Boş bırakılırsa bugün."
+          type="date"
+          max={istanbulToday()}
+          value={draft.invoiceDate ?? ''}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, invoiceDate: event.target.value }))
           }
         />
       </div>

@@ -138,6 +138,8 @@ export type PurchaseRecord = {
   note?: string;
   /** Who did it; absent when no staff are set up. */
   staffId?: string;
+  /** The invoice's own date, `YYYY-MM-DD`, when it was typed in on a later day. */
+  documentDate?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -214,6 +216,8 @@ export type SupplierLedgerRecord = {
   note?: string;
   /** Who did it; absent when no staff are set up. */
   staffId?: string;
+  /** The invoice's or payment's own date, `YYYY-MM-DD`, when it is not the day it was typed. */
+  documentDate?: string;
   occurredAt: string;
   businessDate: string;
 };

@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { formatDay } from '@/data/dates';
 import { listSupplierPurchases } from '@/data/purchases';
+import { documentDay } from '@/data/supplierLedger';
 import type { PurchasePayment, PurchaseRecord } from '@/data/types';
 import { formatTRY } from '@/domain/money';
 import { formatStock } from '@/pos/format';
@@ -11,11 +13,6 @@ const PAYMENT_LABELS: Record<PurchasePayment, string> = {
   card: 'Kart',
   on_account: 'Veresiye',
 };
-
-const dateFormat = new Intl.DateTimeFormat('tr-TR', {
-  dateStyle: 'short',
-  timeZone: 'Europe/Istanbul',
-});
 
 const invoiceName = (purchase: PurchaseRecord) =>
   purchase.invoiceNo ? `Fatura ${purchase.invoiceNo}` : 'Numarasız fatura';
@@ -51,9 +48,7 @@ export function SupplierInvoices({ supplierId }: { supplierId: string }): JSX.El
                 onClick={() => setOpenId(open ? undefined : purchase.id)}
                 className="flex min-h-12 w-full flex-wrap items-center gap-x-3 px-3 py-2 text-left hover:bg-bg"
               >
-                <span className="w-24 text-text-2">
-                  {dateFormat.format(new Date(purchase.occurredAt))}
-                </span>
+                <span className="w-24 text-text-2">{formatDay(documentDay(purchase))}</span>
                 <span className="flex-1 font-medium">
                   {`${invoiceName(purchase)} · ${PAYMENT_LABELS[purchase.payment ?? 'cash']}`}
                 </span>

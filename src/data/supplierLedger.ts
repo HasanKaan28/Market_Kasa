@@ -1,6 +1,7 @@
 import { businessDate } from '@/domain/businessDate';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
 import { addCashMovement } from './cash';
+import { isDate } from './dates';
 import type { MarketDb } from './db';
 import { RecordNotFoundError } from './errors';
 import { newId } from './ids';
@@ -18,6 +19,8 @@ export type SupplierPaymentInput = {
   /** A cash payment came out of the register's drawer; false when paid from elsewhere. */
   fromDrawer?: boolean;
   note?: string;
+  /** The day it was paid, `YYYY-MM-DD`, when typed in later; today when absent. */
+  paidOn?: string;
   staffId?: string;
   cutoffMinutes?: number;
 };
@@ -28,6 +31,8 @@ export type SupplierInvoiceInput = {
   amount: Kurus;
   purchaseId: string;
   note?: string;
+  /** The invoice's own date, `YYYY-MM-DD`. */
+  documentDate?: string;
   staffId?: string;
   cutoffMinutes?: number;
 };
@@ -51,6 +56,7 @@ export async function recordSupplierPayment(
   if (!METHODS.includes(input.method)) {
     throw new RangeError(`Unknown payment method: ${String(input.method)}`);
   }
+  assertDocumentDate(input.paidOn, at, input.cutoffMinutes);
   const tables = [db.suppliers, db.supplierLedger, db.cashMovements, db.outbox, db.meta];
   return db.transaction('rw', tables, async () => {
     const supplier = await requireSupplier(db, input.supplierId, { active: false });
@@ -62,6 +68,7 @@ export async function recordSupplierPayment(
         amount: -input.amount,
         method: input.method,
         note: input.note?.trim() || undefined,
+        documentDate: input.paidOn,
         staffId: input.staffId,
       },
       at,
@@ -109,6 +116,7 @@ export async function addSupplierInvoice(
         amount: input.amount,
         purchaseId: input.purchaseId,
         note: input.note?.trim() || undefined,
+        documentDate: input.documentDate,
         staffId: input.staffId,
       },
       at,
@@ -159,6 +167,31 @@ export async function recordSupplierAdjustment(
       input.cutoffMinutes,
     );
   });
+}
+
+/**
+ * A document's own date: a real day, `YYYY-MM-DD`, and not one still to come. Absent is fine:
+ * the document is from the day it is typed in.
+ */
+export function assertDocumentDate(
+  date: string | undefined,
+  at: Date,
+  cutoffMinutes: number | undefined,
+): void {
+  if (date === undefined) {
+    return;
+  }
+  if (!isDate(date)) {
+    throw new RangeError(`A document date is YYYY-MM-DD, got "${date}"`);
+  }
+  if (date > businessDate(at, { cutoffMinutes })) {
+    throw new RangeError(`A document date cannot be in the future, got ${date}`);
+  }
+}
+
+/** The day a document belongs to: its own date, else the day it was typed in. */
+export function documentDay(record: { documentDate?: string; businessDate: string }): string {
+  return record.documentDate ?? record.businessDate;
 }
 
 async function addEntry(

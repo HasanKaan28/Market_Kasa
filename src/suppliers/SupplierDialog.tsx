@@ -1,3 +1,5 @@
+import { formatDay } from '@/data/dates';
+import { documentDay } from '@/data/supplierLedger';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
@@ -21,11 +23,6 @@ export type SupplierDialogProps = {
   /** Called with the message to show after a payment or an edit. */
   onDone(message: string): void;
 };
-
-const dateFormat = new Intl.DateTimeFormat('tr-TR', {
-  dateStyle: 'short',
-  timeZone: 'Europe/Istanbul',
-});
 
 /** One supplier: what the market owes them, the statement, and the payments made to them. */
 export function SupplierDialog({
@@ -186,9 +183,7 @@ export function SupplierDialog({
                 <tbody>
                   {[...lines].reverse().map(({ entry, description, balanceAfter }) => (
                     <tr key={entry.id} className="border-b border-line align-top last:border-0">
-                      <td className="py-2 pr-3 text-text-2">
-                        {dateFormat.format(new Date(entry.occurredAt))}
-                      </td>
+                      <td className="py-2 pr-3 text-text-2">{formatDay(documentDay(entry))}</td>
                       <td className="py-2 pr-3 break-words">{description}</td>
                       <td className="py-2 pr-3 text-right">
                         {entry.amount < 0

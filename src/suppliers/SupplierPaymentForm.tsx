@@ -1,3 +1,4 @@
+import { istanbulToday } from '@/data/dates';
 import { useState, type JSX } from 'react';
 import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
@@ -35,6 +36,7 @@ export function SupplierPaymentForm({
   const [method, setMethod] = useState<SupplierPaymentMethod>('cash');
   const [fromDrawer, setFromDrawer] = useState(true);
   const [note, setNote] = useState('');
+  const [paidOn, setPaidOn] = useState('');
   const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -68,6 +70,7 @@ export function SupplierPaymentForm({
           amount: kurus,
           method,
           ...(method === 'cash' ? { fromDrawer } : {}),
+          ...(paidOn ? { paidOn } : {}),
           note,
         },
         new Date(),
@@ -118,6 +121,14 @@ export function SupplierPaymentForm({
           Kasadan ödendi
         </label>
       ) : null}
+      <TextField
+        label="Ödeme tarihi"
+        hint="Boş bırakılırsa bugün."
+        type="date"
+        max={istanbulToday()}
+        value={paidOn}
+        onChange={(event) => setPaidOn(event.target.value)}
+      />
       <TextField
         label="Not"
         hint="Dekont, çek numarası ya da başka bir not."
