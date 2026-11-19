@@ -1,8 +1,11 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { MarketDb } from '@/data/db';
+import { reversePurchase } from '@/data/corrections';
 import { applyInvoiceResult, requestInvoice } from '@/data/invoices';
+import { recordPurchase } from '@/data/purchases';
+import { createSupplier } from '@/data/suppliers';
 import { createProduct } from '@/data/products';
 import { recordReturn } from '@/data/returns';
 import { recordSale } from '@/data/sales';
@@ -33,6 +36,11 @@ async function threeSales(db: MarketDb) {
       payments: [{ method: 'cash', amount: qty * 9000 }],
     });
   return { tea, sales: [await sell(1), await sell(2), await sell(3)] as const };
+}
+
+/** The e-Arşiv invoices asked for on sales have a tab of their own. */
+async function openArchive() {
+  await userEvent.click(await screen.findByRole('tab', { name: 'e-Arşiv' }));
 }
 
 function row(receiptNo: string) {
@@ -83,6 +91,7 @@ describe('InvoicesScreen', () => {
 
     await renderWithData(<InvoicesScreen />, data);
     expect(await screen.findByRole('heading', { name: 'Faturalar', level: 1 })).toBeInTheDocument();
+    await openArchive();
     expect(await screen.findByText('4 fatura · 2 beklemede')).toBeInTheDocument();
 
     const issuedRow = row(second.receiptNo);
@@ -118,6 +127,7 @@ describe('InvoicesScreen', () => {
     );
     await applyInvoiceResult(data.db, failed.id, { ok: false, error: 'VKN yok' }, later);
     await renderWithData(<InvoicesScreen />, data);
+    await openArchive();
 
     await screen.findByText('2 fatura · 1 beklemede');
     await userEvent.click(row(second.receiptNo).getByRole('button', { name: 'Yeniden dene' }));
@@ -146,6 +156,7 @@ describe('InvoicesScreen after a void', () => {
     await applyInvoiceResult(data.db, invoice.id, { ok: true, ettn: 'ETTN-9' }, later);
     await voidSale(data.db, { saleId: first.id, reason: 'Yanlış', deviceCode: 'K1', at: later });
     await renderWithData(<InvoicesScreen />, data);
+    await openArchive();
     await screen.findByText('1 fatura · 0 beklemede');
     expect(row(first.receiptNo).getByText('Satış iptal edildi')).toBeInTheDocument();
     expect(row(first.receiptNo).getByText('Kesildi')).toBeInTheDocument();
@@ -185,5 +196,103 @@ describe('settlePending', () => {
       error: 'Unvan uyuşmuyor',
     });
     expect(await settlePending(data.db, () => ({ ok: true, ettn: 'x' }), later)).toBe(0);
+  });
+});
+
+describe('InvoicesScreen, sales and purchases', () => {
+  /** Today: a cash sale of ₺90,00, and a delivery on account from Eti, F-77, of ₺360,00. */
+  async function today(db: MarketDb) {
+    const now = new Date();
+    const tea = await createProduct(db, { name: 'Çay', sellPrice: 9000, vatRate: 1 }, now);
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at: now,
+      lines: [{ productId: tea.id, qtyMilli: 1000 }],
+      payments: [{ method: 'cash', amount: 9000 }],
+    });
+    const eti = await createSupplier(db, { name: 'Eti' }, now);
+    const purchase = await recordPurchase(
+      db,
+      {
+        deviceCode: 'K1',
+        supplierId: eti.id,
+        invoiceNo: 'F-77',
+        payment: 'on_account',
+        lines: [{ productId: tea.id, qtyMilli: 12_000, buyPrice: 3000 }],
+      },
+      now,
+    );
+    return { sale, purchase };
+  }
+
+  it('lists the range’s sales and purchases with their totals, and filters them', async () => {
+    const data = createTestData();
+    const { sale } = await today(data.db);
+    await renderWithData(<InvoicesScreen />, data);
+    expect(await screen.findByRole('tab', { name: 'Alış ve satış' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(await screen.findByText('Satış: ₺90,00 · 1 fiş')).toBeInTheDocument();
+    expect(screen.getByText('Alış: ₺360,00 · 1 fatura')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Satışlar ve alışlar' });
+    const saleRow = row(sale.receiptNo);
+    expect(saleRow.getByText('Satış')).toBeInTheDocument();
+    expect(saleRow.getByText('Nakit')).toBeInTheDocument();
+    const purchaseRow = within(within(table).getByText('F-77').closest('tr') as HTMLElement);
+    expect(purchaseRow.getByText('Alış')).toBeInTheDocument();
+    expect(purchaseRow.getByText('Eti')).toBeInTheDocument();
+    expect(purchaseRow.getByText('Veresiye')).toBeInTheDocument();
+    expect(purchaseRow.getByText('₺360,00')).toBeInTheDocument();
+
+    // The list is read again for a filter: what it drops goes once the new rows are in.
+    await userEvent.click(screen.getByRole('radio', { name: 'Alış' }));
+    await waitFor(() => expect(within(table).queryByText(sale.receiptNo)).toBeNull());
+    expect(within(table).getByText('F-77')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: 'Satış' }));
+    await waitFor(() => expect(within(table).queryByText('F-77')).toBeNull());
+    expect(within(table).getByText(sale.receiptNo)).toBeInTheDocument();
+
+    // A range with nothing in it.
+    await userEvent.clear(screen.getByLabelText('Başlangıç'));
+    await userEvent.type(screen.getByLabelText('Başlangıç'), '2020-01-01');
+    await userEvent.clear(screen.getByLabelText('Bitiş'));
+    await userEvent.type(screen.getByLabelText('Bitiş'), '2020-01-31');
+    expect(await screen.findByText('Bu aralıkta belge yok.')).toBeInTheDocument();
+    expect(screen.getByText('Satış: ₺0,00 · 0 fiş')).toBeInTheDocument();
+  });
+
+  it('opens a purchase’s lines and a sale’s receipt', async () => {
+    const data = createTestData();
+    const { sale } = await today(data.db);
+    await renderWithData(<InvoicesScreen />, data);
+    await userEvent.click(await screen.findByRole('button', { name: 'F-77' }));
+    const lines = await screen.findByRole('table', { name: 'Fatura F-77' });
+    expect(within(lines).getByText('Çay')).toBeInTheDocument();
+    expect(within(lines).getByText('12 adet')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: sale.receiptNo }));
+    const receipt = await screen.findByRole('region', { name: `Fiş ${sale.receiptNo}` });
+    expect(within(receipt).getAllByText(/90,00/).length).toBeGreaterThan(0);
+  });
+
+  it('strikes through a purchase taken back and a voided sale, and leaves them out of the totals', async () => {
+    const data = createTestData();
+    const { sale, purchase } = await today(data.db);
+    await voidSale(data.db, {
+      saleId: sale.id,
+      reason: 'Yanlış',
+      deviceCode: 'K1',
+      at: new Date(),
+    });
+    await reversePurchase(data.db, { purchaseId: purchase.id, reason: 'Yanlış' }, new Date(), {
+      deviceCode: 'K1',
+    });
+    await renderWithData(<InvoicesScreen />, data);
+    expect(await screen.findByText('Satış: ₺0,00 · 0 fiş')).toBeInTheDocument();
+    expect(screen.getByText('Alış: ₺0,00 · 0 fatura')).toBeInTheDocument();
+    const purchaseRow = within(screen.getByText('F-77').closest('tr') as HTMLElement);
+    expect(purchaseRow.getByText('Geri alındı')).toBeInTheDocument();
+    expect(row(sale.receiptNo).getByText('İptal edildi')).toBeInTheDocument();
   });
 });

@@ -17,6 +17,10 @@ codebase runs as a web app (PWA), a Windows desktop app (Electron) and an Androi
 - **Catalogue and stock:** products, categories, goods receipts with new prices, stock counts,
   CSV and XLSX import and export.
 - **Accounts:** customer credit with limits and reminders, suppliers and what is owed to them.
+  A goods receipt or a supplier payment typed wrong is taken back or corrected by
+  counter-entries, with a manager's or the owner's approval; nothing is edited or deleted.
+- **Invoices screen:** the sales and purchases of any range of days, together or apart, with
+  their totals.
 - **Reports:** sales, payment methods, VAT, best sellers, staff, by any period and register.
 - **Staff:** roles and per-person permissions, PIN sign-in, approval by a permitted person,
   an audit log of management changes.
