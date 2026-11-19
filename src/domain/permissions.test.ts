@@ -17,6 +17,8 @@ const TABLE: Record<Permission, readonly [boolean, boolean, boolean, boolean]> =
   seeCost: [false, true, true, true],
   stock: [false, true, true, true],
   suppliers: [false, true, true, true],
+  // Taking back or correcting a goods receipt or a supplier payment: a manager's or the owner's.
+  correctSupplier: [false, false, true, true],
   reports: [false, false, true, true],
   closeDay: [true, false, true, true],
   invoice: [true, false, true, true],

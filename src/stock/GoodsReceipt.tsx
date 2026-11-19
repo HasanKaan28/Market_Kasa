@@ -13,8 +13,9 @@ import {
   searchProducts,
 } from '@/data/products';
 import { listSuppliers } from '@/data/suppliers';
-import { recordPurchase } from '@/data/purchases';
-import type { ProductRecord, PurchasePayment } from '@/data/types';
+import { correctPurchase } from '@/data/corrections';
+import { recordPurchase, type PurchaseInput } from '@/data/purchases';
+import type { ProductRecord, PurchasePayment, PurchaseRecord } from '@/data/types';
 import { Button, ChoiceGroup, SelectField, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
 import { formatPriceInput, formatStock, UNIT_LABELS } from '@/pos/format';
@@ -24,6 +25,7 @@ import { ProductFormDialog } from '@/products/ProductFormDialog';
 import {
   addProduct,
   DELETED_PRODUCT_LINE,
+  draftFromPurchase,
   draftLineCost,
   EMPTY_DRAFT,
   loadDraft,
@@ -49,18 +51,35 @@ type PriceField = 'buyPrice' | 'sellPrice';
 export type GoodsReceiptProps = {
   /** Called with the message to show once a receipt or a new product is saved. */
   onDone(message: string): void;
+  /**
+   * A saved receipt to correct: the boxes start from it, and saving asks first, showing the old
+   * total beside the new, then takes the old receipt back and records this one in its place.
+   * `onCorrected` is called then; `onDone` still tells of a new product saved meanwhile.
+   */
+  correcting?: { purchase: PurchaseRecord; onCorrected(message: string): void };
 };
 
 /**
  * Goods coming in: scan or search each product, type how many came and at what price, and save
- * them as one receipt. The draft is kept on this device until it is saved.
+ * them as one receipt. The draft is kept on this device until it is saved; a correction is not
+ * kept, so it never takes the place of a receipt being typed.
  */
-export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
+export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptProps): JSX.Element {
+  const correcting = correction?.purchase;
   const { db, settings, runner } = useData();
   const actor = useActor();
   const { staff } = useSession();
   const { cutoffMinutes } = useMarketSettings();
-  const [draft, setDraft] = useState<ReceiptDraft>(() => loadDraft());
+  const [draft, setDraft] = useState<ReceiptDraft>(() =>
+    correcting ? draftFromPurchase(correcting) : loadDraft(),
+  );
+  // The corrected receipt waiting for a yes, with the total it comes to and the draft it was read
+  // from: a box changed after that asks again, so what is confirmed is what is on the screen.
+  const [confirming, setConfirming] = useState<{
+    input: PurchaseInput;
+    total: number;
+    draft: ReceiptDraft;
+  }>();
   const [query, setQuery] = useState('');
   const [errors, setErrors] = useState<ReadonlyMap<string, string>>(new Map());
   // The product form, for a new barcode or a deleted product to bring back.
@@ -88,8 +107,10 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   const fromDrawer = draft.fromDrawer ?? true;
 
   useEffect(() => {
-    saveDraft(draft);
-  }, [draft]);
+    if (!correcting) {
+      saveDraft(draft);
+    }
+  }, [draft, correcting]);
 
   function add(product: ProductRecord, qtyMilli?: number) {
     setBumped(draft.lines.some((line) => line.productId === product.id) ? product.id : undefined);
@@ -193,28 +214,48 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
         setFailure(`Mal kabul kaydedilmedi. Düzeltilecek satırlar: ${names.join(', ')}.`);
         return;
       }
-      const purchase = await recordPurchase(
-        db,
-        {
-          deviceCode: settings.deviceCode,
-          staffId: staff?.id,
-          cutoffMinutes,
-          lines: read.lines,
-          note: draft.note,
-          ...(supplierId !== '' ? { supplierId } : {}),
-          invoiceNo: draft.invoiceNo,
-          ...(draft.invoiceDate ? { invoiceDate: draft.invoiceDate } : {}),
-          payment,
-          ...(payment === 'cash' ? { fromDrawer } : {}),
-        },
-        new Date(),
-        actor,
-      );
+      const input: PurchaseInput = {
+        deviceCode: settings.deviceCode,
+        staffId: staff?.id,
+        cutoffMinutes,
+        lines: read.lines,
+        note: draft.note,
+        ...(supplierId !== '' ? { supplierId } : {}),
+        invoiceNo: draft.invoiceNo,
+        ...(draft.invoiceDate ? { invoiceDate: draft.invoiceDate } : {}),
+        payment,
+        ...(payment === 'cash' ? { fromDrawer } : {}),
+      };
+      if (correcting) {
+        setConfirming({ input, total, draft });
+        return;
+      }
+      const purchase = await recordPurchase(db, input, new Date(), actor);
       setDraft(EMPTY_DRAFT);
       onDone(`Mal kabul kaydedildi: ${purchase.lines.length} ürün, ${formatTRY(purchase.total)}.`);
       void runner.run();
     } catch {
       setFailure('Mal kabul kaydedilemedi. Hiçbir şey değişmedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function correct(old: PurchaseRecord, input: PurchaseInput) {
+    setBusy(true);
+    setFailure(undefined);
+    try {
+      const { purchase } = await correctPurchase(
+        db,
+        { purchaseId: old.id, input },
+        new Date(),
+        actor,
+      );
+      correction?.onCorrected(`Fatura düzeltildi: ${formatTRY(purchase.total)}.`);
+      void runner.run();
+    } catch {
+      setConfirming(undefined);
+      setFailure('Fatura düzeltilemedi. Hiçbir şey değişmedi.');
     } finally {
       setBusy(false);
     }
@@ -234,7 +275,10 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
   const bumpedLine = draft.lines.find((line) => line.productId === bumped);
 
   return (
-    <section aria-label="Mal kabul" className="flex flex-col gap-4">
+    <section
+      aria-label={correcting ? 'Fatura düzeltme' : 'Mal kabul'}
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-col gap-2">
         <TextField
           label="Ürün ara ya da okut"
@@ -367,16 +411,43 @@ export function GoodsReceipt({ onDone }: GoodsReceiptProps): JSX.Element {
           {failure}
         </p>
       ) : null}
-      <div>
-        <Button
-          variant="primary"
-          size="lg"
-          disabled={busy || draft.lines.length === 0}
-          onClick={() => void save()}
-        >
-          Mal kabulü kaydet
-        </Button>
-      </div>
+      {correcting ? (
+        <p className="text-sm text-text-2">
+          Onaylayınca eski fatura geri alınır ve bu haliyle yenisi kaydedilir; stok, borç ve kasa
+          buna göre düzelir. Değiştirdiğiniz fiyatlar ürünlere işlenir.
+        </p>
+      ) : null}
+      {correcting && confirming?.draft === draft ? (
+        <div className="flex flex-col gap-2 rounded-control border border-line-strong p-3">
+          <p className="font-medium">Fatura bu haliyle düzeltilsin mi?</p>
+          <p>{`Eski toplam: ${formatTRY(correcting.total)}`}</p>
+          <p className="font-semibold">{`Yeni toplam: ${formatTRY(confirming.total)}`}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              size="lg"
+              disabled={busy}
+              onClick={() => void correct(correcting, confirming.input)}
+            >
+              Evet, düzelt
+            </Button>
+            <Button size="lg" onClick={() => setConfirming(undefined)}>
+              Geri dön
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Button
+            variant="primary"
+            size="lg"
+            disabled={busy || draft.lines.length === 0}
+            onClick={() => void save()}
+          >
+            {correcting ? 'Onayla' : 'Mal kabulü kaydet'}
+          </Button>
+        </div>
+      )}
 
       {form !== undefined ? (
         <ProductFormDialog

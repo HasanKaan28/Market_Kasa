@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createTestServer, type TestServer } from './harness';
 
@@ -168,5 +170,47 @@ describe('sync functions', () => {
        where schemaname = 'app' and tablename = 'rows' and indexdef like '%barcode%'`,
     );
     expect(index?.def).toContain(`("row" ->> 'barcode'::text)`);
+  });
+
+  it('adds goods receipts taken back to the events, keeping every event table it had', async () => {
+    const migration = readFileSync(
+      join(process.cwd(), 'supabase', 'migrations', '20261119120000_m3_purchase_voids.sql'),
+      'utf8',
+    );
+    const events = async () =>
+      (await server.query<{ tables: string[] }>('select app.event_tables() as tables'))[0]?.tables;
+    expect(await events()).toEqual([
+      'sales',
+      'stockMovements',
+      'ledger',
+      'saleVoids',
+      'returns',
+      'purchases',
+      'stockCounts',
+      'supplierLedger',
+      'cashMovements',
+      'cashSessions',
+      'auditLog',
+      'purchaseVoids',
+    ]);
+    const [settings] = await server.query<{ config: string[] }>(
+      `select proconfig as config from pg_proc where oid = 'app.event_tables()'::regprocedure`,
+    );
+    expect(settings?.config).toEqual(['search_path=""']);
+
+    // A server whose list has an event table this repository does not know, as one shared with
+    // another app may: running the migration there keeps it, and adds the new table only once.
+    await server.exec(`create or replace function app.event_tables() returns text[]
+      language sql immutable as $$ select array['sales', 'tabEvents', 'purchaseVoids'] $$`);
+    await server.exec(migration);
+    expect(await events()).toEqual(['sales', 'tabEvents', 'purchaseVoids']);
+
+    const a = await server.addDevice('a', 'K1');
+    const session = server.as(a.userId);
+    const reversal = { id: 'v1', purchaseId: 'p1', reason: 'Yanlış', deviceCode: 'K1' };
+    await session.rpc('sync_push', [[insert('purchaseVoids', 'v1', reversal)]]);
+    const edit = patch('purchaseVoids', 'v1', { reason: 'Başka' });
+    const refused = await session.rpc<PushResult>('sync_push', [[edit]]);
+    expect(refused.rejected).toEqual([{ seq: edit.seq, reason: 'not_patchable' }]);
   });
 });

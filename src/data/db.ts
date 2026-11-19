@@ -7,6 +7,7 @@ import type {
   CustomerRecord,
   InvoiceRecord,
   PurchaseRecord,
+  PurchaseVoidRecord,
   LedgerRecord,
   MarketSettingsRecord,
   MetaRecord,
@@ -38,6 +39,7 @@ export class MarketDb extends Dexie {
   declare returns: Table<ReturnRecord, string>;
   declare categories: Table<CategoryRecord, string>;
   declare purchases: Table<PurchaseRecord, string>;
+  declare purchaseVoids: Table<PurchaseVoidRecord, string>;
   declare stockCounts: Table<StockCountRecord, string>;
   declare suppliers: Table<SupplierRecord, string>;
   declare supplierLedger: Table<SupplierLedgerRecord, string>;
@@ -111,6 +113,10 @@ export class MarketDb extends Dexie {
     this.version(14).stores({ invoices: 'id, saleId, status, updatedAt' });
     // v15: a product's case and pack barcodes, looked up when scanned.
     this.version(15).stores({ products: 'id, &barcode, name, updatedAt, *packCodes' });
+    // v17: goods receipts taken back, read by receipt. 16 is skipped on purpose: Restoran Kasa,
+    // served from the same origin, once took a Market database to 16 with tables of its own, and a
+    // Market 16 would meet that schema as its own. From 17 such a database simply upgrades.
+    this.version(17).stores({ purchaseVoids: 'id, purchaseId, businessDate, occurredAt' });
   }
 }
 

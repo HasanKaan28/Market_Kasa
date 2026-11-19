@@ -43,6 +43,8 @@ export type PurchaseInput = {
   /** A cash payment came out of the register's drawer; false when paid from elsewhere. */
   fromDrawer?: boolean;
   note?: string;
+  /** The receipt this one corrects; set by `correctPurchase`, which reverses that one. */
+  correctsId?: string;
   staffId?: string;
   cutoffMinutes?: number;
 };
@@ -137,6 +139,7 @@ export async function recordPurchase(
       note: input.note?.trim() || undefined,
       staffId: input.staffId,
       documentDate: input.invoiceDate,
+      correctsId: input.correctsId,
       occurredAt: at.toISOString(),
       businessDate: businessDate(at, { cutoffMinutes: input.cutoffMinutes }),
     });

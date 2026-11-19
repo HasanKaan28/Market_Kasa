@@ -30,11 +30,14 @@ export async function expiringLots(
   today: string,
   withinDays = 30,
 ): Promise<ExpiringLot[]> {
-  const [purchases, products, levels] = await Promise.all([
+  const [purchases, voids, products, levels] = await Promise.all([
     db.purchases.toArray(),
+    db.purchaseVoids.toArray(),
     db.products.toArray(),
     db.stockLevels.toArray(),
   ]);
+  // A delivery taken back never came: its stock went back out with it.
+  const reversed = new Set(voids.map((record) => record.purchaseId));
   const live = new Map(
     products.filter((product) => !product.deletedAt).map((product) => [product.id, product]),
   );
@@ -42,6 +45,9 @@ export async function expiringLots(
 
   const deliveries = new Map<string, { at: string; qtyMilli: number; expiresOn?: string }[]>();
   for (const purchase of purchases) {
+    if (reversed.has(purchase.id)) {
+      continue;
+    }
     for (const line of purchase.lines) {
       if (!live.has(line.productId)) {
         continue;

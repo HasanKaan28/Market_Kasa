@@ -29,6 +29,7 @@ describe('openMarketDb', () => {
       'meta',
       'outbox',
       'products',
+      'purchaseVoids',
       'purchases',
       'returns',
       'saleVoids',
@@ -99,5 +100,29 @@ describe('openMarketDb', () => {
     expect((await db.products.get('older'))?.barcode).toBe('ABC');
     expect((await db.products.get('newer'))?.barcode).toBeUndefined();
     expect((await db.products.get('dashed'))?.barcode).toBe('X-1');
+  });
+
+  it('opens a database another app on this origin already took to version 16', async () => {
+    // Restoran Kasa, served from the same origin, once upgraded a Market database to 16 with
+    // its own tables. Market skips 16, so opening such a database is an ordinary upgrade.
+    const taken = new Dexie('mk2-version-16');
+    taken.version(16).stores({
+      products: 'id, &barcode, name, updatedAt, *packCodes',
+      purchases: 'id, occurredAt',
+      outbox: '++seq',
+      meta: 'key',
+      diningTables: 'id, updatedAt',
+      tabs: 'id, updatedAt',
+      tabItems: 'id, tabId',
+    });
+    await taken.table('purchases').add({ id: 'p1', occurredAt: '2026-11-01T09:00:00.000Z' });
+    taken.close();
+
+    db = openMarketDb('version-16');
+    await db.open();
+    expect(db.verno).toBe(17);
+    expect(db.tables.map((table) => table.name)).toContain('purchaseVoids');
+    expect(await db.purchases.get('p1')).toBeDefined();
+    expect(await db.purchaseVoids.count()).toBe(0);
   });
 });

@@ -16,6 +16,7 @@ const KIND_LABELS: Record<StockMovementKind, string> = {
   return: 'İade',
   void: 'İptal',
   purchase: 'Mal kabul',
+  purchaseVoid: 'Mal kabul geri alındı',
   count: 'Sayım',
   manual: 'Düzeltme',
 };
@@ -111,6 +112,9 @@ async function detailOf(db: MarketDb, movement: StockMovementRecord): Promise<st
     }
     case 'purchase':
       return ref ? ((await db.purchases.get(ref))?.note ?? '') : '';
+    // A receipt taken back names why.
+    case 'purchaseVoid':
+      return ref ? ((await db.purchaseVoids.get(ref))?.reason ?? '') : '';
     // A shelf count names its note; an opening count has no count record.
     case 'count':
       return ref ? ((await db.stockCounts.get(ref))?.note ?? '') : '';

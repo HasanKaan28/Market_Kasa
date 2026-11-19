@@ -42,6 +42,8 @@ export type Session = {
 export type TestServer = {
   /** Queries as `postgres`, as the operator in the SQL editor would. */
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
+  /** Runs a script of several statements as `postgres`, as a migration is run. */
+  exec(sql: string): Promise<void>;
   as(userId: string | null): Session;
   addMarket(id: string, name?: string): Promise<void>;
   addUser(options?: { email?: string; anonymous?: boolean }): Promise<string>;
@@ -115,6 +117,9 @@ export async function createTestServer(): Promise<TestServer> {
 
   return {
     query,
+    async exec(sql) {
+      await db.exec(sql);
+    },
     as,
     addUser,
     async addMarket(id, name = id) {

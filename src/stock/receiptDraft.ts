@@ -1,6 +1,7 @@
 import { isDate } from '@/data/dates';
 import type { PurchaseInput } from '@/data/purchases';
-import type { ProductRecord, ProductUnit, PurchasePayment } from '@/data/types';
+import { documentDay } from '@/data/supplierLedger';
+import type { ProductRecord, ProductUnit, PurchasePayment, PurchaseRecord } from '@/data/types';
 import { formatTRY, parseTRY } from '@/domain/money';
 import { lineTotal, MAX_UNIT_PRICE, withVat } from '@/domain/pricing';
 import { formatPriceInput, formatQtyInput, parseQuantity } from '@/pos/format';
@@ -76,6 +77,30 @@ export function addProduct(
     qty: formatQtyInput(qtyMilli),
   };
   return { ...draft, lines: [...draft.lines, line] };
+}
+
+/**
+ * A saved receipt back in the boxes, to be corrected. Its buy prices are typed in, as they were
+ * on the invoice, so they show even after the product's price changed; the sell price box is
+ * left to the product's price now, since a receipt does not keep the sell price it set. The
+ * prices are VAT inclusive, as the receipt kept them, and the invoice keeps its own date.
+ */
+export function draftFromPurchase(purchase: PurchaseRecord): ReceiptDraft {
+  return {
+    lines: purchase.lines.map((line) => ({
+      productId: line.productId,
+      name: line.name,
+      unit: line.unit,
+      qty: formatQtyInput(line.qtyMilli),
+      ...(line.free ? { free: true } : { buyPrice: formatPriceInput(line.buyPrice) }),
+      ...(line.expiresOn ? { expiry: line.expiresOn } : {}),
+    })),
+    note: purchase.note ?? '',
+    ...(purchase.supplierId ? { supplierId: purchase.supplierId } : {}),
+    ...(purchase.invoiceNo ? { invoiceNo: purchase.invoiceNo } : {}),
+    payment: purchase.payment ?? 'cash',
+    invoiceDate: documentDay(purchase),
+  };
 }
 
 /** A price box's text: what was typed, else the product's price now (no buy price is empty). */

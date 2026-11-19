@@ -91,7 +91,15 @@ export type SaleRecord = {
   change: Kurus;
 };
 
-export type StockMovementKind = 'sale' | 'return' | 'void' | 'purchase' | 'count' | 'manual';
+export type StockMovementKind =
+  | 'sale'
+  | 'return'
+  | 'void'
+  | 'purchase'
+  /** Takes a reversed goods receipt's line back out of stock. */
+  | 'purchaseVoid'
+  | 'count'
+  | 'manual';
 
 export type StockMovementRecord = {
   id: string;
@@ -140,6 +148,23 @@ export type PurchaseRecord = {
   staffId?: string;
   /** The invoice's own date, `YYYY-MM-DD`, when it was typed in on a later day. */
   documentDate?: string;
+  /** The receipt this one was written to correct; that one is reversed beside it. */
+  correctsId?: string;
+  occurredAt: string;
+  businessDate: string;
+};
+
+/**
+ * A goods receipt taken back in full, once: its stock, its invoice on account and its cash from
+ * the drawer are put back by counter-entries of their own. The receipt itself is never changed.
+ */
+export type PurchaseVoidRecord = {
+  id: string;
+  purchaseId: string;
+  reason: string;
+  deviceCode: string;
+  /** Who did it; absent when no staff are set up. */
+  staffId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -218,6 +243,10 @@ export type SupplierLedgerRecord = {
   staffId?: string;
   /** The invoice's or payment's own date, `YYYY-MM-DD`, when it is not the day it was typed. */
   documentDate?: string;
+  /** The entry this counter-entry takes back: a reversed payment, or a reversed invoice. */
+  reversesId?: string;
+  /** The payment this one was written to correct; that one is reversed beside it. */
+  correctsId?: string;
   occurredAt: string;
   businessDate: string;
 };
@@ -344,7 +373,11 @@ export type AuditAction =
   | 'staff.restore'
   | 'settings.update'
   | 'product.price'
-  | 'approval';
+  | 'approval'
+  | 'purchase.reverse'
+  | 'purchase.correct'
+  | 'supplierPayment.reverse'
+  | 'supplierPayment.correct';
 
 /** One management action: who did it, on which record, and what changed (DESIGN §6.3). */
 export type AuditRecord = {
@@ -353,7 +386,7 @@ export type AuditRecord = {
   /** Who did it; absent when no staff are set up. */
   staffId?: string;
   action: AuditAction;
-  entity: 'staff' | 'settings' | 'product' | 'approval';
+  entity: 'staff' | 'settings' | 'product' | 'approval' | 'purchase' | 'supplierLedger';
   entityId?: string;
   /** The changed fields as they were; never a PIN or its hash. */
   before?: Record<string, unknown>;
@@ -405,6 +438,7 @@ export type OutboxTable =
   | 'saleVoids'
   | 'returns'
   | 'purchases'
+  | 'purchaseVoids'
   | 'stockCounts'
   | 'suppliers'
   | 'supplierLedger'

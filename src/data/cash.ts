@@ -18,6 +18,8 @@ export type OpenCashSession = {
 };
 
 export type CashMovementInput = {
+  /** Set only when the id must be the same on every device (see `deriveId`). */
+  id?: string;
   deviceCode: string;
   kind: 'in' | 'out';
   /** Above zero; `kind` says which way. */
@@ -102,7 +104,7 @@ export async function addCashMovement(
   assertMovement(input);
   const session = await currentCashSession(db, input.deviceCode);
   const record: CashMovementRecord = withoutUndefined({
-    id: newId(at.getTime()),
+    id: input.id ?? newId(at.getTime()),
     deviceCode: input.deviceCode,
     sessionId: session?.id,
     kind: input.kind,

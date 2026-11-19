@@ -1,3 +1,4 @@
+import { reversedPurchaseIds } from '@/data/corrections';
 import type { MarketDb } from '@/data/db';
 import type { SupplierLedgerRecord, SupplierPaymentMethod, SupplierRecord } from '@/data/types';
 import { formatBalance } from '@/customers/statement';
@@ -15,6 +16,11 @@ export type SupplierStatementLine = {
   entry: SupplierLedgerRecord;
   description: string;
   balanceAfter: Kurus;
+  /**
+   * Taken back: an invoice whose goods receipt was reversed, or a payment reversed. It stays in
+   * the running balance, beside the counter-entry that takes it back, so every line still adds up.
+   */
+  reversed: boolean;
 };
 
 export const SUPPLIER_METHOD_LABELS: Record<SupplierPaymentMethod, string> = {
@@ -63,11 +69,42 @@ export async function supplierStatement(
       a.occurredAt.localeCompare(b.occurredAt) ||
       a.id.localeCompare(b.id),
   );
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const reversedIds = new Set(entries.flatMap((entry) => entry.reversesId ?? []));
+  const voided = await reversedPurchaseIds(
+    db,
+    entries.flatMap((entry) => (entry.kind === 'invoice' ? (entry.purchaseId ?? []) : [])),
+  );
   let running = 0;
   return entries.map((entry) => {
     running += entry.amount;
-    return { entry, description: describe(entry), balanceAfter: running };
+    return {
+      entry,
+      description: describeLine(entry, byId),
+      balanceAfter: running,
+      reversed:
+        reversedIds.has(entry.id) ||
+        (entry.kind === 'invoice' &&
+          entry.purchaseId !== undefined &&
+          voided.has(entry.purchaseId)),
+    };
   });
+}
+
+/** A counter-entry names what it takes back, and why; every other entry is described as it is. */
+function describeLine(
+  entry: SupplierLedgerRecord,
+  byId: ReadonlyMap<string, SupplierLedgerRecord>,
+): string {
+  const target = entry.reversesId === undefined ? undefined : byId.get(entry.reversesId);
+  const reversing =
+    entry.reversesId !== undefined || (entry.kind === 'adjustment' && entry.purchaseId);
+  if (!reversing) {
+    return describe(entry);
+  }
+  // The invoice of a receipt reversed on another register may not have arrived yet.
+  const what = target ? describe(target) : entry.purchaseId ? 'Mal kabul' : 'Ödeme';
+  return entry.note ? `Geri alma: ${what} · ${entry.note}` : `Geri alma: ${what}`;
 }
 
 /** "Fatura F-77" for a delivery on account, "Ödeme (banka): havale" for a payment. */

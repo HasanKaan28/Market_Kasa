@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProductRecord } from '@/data/types';
 import {
   addProduct,
+  draftFromPurchase,
   draftLineCost,
   EMPTY_DRAFT,
   loadDraft,
@@ -241,5 +242,59 @@ describe('a receipt line’s expiry date', () => {
     const draft = { ...EMPTY_DRAFT, lines: [{ ...line, expiry: '2026-11-20' }] };
     saveDraft(draft, storage);
     expect(loadDraft(storage)).toEqual(draft);
+  });
+});
+
+describe('draftFromPurchase', () => {
+  it('fills the boxes with the receipt as it was saved', () => {
+    const draft = draftFromPurchase({
+      id: 'r1',
+      deviceCode: 'K1',
+      supplierId: 's1',
+      invoiceNo: 'F-77',
+      payment: 'on_account',
+      note: 'İrsaliye 5',
+      total: 36000,
+      lines: [
+        {
+          productId: 'milk',
+          name: 'Süt',
+          unit: 'piece',
+          qtyMilli: 12000,
+          buyPrice: 3000,
+          cost: 36000,
+          expiresOn: '2026-12-01',
+        },
+        {
+          productId: 'cheese',
+          name: 'Peynir',
+          unit: 'kg',
+          qtyMilli: 1500,
+          buyPrice: 0,
+          cost: 0,
+          free: true,
+        },
+      ],
+      occurredAt: stamp,
+      businessDate: '2026-10-29',
+    });
+    expect(draft).toEqual({
+      lines: [
+        {
+          productId: 'milk',
+          name: 'Süt',
+          unit: 'piece',
+          qty: '12',
+          buyPrice: '30,00',
+          expiry: '2026-12-01',
+        },
+        { productId: 'cheese', name: 'Peynir', unit: 'kg', qty: '1,5', free: true },
+      ],
+      note: 'İrsaliye 5',
+      supplierId: 's1',
+      invoiceNo: 'F-77',
+      payment: 'on_account',
+      invoiceDate: '2026-10-29',
+    });
   });
 });

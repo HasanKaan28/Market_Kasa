@@ -245,7 +245,10 @@ describe('SupplierDialog', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Eti' });
     const invoices = await within(dialog).findByRole('list', { name: 'Faturalar' });
     // Newest first; a cash invoice owes nothing but still belongs to the supplier.
-    const buttons = within(invoices).getAllByRole('button');
+    // Each row opens with its own button; "Düzelt" and "Geri al" sit beside it.
+    const buttons = within(invoices)
+      .getAllByRole('button')
+      .filter((button) => button.hasAttribute('aria-expanded'));
     expect(buttons.map((button) => button.textContent)).toEqual([
       '22.10.2026Fatura F-78 · Peşin₺180,00',
       '20.10.2026Fatura F-77 · Veresiye₺264,00',

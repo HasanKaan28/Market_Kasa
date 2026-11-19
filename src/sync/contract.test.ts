@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MarketDb } from '@/data/db';
 import { recordCount } from '@/data/counts';
+import { reversePurchase, reversedPurchaseIds } from '@/data/corrections';
+import { recordPurchase } from '@/data/purchases';
+import { createSupplier, supplierBalance } from '@/data/suppliers';
 import { pendingCount, pendingOps } from '@/data/outbox';
 import {
   createProduct,
@@ -228,5 +231,37 @@ describe.each(SERVERS)('the $name server', ({ make }) => {
     expect(server?.sellPrice).toBe(101);
     expect((await a.products.get(milk.id))?.sellPrice).toBe(101);
     expect((await b.products.get(milk.id))?.sellPrice).toBe(101);
+  });
+
+  it('carries a goods receipt taken back to the other register', async () => {
+    const { milk } = await sellMilk(a);
+    const eti = await createSupplier(a, { name: 'Eti' }, at);
+    const purchase = await recordPurchase(
+      a,
+      {
+        deviceCode: 'K1',
+        supplierId: eti.id,
+        payment: 'on_account',
+        lines: [{ productId: milk.id, qtyMilli: 12000, buyPrice: 3000 }],
+      },
+      later(1),
+    );
+    await syncOnce(a, toA);
+    await syncOnce(b, toB);
+    expect(await supplierBalance(b, eti.id)).toBe(36000);
+    expect(await stockOf(b, milk.id)).toBe(10000);
+
+    await reversePurchase(a, { purchaseId: purchase.id, reason: 'Yanlış fatura' }, later(2), {
+      deviceCode: 'K1',
+    });
+    await syncOnce(a, toA);
+    await syncOnce(b, toB);
+
+    expect(await backend.rows('purchaseVoids')).toHaveLength(1);
+    expect(await reversedPurchaseIds(b, [purchase.id])).toEqual(new Set([purchase.id]));
+    for (const db of [a, b]) {
+      expect(await supplierBalance(db, eti.id)).toBe(0);
+      expect(await stockOf(db, milk.id)).toBe(-2000);
+    }
   });
 });

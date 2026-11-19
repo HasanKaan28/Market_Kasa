@@ -43,6 +43,19 @@ export function describeAudit(record: AuditRecord, names: AuditNames): string {
     }
     case 'approval':
       return `${PERMISSION_LABELS[after.permission as Permission] ?? String(after.permission)} onayı · onaylayan ${names.staff(String(after.approverId))}`;
+    case 'purchase.reverse': {
+      const invoice =
+        typeof before.invoiceNo === 'string'
+          ? `Alış faturası ${before.invoiceNo}`
+          : 'Alış faturası';
+      return `${invoice} geri alındı · ${price(before.total)} · ${String(after.reason)}`;
+    }
+    case 'purchase.correct':
+      return `Alış faturası düzeltildi · ${price(before.total)} → ${price(after.total)}`;
+    case 'supplierPayment.reverse':
+      return `Tedarikçi ödemesi geri alındı · ${price(before.amount)} · ${String(after.reason)}`;
+    case 'supplierPayment.correct':
+      return `Tedarikçi ödemesi düzeltildi · ${price(before.amount)} → ${price(after.amount)}`;
   }
 }
 

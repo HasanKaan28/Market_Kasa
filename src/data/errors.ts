@@ -95,3 +95,14 @@ export class InvoiceStateError extends Error {
     this.name = 'InvoiceStateError';
   }
 }
+
+/** A goods receipt or a supplier payment is taken back once; a second try finds it done. */
+export class AlreadyReversedError extends Error {
+  constructor(
+    readonly what: 'purchase' | 'supplierPayment',
+    readonly id: string,
+  ) {
+    super(`Already reversed: ${what} ${id}`);
+    this.name = 'AlreadyReversedError';
+  }
+}

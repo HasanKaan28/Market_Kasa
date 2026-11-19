@@ -21,6 +21,8 @@ export type SupplierPaymentInput = {
   note?: string;
   /** The day it was paid, `YYYY-MM-DD`, when typed in later; today when absent. */
   paidOn?: string;
+  /** The payment this one corrects; set by `correctSupplierPayment`, which reverses that one. */
+  correctsId?: string;
   staffId?: string;
   cutoffMinutes?: number;
 };
@@ -69,6 +71,7 @@ export async function recordSupplierPayment(
         method: input.method,
         note: input.note?.trim() || undefined,
         documentDate: input.paidOn,
+        correctsId: input.correctsId,
         staffId: input.staffId,
       },
       at,
@@ -194,14 +197,24 @@ export function documentDay(record: { documentDate?: string; businessDate: strin
   return record.documentDate ?? record.businessDate;
 }
 
-async function addEntry(
+/**
+ * Writes one ledger entry and queues it. It runs inside the caller's transaction, which must
+ * include `supplierLedger` and `outbox`. An `id` is given only when it must be the same on every
+ * device (see `deriveId`).
+ */
+export async function addEntry(
   db: MarketDb,
-  entry: Omit<SupplierLedgerRecord, 'id' | 'occurredAt' | 'businessDate'>,
+  {
+    id,
+    ...entry
+  }: Omit<SupplierLedgerRecord, 'id' | 'occurredAt' | 'businessDate'> & {
+    id?: string;
+  },
   at: Date,
   cutoffMinutes: number | undefined,
 ): Promise<SupplierLedgerRecord> {
   const record: SupplierLedgerRecord = withoutUndefined({
-    id: newId(at.getTime()),
+    id: id ?? newId(at.getTime()),
     ...entry,
     occurredAt: at.toISOString(),
     businessDate: businessDate(at, { cutoffMinutes }),
