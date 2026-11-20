@@ -8,9 +8,19 @@ const SALT_BYTES = 16;
 const HASH_BITS = 256;
 const PIN = /^\d{4,6}$/;
 
+const LONG_PIN = /^\d{6}$/;
+
 /** Four to six digits, 0–9 only. */
 export function isValidPin(pin: string): boolean {
   return PIN.test(pin);
+}
+
+/**
+ * A PIN being set now for a person of this role: an owner's or a manager's opens everything, so it
+ * is six digits; anyone else's four to six. PINs set before this rule still sign in.
+ */
+export function isValidNewPin(pin: string, role: string): boolean {
+  return role === 'owner' || role === 'manager' ? LONG_PIN.test(pin) : isValidPin(pin);
 }
 
 /**

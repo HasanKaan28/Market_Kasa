@@ -42,6 +42,11 @@ export type PurchaseInput = {
   invoiceDate?: string;
   /** A cash payment came out of the register's drawer; false when paid from elsewhere. */
   fromDrawer?: boolean;
+  /**
+   * What was paid out of the drawer, as typed by someone who may not see the buy prices; the
+   * receipt's total when absent. It changes no product's buy price.
+   */
+  paidAmount?: Kurus;
   note?: string;
   /** The receipt this one corrects; set by `correctPurchase`, which reverses that one. */
   correctsId?: string;
@@ -67,6 +72,12 @@ export async function recordPurchase(
   assertDocumentDate(input.invoiceDate, at, input.cutoffMinutes);
   if (payment === 'on_account' && !input.supplierId) {
     throw new RangeError('A delivery on account needs its supplier');
+  }
+  if (input.paidAmount !== undefined) {
+    assertSafeInteger(input.paidAmount, 'Amount paid');
+    if (input.paidAmount < 0) {
+      throw new RangeError(`An amount paid cannot be below zero, got ${input.paidAmount}`);
+    }
   }
   const id = newId(at.getTime());
   const tables = [
@@ -159,14 +170,16 @@ export async function recordPurchase(
         cutoffMinutes: input.cutoffMinutes,
       });
     }
-    // Paid in cash, it comes out of the register's drawer; free goods alone take nothing out.
-    if (payment === 'cash' && record.total > 0 && input.fromDrawer !== false) {
+    // Paid in cash, it comes out of the register's drawer: what was typed as paid, else the total;
+    // free goods alone take nothing out.
+    const paidOut = input.paidAmount ?? record.total;
+    if (payment === 'cash' && paidOut > 0 && input.fromDrawer !== false) {
       await addCashMovement(
         db,
         {
           deviceCode: input.deviceCode,
           kind: 'out',
-          amount: record.total,
+          amount: paidOut,
           reason: supplier ? `Mal kabul · ${supplier.name}` : 'Mal kabul',
           refId: id,
           staffId: input.staffId,

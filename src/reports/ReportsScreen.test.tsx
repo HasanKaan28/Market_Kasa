@@ -106,7 +106,7 @@ describe('ReportsScreen', () => {
     const { data, sell } = await salesData();
     await createStaff(
       data.db,
-      { name: 'Kaan', role: 'owner', pin: '4821' },
+      { name: 'Kaan', role: 'owner', pin: '482100' },
       new Date(Date.now() - DAY_MS),
     );
     const ayse = await createStaff(

@@ -17,7 +17,7 @@ import { correctPurchase } from '@/data/corrections';
 import { recordPurchase, type PurchaseInput } from '@/data/purchases';
 import type { ProductRecord, PurchasePayment, PurchaseRecord } from '@/data/types';
 import { Button, ChoiceGroup, SelectField, TextField } from '@/design';
-import { formatTRY } from '@/domain/money';
+import { formatTRY, parseTRY } from '@/domain/money';
 import { formatPriceInput, formatStock, UNIT_LABELS } from '@/pos/format';
 import { CameraButton } from '@/pos/CameraButton';
 import { looksLikeBarcode, useBarcodeScanner } from '@/pos/keyboard';
@@ -62,13 +62,19 @@ export type GoodsReceiptProps = {
 /**
  * Goods coming in: scan or search each product, type how many came and at what price, and save
  * them as one receipt. The draft is kept on this device until it is saved; a correction is not
- * kept, so it never takes the place of a receipt being typed.
+ * kept, so it never takes the place of a receipt being typed. Buy prices and totals show only to
+ * those who may see cost (the products' own buy prices are used then); paying on account or from
+ * elsewhere than the drawer is left to those who may do supplier work.
  */
 export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptProps): JSX.Element {
   const correcting = correction?.purchase;
   const { db, settings, runner } = useData();
   const actor = useActor();
-  const { staff } = useSession();
+  const session = useSession();
+  const { staff } = session;
+  const showCost = session.can('seeCost');
+  // A correction keeps how the receipt was paid; it was approved for supplier work already.
+  const supplierWork = session.can('suppliers') || correcting !== undefined;
   const { cutoffMinutes } = useMarketSettings();
   const [draft, setDraft] = useState<ReceiptDraft>(() =>
     correcting ? draftFromPurchase(correcting) : loadDraft(),
@@ -103,8 +109,18 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
     suppliers === undefined || suppliers.some((supplier) => supplier.id === draft.supplierId)
       ? (draft.supplierId ?? '')
       : '';
-  const payment = draft.payment ?? 'cash';
-  const fromDrawer = draft.fromDrawer ?? true;
+  // Without supplier work a receipt is paid in cash or by card, cash out of this drawer.
+  const payment =
+    !supplierWork && draft.payment === 'on_account' ? 'cash' : (draft.payment ?? 'cash');
+  const fromDrawer = supplierWork ? (draft.fromDrawer ?? true) : true;
+  const payments = supplierWork
+    ? PAYMENTS
+    : PAYMENTS.filter((option) => option.value !== 'on_account');
+  // Someone who does not see the buy prices cannot check the total the drawer would pay out:
+  // they type what they paid, and that is what leaves the drawer.
+  const asksPaid = !showCost && payment === 'cash' && fromDrawer;
+  const [paid, setPaid] = useState('');
+  const [paidError, setPaidError] = useState<string>();
 
   useEffect(() => {
     if (!correcting) {
@@ -197,6 +213,17 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
       setFailure('Açık hesap için tedarikçi seçin.');
       return;
     }
+    let paidAmount: number | undefined;
+    if (asksPaid) {
+      paidAmount = readPaid(paid);
+      if (paidAmount === undefined) {
+        setPaidError(
+          paid.trim() === '' ? 'Kasadan ödenen tutarı yazın.' : 'Geçerli bir tutar girin.',
+        );
+        return;
+      }
+    }
+    setPaidError(undefined);
     setBusy(true);
     setFailure(undefined);
     try {
@@ -225,6 +252,7 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
         ...(draft.invoiceDate ? { invoiceDate: draft.invoiceDate } : {}),
         payment,
         ...(payment === 'cash' ? { fromDrawer } : {}),
+        ...(paidAmount !== undefined ? { paidAmount } : {}),
       };
       if (correcting) {
         setConfirming({ input, total, draft });
@@ -232,7 +260,12 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
       }
       const purchase = await recordPurchase(db, input, new Date(), actor);
       setDraft(EMPTY_DRAFT);
-      onDone(`Mal kabul kaydedildi: ${purchase.lines.length} ürün, ${formatTRY(purchase.total)}.`);
+      setPaid('');
+      onDone(
+        showCost
+          ? `Mal kabul kaydedildi: ${purchase.lines.length} ürün, ${formatTRY(purchase.total)}.`
+          : `Mal kabul kaydedildi: ${purchase.lines.length} ürün.`,
+      );
       void runner.run();
     } catch {
       setFailure('Mal kabul kaydedilemedi. Hiçbir şey değişmedi.');
@@ -318,7 +351,8 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
                 line={line}
                 product={product}
                 stockMilli={live?.stock.get(line.productId) ?? 0}
-                cost={cost}
+                cost={showCost ? cost : undefined}
+                showCost={showCost}
                 error={error}
                 onChange={(field, value) => setLine(line.productId, field, value)}
                 onFree={(free) => setFree(line.productId, free)}
@@ -364,28 +398,30 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
           }
         />
       </div>
-      <label className="flex min-h-11 cursor-pointer items-center gap-3">
-        <input
-          type="checkbox"
-          checked={draft.pricesExclusive ?? false}
-          onChange={(event) =>
-            setDraft((current) => ({
-              ...current,
-              pricesExclusive: event.target.checked || undefined,
-            }))
-          }
-          className="size-5 accent-accent"
-        />
-        Alış fiyatları KDV hariç
-      </label>
+      {showCost ? (
+        <label className="flex min-h-11 cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={draft.pricesExclusive ?? false}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                pricesExclusive: event.target.checked || undefined,
+              }))
+            }
+            className="size-5 accent-accent"
+          />
+          Alış fiyatları KDV hariç
+        </label>
+      ) : null}
       <ChoiceGroup
         legend="Ödeme"
         name="receiptPayment"
-        options={PAYMENTS}
+        options={payments}
         value={payment}
         onChange={(next) => setDraft((current) => ({ ...current, payment: next }))}
       />
-      {payment === 'cash' ? (
+      {payment === 'cash' && supplierWork ? (
         <label className="flex min-h-11 cursor-pointer items-center gap-3">
           <input
             type="checkbox"
@@ -398,6 +434,19 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
           Kasadan ödendi
         </label>
       ) : null}
+      {asksPaid ? (
+        <div className="w-56">
+          <TextField
+            label="Ödenen tutar"
+            hint="Kasadan çıkan para"
+            inputMode="decimal"
+            autoComplete="off"
+            value={paid}
+            error={paidError}
+            onChange={(event) => setPaid(event.target.value)}
+          />
+        </div>
+      ) : null}
       <TextField
         label="Not"
         hint="İrsaliye numarası ya da başka bir not."
@@ -405,7 +454,7 @@ export function GoodsReceipt({ onDone, correcting: correction }: GoodsReceiptPro
         value={draft.note}
         onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))}
       />
-      <p className="font-semibold">{`Toplam: ${formatTRY(total)}`}</p>
+      {showCost ? <p className="font-semibold">{`Toplam: ${formatTRY(total)}`}</p> : null}
       {failure ? (
         <p role="alert" className="font-medium text-danger">
           {failure}
@@ -471,6 +520,7 @@ function ReceiptLine({
   product,
   stockMilli,
   cost,
+  showCost,
   error,
   onChange,
   onFree,
@@ -481,6 +531,8 @@ function ReceiptLine({
   product: ProductRecord | undefined;
   stockMilli: number;
   cost: number | undefined;
+  /** False hides the buy price box: the product's own buy price is used. */
+  showCost: boolean;
   error: string | undefined;
   onChange(field: LineField, value: string): void;
   onFree(free: boolean): void;
@@ -514,16 +566,18 @@ function ReceiptLine({
           value={line.qty}
           onChange={(event) => onChange('qty', event.target.value)}
         />
-        <TextField
-          label="Alış fiyatı"
-          hint={unit === 'kg' ? 'Kilogram fiyatı' : undefined}
-          disabled={line.free}
-          inputMode="decimal"
-          autoComplete="off"
-          value={shownPrice(line, product, 'buyPrice')}
-          placeholder={keptPrice(product, 'buyPrice')}
-          onChange={(event) => onChange('buyPrice', event.target.value)}
-        />
+        {showCost ? (
+          <TextField
+            label="Alış fiyatı"
+            hint={unit === 'kg' ? 'Kilogram fiyatı' : undefined}
+            disabled={line.free}
+            inputMode="decimal"
+            autoComplete="off"
+            value={shownPrice(line, product, 'buyPrice')}
+            placeholder={keptPrice(product, 'buyPrice')}
+            onChange={(event) => onChange('buyPrice', event.target.value)}
+          />
+        ) : null}
         <TextField
           label="Satış fiyatı"
           hint={unit === 'kg' ? 'Kilogram fiyatı' : undefined}
@@ -565,4 +619,13 @@ function ReceiptLine({
 /** An emptied price box shows, greyed, the price the product keeps. */
 function keptPrice(product: ProductRecord | undefined, field: PriceField): string | undefined {
   return product && product[field] > 0 ? formatPriceInput(product[field]) : undefined;
+}
+
+/** An amount paid typed in, zero or more; undefined when it cannot be read. */
+function readPaid(text: string): number | undefined {
+  try {
+    return parseTRY(text);
+  } catch {
+    return undefined;
+  }
 }

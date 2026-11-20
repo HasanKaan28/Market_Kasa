@@ -95,3 +95,8 @@ function describe(entry: LedgerRecord, receipts: ReadonlyMap<string, string>): s
       return entry.note ? `Düzeltme: ${entry.note}` : 'Düzeltme';
   }
 }
+
+/** A change to a balance: "+₺100,00" added to it, "−₺100,00" taken off it. */
+export function signedTRY(amount: Kurus): string {
+  return amount < 0 ? `−${formatTRY(-amount)}` : `+${formatTRY(amount)}`;
+}

@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
+import { useSession } from '@/app/session';
 import { ToastRegion, useToast } from '@/design';
 import { ArchiveInvoices } from './ArchiveInvoices';
 import { DocumentsList } from './DocumentsList';
@@ -14,13 +15,17 @@ const TABS: readonly { value: Tab; label: string }[] = [
 
 /**
  * The market's papers: the sales and purchases of a range of days, and on a tab of its own the
- * e-Arşiv invoices asked for on sales.
+ * e-Arşiv invoices asked for on sales. The sales and purchases add up to the market's takings, so
+ * only those who may see the reports get that tab; others see the e-Arşiv invoices alone.
  */
 export function InvoicesScreen(): JSX.Element {
   const { settings, runner } = useData();
   const status = useSyncStatus(runner);
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>('documents');
+  const session = useSession();
+  const tabs = session.can('reports') ? TABS : TABS.filter((option) => option.value === 'archive');
+  const [chosen, setTab] = useState<Tab>(tabs[0]?.value ?? 'archive');
+  const tab = tabs.some((option) => option.value === chosen) ? chosen : 'archive';
 
   return (
     <>
@@ -34,7 +39,7 @@ export function InvoicesScreen(): JSX.Element {
       >
         <h1 className="text-xl font-semibold">Faturalar</h1>
         <div role="tablist" aria-label="Faturalar" className="flex gap-2 border-b border-line">
-          {TABS.map((option) => {
+          {tabs.map((option) => {
             const selected = tab === option.value;
             return (
               <button

@@ -175,7 +175,7 @@ describe('taking back and correcting a supplier invoice', () => {
 
   it('asks a manager or the owner to approve it for someone who may not', async () => {
     const data = createTestData();
-    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, before());
+    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
     const deniz = await createStaff(
       data.db,
       { name: 'Deniz', role: 'stock', pin: '1234' },
@@ -190,12 +190,62 @@ describe('taking back and correcting a supplier invoice', () => {
     const approval = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
     expect(within(dialog).queryByRole('form', { name: 'Geri al' })).toBeNull();
     await within(approval).findByRole('option', { name: 'Kaan · Sahip' });
-    await userEvent.type(within(approval).getByLabelText('PIN'), '4821');
+    await userEvent.type(within(approval).getByLabelText('PIN'), '482100');
     await userEvent.click(within(approval).getByRole('button', { name: 'Onayla' }));
 
     expect(await within(dialog).findByRole('form', { name: 'Geri al' })).toBeInTheDocument();
     await waitFor(async () =>
       expect((await data.db.auditLog.toArray()).map((entry) => entry.action)).toContain('approval'),
     );
+  });
+
+  it('asks approval for a hand-made change to what is owed, for its amount', async () => {
+    const data = createTestData();
+    const kaan = await createStaff(
+      data.db,
+      { name: 'Kaan', role: 'owner', pin: '482100' },
+      before(),
+    );
+    const deniz = await createStaff(
+      data.db,
+      { name: 'Deniz', role: 'stock', pin: '1234' },
+      before(),
+    );
+    localStorage.setItem('mk2.staff', deniz.id);
+    const { eti } = await owed(data);
+    const onDone = vi.fn();
+    const dialog = await open(data, eti.id, onDone);
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Düzeltme' }));
+    const form = await within(dialog).findByRole('form', { name: 'Düzeltme' });
+    await userEvent.click(within(form).getByRole('radio', { name: 'Borç düş' }));
+    await userEvent.type(within(form).getByLabelText('Tutar'), '100');
+    await userEvent.type(within(form).getByLabelText('Neden'), 'İskonto');
+    await userEvent.click(within(form).getByRole('button', { name: 'Düzeltmeyi kaydet' }));
+
+    const approval = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(within(approval).getByText('Eti: borç −₺100,00')).toBeInTheDocument();
+    expect(await supplierBalance(data.db, eti.id)).toBe(36000);
+    await within(approval).findByRole('option', { name: 'Kaan · Sahip' });
+    await userEvent.type(within(approval).getByLabelText('PIN'), '482100');
+    await userEvent.click(within(approval).getByRole('button', { name: 'Onayla' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Düzeltme kaydedildi.'));
+    expect(await supplierBalance(data.db, eti.id)).toBe(26000);
+    // Both can land in the same millisecond: compared in the order of their actions.
+    const log = (await data.db.auditLog.toArray()).sort((a, b) => a.action.localeCompare(b.action));
+    expect(log).toMatchObject([
+      {
+        action: 'approval',
+        staffId: deniz.id,
+        entityId: eti.id,
+        after: { permission: 'correctSupplier', approverId: kaan.id, amount: -10000 },
+      },
+      {
+        action: 'supplierLedger.adjust',
+        entity: 'supplierLedger',
+        staffId: deniz.id,
+        after: { supplierId: eti.id, amount: -10000, note: 'İskonto' },
+      },
+    ]);
   });
 });

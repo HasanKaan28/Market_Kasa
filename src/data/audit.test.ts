@@ -7,6 +7,8 @@ import { pendingOps } from './outbox';
 import { createProduct, updateProduct } from './products';
 import { recordPurchase } from './purchases';
 import { saveMarketSettings } from './settings';
+import { recordSupplierAdjustment } from './supplierLedger';
+import { createSupplier } from './suppliers';
 import { archiveStaff, createStaff, restoreStaff, setStaffPin, updateStaff } from './staff';
 
 let db: MarketDb;
@@ -35,7 +37,7 @@ async function entries() {
 
 describe('audit log', () => {
   it('records who changed what', async () => {
-    const kaan = await createStaff(db, { name: 'Kaan', role: 'owner', pin: '4821' }, at, owner);
+    const kaan = await createStaff(db, { name: 'Kaan', role: 'owner', pin: '482100' }, at, owner);
     const ayse = await createStaff(
       db,
       { name: 'Ayşe', role: 'cashier', pin: '1234' },
@@ -43,7 +45,7 @@ describe('audit log', () => {
       owner,
     );
     await updateStaff(db, ayse.id, { role: 'manager' }, later(2), owner);
-    await setStaffPin(db, ayse.id, '9999', later(3), owner);
+    await setStaffPin(db, ayse.id, '999999', later(3), owner);
     await archiveStaff(db, ayse.id, later(4), owner);
     await restoreStaff(db, ayse.id, later(5), owner);
     await saveMarketSettings(db, { cutoffMinutes: 120 }, later(6), owner);
@@ -176,5 +178,58 @@ describe('audit log', () => {
         after: { permission: 'discount', approverId: 'staff-manager' },
       },
     ]);
+  });
+});
+
+describe('an approval bound to what it was for', () => {
+  it('keeps the record, the amount and the summary the approver saw', async () => {
+    await recordApproval(
+      db,
+      {
+        permission: 'overLimit',
+        approverId: 'staff-manager',
+        entity: 'customer',
+        entityId: 'customer-1',
+        amount: -10000,
+        summary: 'Ahmet: borç −₺100,00',
+      },
+      at,
+      { deviceCode: 'K1', staffId: 'staff-cashier' },
+    );
+    expect(await entries()).toEqual([
+      {
+        action: 'approval',
+        entityId: 'customer-1',
+        staffId: 'staff-cashier',
+        before: undefined,
+        after: {
+          permission: 'overLimit',
+          approverId: 'staff-manager',
+          entity: 'customer',
+          amount: -10000,
+          summary: 'Ahmet: borç −₺100,00',
+        },
+      },
+    ]);
+  });
+
+  it('records a hand-made change to what a supplier is owed', async () => {
+    const eti = await createSupplier(db, { name: 'Eti' }, at);
+    const entry = await recordSupplierAdjustment(
+      db,
+      { supplierId: eti.id, amount: -2500, note: 'İskonto', staffId: 'staff-stock' },
+      later(1),
+      { deviceCode: 'K1', staffId: 'staff-stock' },
+    );
+    expect(await entries()).toEqual([
+      {
+        action: 'supplierLedger.adjust',
+        entityId: entry.id,
+        staffId: 'staff-stock',
+        before: undefined,
+        after: { supplierId: eti.id, amount: -2500, note: 'İskonto' },
+      },
+    ]);
+    expect((await pendingOps(db)).map((op) => op.table)).toContain('auditLog');
   });
 });

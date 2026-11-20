@@ -15,7 +15,13 @@ import {
   type Permission,
   type Role,
 } from '@/domain/permissions';
-import { isValidPin } from '@/domain/pin';
+import { isValidNewPin, isValidPin } from '@/domain/pin';
+
+/** Owners and managers open everything: a PIN set for them now is six digits. */
+const LONG_PIN_HINT = 'Sahip ve yönetici için 6 rakam.';
+const PROMOTION_PIN_HINT = 'Yönetici ve sahip için 6 rakamlı yeni PIN gerekir.';
+
+const opensEverything = (role: Role) => role === 'owner' || role === 'manager';
 
 export type StaffDialogProps = {
   open: boolean;
@@ -50,6 +56,9 @@ export function StaffDialog({
   const [errors, setErrors] = useState<{ name?: string; pin?: string; pinAgain?: string }>({});
   const [failure, setFailure] = useState<string>();
   const [saving, setSaving] = useState(false);
+  // Made an owner or a manager: the PIN they had may be short, so a new six-digit one is set in
+  // the same save. (A PIN is kept only as a hash: its length cannot be read back.)
+  const promoting = person !== undefined && role !== person.role && opensEverything(role);
 
   async function run(save: () => Promise<void>) {
     if (saving) {
@@ -70,10 +79,15 @@ export function StaffDialog({
     }
   }
 
-  function pinProblems(): boolean {
+  /** Checks the PIN typed for a person of `pinRole`; true when something is wrong. */
+  function pinProblems(pinRole: Role): boolean {
     const found: typeof errors = {};
     if (!isValidPin(pin)) {
-      found.pin = 'PIN 4–6 rakamdır.';
+      found.pin = opensEverything(pinRole)
+        ? 'Sahip ve yönetici PIN’i 6 rakamdır.'
+        : 'PIN 4–6 rakamdır.';
+    } else if (!isValidNewPin(pin, pinRole)) {
+      found.pin = 'Sahip ve yönetici PIN’i 6 rakamdır.';
     } else if (pin !== pinAgain) {
       found.pinAgain = 'PIN’ler aynı değil.';
     }
@@ -87,7 +101,7 @@ export function StaffDialog({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!person) {
-      if (pinProblems()) {
+      if (pinProblems(role)) {
         return;
       }
       void run(async () => {
@@ -105,7 +119,14 @@ export function StaffDialog({
       setErrors({ name: 'Ad gerekli.' });
       return;
     }
+    if (promoting && pinProblems(role)) {
+      return;
+    }
     void run(async () => {
+      // The new PIN first: a promotion never goes through with the old, possibly short, PIN.
+      if (promoting) {
+        await setStaffPin(db, person.id, pin, new Date(), actor);
+      }
       await updateStaff(
         db,
         person.id,
@@ -118,7 +139,9 @@ export function StaffDialog({
   }
 
   function savePin() {
-    if (!person || pinProblems()) {
+    // The stricter of the role saved and the role being chosen, so a PIN short for either is not
+    // set.
+    if (!person || pinProblems(opensEverything(person.role) ? person.role : role)) {
       return;
     }
     void run(async () => {
@@ -151,7 +174,7 @@ export function StaffDialog({
       title={person ? person.name : 'Yeni personel'}
       size="lg"
     >
-      {person && changingPin ? (
+      {person && changingPin && !promoting ? (
         // A form of its own, so Enter in a PIN field saves the PIN and nothing else.
         <form
           noValidate
@@ -165,6 +188,9 @@ export function StaffDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <PinFields
               label="Yeni PIN"
+              hint={
+                opensEverything(person.role) || opensEverything(role) ? LONG_PIN_HINT : undefined
+              }
               pin={pin}
               pinAgain={pinAgain}
               errors={errors}
@@ -201,10 +227,24 @@ export function StaffDialog({
             onChange={(event) => setRole(event.target.value as Role)}
           />
         </div>
+        {promoting ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PinFields
+              label="Yeni PIN"
+              hint={PROMOTION_PIN_HINT}
+              pin={pin}
+              pinAgain={pinAgain}
+              errors={errors}
+              onPin={setPin}
+              onPinAgain={setPinAgain}
+            />
+          </div>
+        ) : null}
         {!person ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <PinFields
               label="PIN"
+              hint={opensEverything(role) ? LONG_PIN_HINT : undefined}
               pin={pin}
               pinAgain={pinAgain}
               errors={errors}
@@ -261,7 +301,9 @@ export function StaffDialog({
         ) : null}
         <div className="flex flex-wrap gap-2">
           {person && !changingPin ? (
-            <Button onClick={() => setChangingPin(true)}>PIN’i değiştir</Button>
+            <Button disabled={promoting} onClick={() => setChangingPin(true)}>
+              PIN’i değiştir
+            </Button>
           ) : null}
           {person ? (
             <Button variant={person.archivedAt ? 'secondary' : 'danger'} onClick={toggleArchive}>
@@ -280,6 +322,7 @@ export function StaffDialog({
 /** A PIN typed twice, digits only. */
 function PinFields({
   label,
+  hint,
   pin,
   pinAgain,
   errors,
@@ -287,6 +330,7 @@ function PinFields({
   onPinAgain,
 }: {
   label: string;
+  hint?: string;
   pin: string;
   pinAgain: string;
   errors: { pin?: string; pinAgain?: string };
@@ -297,6 +341,7 @@ function PinFields({
     <>
       <TextField
         label={label}
+        hint={hint}
         type="password"
         inputMode="numeric"
         autoComplete="new-password"

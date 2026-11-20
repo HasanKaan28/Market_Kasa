@@ -15,7 +15,7 @@ import { CustomerFormDialog } from './CustomerFormDialog';
 import { AdjustmentForm, PaymentForm } from './PaymentForm';
 import { printStatement } from './printStatement';
 import { reminderText } from './reminder';
-import { customerStatement, formatBalance } from './statement';
+import { customerStatement, formatBalance, signedTRY } from './statement';
 
 export type CustomerDialogProps = {
   open: boolean;
@@ -103,11 +103,9 @@ export function CustomerDialog({
             <Button aria-expanded={panel === 'payment'} onClick={() => setPanel('payment')}>
               Tahsilat al
             </Button>
-            {/* A write-down or a hand-made debt is a manager's call, like going over a limit. */}
-            <Button
-              aria-expanded={panel === 'adjustment'}
-              onClick={() => approval.ask('overLimit', () => setPanel('adjustment'))}
-            >
+            {/* A write-down or a hand-made debt is a manager's call, like going over a limit;
+                it is asked for on save, for the amount typed. */}
+            <Button aria-expanded={panel === 'adjustment'} onClick={() => setPanel('adjustment')}>
               Düzeltme
             </Button>
             <Button onClick={() => setPanel('edit')}>Düzenle</Button>
@@ -178,6 +176,7 @@ export function CustomerDialog({
           {panel === 'payment' ? (
             <PaymentForm
               customerId={customerId}
+              customerName={customer?.name ?? 'Müşteri'}
               balance={balance}
               onSaved={saved}
               onCancel={() => setPanel(null)}
@@ -185,13 +184,22 @@ export function CustomerDialog({
           ) : null}
           {panel === 'adjustment' ? (
             <AdjustmentForm
-              save={(amount, note) =>
-                recordAdjustment(
+              save={async (amount, note) => {
+                const approved = await approval.confirm('overLimit', {
+                  entity: 'customer',
+                  entityId: customerId,
+                  amount,
+                  summary: `${customer?.name ?? 'Müşteri'}: borç ${signedTRY(amount)}`,
+                });
+                if (!approved) {
+                  return false;
+                }
+                return recordAdjustment(
                   db,
                   { customerId, amount, note, staffId: staff?.id, cutoffMinutes },
                   new Date(),
-                )
-              }
+                );
+              }}
               onSaved={saved}
               onCancel={() => setPanel(null)}
             />

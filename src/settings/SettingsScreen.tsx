@@ -11,7 +11,14 @@ import { ROLE_LABELS } from '@/domain/permissions';
 import { AuditLog } from './AuditLog';
 import { BackupSection } from './BackupSection';
 import { ScaleSection } from './ScaleSection';
-import { LicenseSection, MarketSection, ReceiptSection, RegisterSection } from './MarketSections';
+import {
+  CreditSection,
+  LicenseSection,
+  LockSection,
+  MarketSection,
+  ReceiptSection,
+  RegisterSection,
+} from './MarketSections';
 import { StaffDialog } from './StaffDialog';
 import { UpdateSection } from './UpdateSection';
 import { updateTarget } from './updates';
@@ -45,11 +52,13 @@ export function SettingsScreen(): JSX.Element {
       >
         <h1 className="text-xl font-semibold">Ayarlar</h1>
         <MarketSection onDone={(message) => done(message)} />
+        <CreditSection onDone={(message) => done(message)} />
         <RegisterSection />
         <ReceiptSection onDone={(message) => done(message)} />
         <ScaleSection onDone={(message) => done(message)} />
         <UpdateSection version={APP_VERSION} {...updateTarget()} />
         <BackupSection />
+        <LockSection onDone={(message) => done(message)} />
         <section
           aria-labelledby="staff-heading"
           className="flex flex-col gap-3 rounded-control border border-line bg-surface p-4"

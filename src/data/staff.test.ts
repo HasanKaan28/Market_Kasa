@@ -24,7 +24,7 @@ afterEach(async () => {
 const at = new Date('2026-10-29T09:00:00Z');
 const minutes = (n: number) => new Date(at.getTime() + n * 60_000);
 
-function owner(name = 'Kaan', pin = '4821') {
+function owner(name = 'Kaan', pin = '482100') {
   return createStaff(db, { name, role: 'owner', pin }, at);
 }
 
@@ -33,10 +33,10 @@ describe('staff', () => {
     await expect(
       createStaff(db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, at),
     ).rejects.toThrow(RangeError);
-    const kaan = await createStaff(db, { name: ' Kaan ', role: 'owner', pin: '4821' }, at);
+    const kaan = await createStaff(db, { name: ' Kaan ', role: 'owner', pin: '482100' }, at);
     expect(kaan).toMatchObject({ name: 'Kaan', role: 'owner' });
     expect(kaan.pinIterations).toBeGreaterThanOrEqual(100_000);
-    expect(JSON.stringify(kaan)).not.toContain('4821');
+    expect(JSON.stringify(kaan)).not.toContain('482100');
     const ayse = await createStaff(
       db,
       { name: 'Ayşe', role: 'cashier', pin: '1234', permissions: { discount: true } },
@@ -59,7 +59,7 @@ describe('staff', () => {
       LastOwnerError,
     );
     await expect(archiveStaff(db, kaan.id, minutes(1))).rejects.toThrow(LastOwnerError);
-    const ali = await createStaff(db, { name: 'Ali', role: 'owner', pin: '1111' }, minutes(2));
+    const ali = await createStaff(db, { name: 'Ali', role: 'owner', pin: '111111' }, minutes(2));
     const demoted = await updateStaff(db, kaan.id, { role: 'manager' }, minutes(3));
     expect(demoted.role).toBe('manager');
     await expect(archiveStaff(db, ali.id, minutes(4))).rejects.toThrow(LastOwnerError);
@@ -86,8 +86,8 @@ describe('staff', () => {
       until: minutes(10).toISOString(),
     });
     // The right PIN does not open a locked person.
-    expect(await checkPin(db, kaan.id, '4821', minutes(9))).toMatchObject({ reason: 'locked' });
-    expect(await checkPin(db, kaan.id, '4821', minutes(10))).toMatchObject({
+    expect(await checkPin(db, kaan.id, '482100', minutes(9))).toMatchObject({ reason: 'locked' });
+    expect(await checkPin(db, kaan.id, '482100', minutes(10))).toMatchObject({
       ok: true,
       staff: { id: kaan.id },
     });
@@ -109,5 +109,23 @@ describe('staff', () => {
     await setStaffPin(db, ayse.id, '9999', minutes(5));
     expect(await checkPin(db, ayse.id, '1234', minutes(6))).toMatchObject({ reason: 'wrong' });
     expect(await checkPin(db, ayse.id, '9999', minutes(7))).toMatchObject({ ok: true });
+  });
+
+  it('asks six digits of an owner or a manager PIN set now, and keeps a short one set before', async () => {
+    await expect(createStaff(db, { name: 'Kaan', role: 'owner', pin: '4821' }, at)).rejects.toThrow(
+      RangeError,
+    );
+    const kaan = await owner('Kaan', '482100');
+    await expect(
+      createStaff(db, { name: 'Mehmet', role: 'manager', pin: '2222' }, at),
+    ).rejects.toThrow(RangeError);
+    // A cashier promoted keeps the PIN they had; a new one must be six digits.
+    const ayse = await createStaff(db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, at);
+    await updateStaff(db, ayse.id, { role: 'manager' }, minutes(1));
+    expect(await checkPin(db, ayse.id, '1234', minutes(2))).toMatchObject({ ok: true });
+    await expect(setStaffPin(db, ayse.id, '9999', minutes(3))).rejects.toThrow(RangeError);
+    await expect(setStaffPin(db, kaan.id, '1111', minutes(3))).rejects.toThrow(RangeError);
+    await setStaffPin(db, ayse.id, '999999', minutes(4));
+    expect(await checkPin(db, ayse.id, '999999', minutes(5))).toMatchObject({ ok: true });
   });
 });

@@ -1,12 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { expectedCash } from '@/data/cash';
 import { createProduct, deleteProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
 import { archiveSupplier, createSupplier, supplierBalance } from '@/data/suppliers';
 import { fakeCamera, removeCamera } from '@/test/camera';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
+import { asPersonWho } from '@/test/session';
 import { GoodsReceipt } from './GoodsReceipt';
 
 const at = new Date('2026-10-29T09:00:00Z');
@@ -366,5 +368,73 @@ describe('GoodsReceipt', () => {
     await waitFor(async () =>
       expect(within(await lineOf('Süt')).getByLabelText('Miktar')).toHaveValue('24'),
     );
+  });
+
+  it('hides buy prices and totals from someone not allowed to see cost', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    const onDone = vi.fn();
+    await renderWithData(
+      asPersonWho(['stock', 'suppliers'], <GoodsReceipt onDone={onDone} />),
+      data,
+    );
+    await scan('8690000000017');
+    const line = await lineOf('Süt');
+    expect(within(line).queryByLabelText('Alış fiyatı')).toBeNull();
+    expect(within(line).queryByText(/Tutar/)).toBeNull();
+    expect(screen.queryByText(/Toplam/)).toBeNull();
+    expect(screen.queryByLabelText('Alış fiyatları KDV hariç')).toBeNull();
+    // By card nothing leaves the drawer, so no amount paid is asked.
+    await userEvent.click(screen.getByRole('radio', { name: 'Kart' }));
+    expect(screen.queryByLabelText('Ödenen tutar')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Mal kabul kaydedildi: 1 ürün.'));
+    // The product's own buy price is what the delivery cost.
+    expect((await data.db.purchases.toArray())[0]?.total).toBe(3000);
+  });
+
+  it('leaves paying from the drawer and on account to those allowed supplier work', async () => {
+    const data = createTestData();
+    await createProduct(data.db, milk, at);
+    await createSupplier(data.db, { name: 'Eti' }, at);
+    localStorage.setItem(
+      'mk2.goodsReceipt',
+      JSON.stringify({ payment: 'on_account', fromDrawer: false, lines: [], note: '' }),
+    );
+    const onDone = vi.fn();
+    await renderWithData(asPersonWho(['stock', 'seeCost'], <GoodsReceipt onDone={onDone} />), data);
+    await scan('8690000000017');
+    await lineOf('Süt');
+    expect(screen.queryByRole('radio', { name: 'Açık hesap' })).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Nakit' })).toBeChecked();
+    expect(screen.queryByLabelText('Kasadan ödendi')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(await data.db.purchases.toArray()).toMatchObject([{ payment: 'cash' }]);
+    // Paid in cash, it came out of the drawer.
+    expect(await data.db.cashMovements.toArray()).toMatchObject([{ kind: 'out', amount: 3000 }]);
+  });
+
+  it('takes from the drawer what is typed as paid when the cost is hidden', async () => {
+    const data = createTestData();
+    const tea = await createProduct(
+      data.db,
+      { barcode: '8690000000024', name: 'Çay', sellPrice: 9000, vatRate: 1 },
+      at,
+    );
+    const onDone = vi.fn();
+    await renderWithData(asPersonWho(['stock'], <GoodsReceipt onDone={onDone} />), data);
+    await scan('8690000000024');
+    await lineOf('Çay');
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    expect(await screen.findByText('Kasadan ödenen tutarı yazın.')).toBeInTheDocument();
+    expect(await data.db.purchases.count()).toBe(0);
+    await userEvent.type(screen.getByLabelText('Ödenen tutar'), '350');
+    await userEvent.click(screen.getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('Mal kabul kaydedildi: 1 ürün.'));
+    expect(await data.db.cashMovements.toArray()).toMatchObject([{ kind: 'out', amount: 35000 }]);
+    expect(await expectedCash(data.db, 'K1')).toMatchObject({ movementsOut: 35000 });
+    // The product's buy price is not worked out from it.
+    expect((await data.db.products.get(tea.id))?.buyPrice).toBe(0);
   });
 });

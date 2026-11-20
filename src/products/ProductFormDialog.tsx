@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type JSX } from 'react';
 import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import { listCategories } from '@/data/categories';
 import { DuplicateBarcodeError } from '@/data/errors';
 import { createProduct, deleteProduct, restoreProduct, updateProduct } from '@/data/products';
@@ -54,7 +55,11 @@ const LOOKUP_FAILURES = {
   unavailable: 'Ürün veritabanına şu an ulaşılamıyor.',
 } as const;
 
-/** Adds or edits a product with every field the catalogue keeps; also deletes and restores. */
+/**
+ * Adds or edits a product with every field the catalogue keeps; also deletes and restores. The buy
+ * price and the profit show only to those who may see cost (a hidden buy price is kept as it is),
+ * and the stock is corrected here only by those who may do stock work.
+ */
 export function ProductFormDialog({
   open,
   product,
@@ -66,6 +71,9 @@ export function ProductFormDialog({
 }: ProductFormDialogProps): JSX.Element {
   const { db } = useData();
   const actor = useActor();
+  const session = useSession();
+  const showCost = session.can('seeCost');
+  const canStock = session.can('stock');
   const [opened] = useState(() => draftOf(product, barcode));
   const [draft, setDraft] = useState(opened);
   const [errors, setErrors] = useState<Errors>({});
@@ -242,15 +250,17 @@ export function ProductFormDialog({
               error={errors.sellPrice}
               onChange={(event) => set('sellPrice', event.target.value)}
             />
-            <TextField
-              label="Alış fiyatı"
-              hint={profitHint(draft) ?? 'Boş bırakılabilir.'}
-              inputMode="decimal"
-              autoComplete="off"
-              value={draft.buyPrice}
-              error={errors.buyPrice}
-              onChange={(event) => set('buyPrice', event.target.value)}
-            />
+            {showCost ? (
+              <TextField
+                label="Alış fiyatı"
+                hint={profitHint(draft) ?? 'Boş bırakılabilir.'}
+                inputMode="decimal"
+                autoComplete="off"
+                value={draft.buyPrice}
+                error={errors.buyPrice}
+                onChange={(event) => set('buyPrice', event.target.value)}
+              />
+            ) : null}
           </div>
           <ChoiceGroup
             legend="KDV oranı"
@@ -281,7 +291,9 @@ export function ProductFormDialog({
               <p className="text-sm text-muted">Stok, mal kabul, sayım ve düzeltmeyle değişir.</p>
               {deleted ? null : (
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => setStockDialog('adjust')}>Stoğu düzelt</Button>
+                  {canStock ? (
+                    <Button onClick={() => setStockDialog('adjust')}>Stoğu düzelt</Button>
+                  ) : null}
                   <Button onClick={() => setStockDialog('movements')}>Hareketler</Button>
                 </div>
               )}
@@ -416,7 +428,7 @@ export function ProductFormDialog({
       {product && stockDialog === 'movements' ? (
         <MovementsDialog open product={product} onClose={() => setStockDialog(null)} />
       ) : null}
-      {product && stockDialog === 'adjust' ? (
+      {product && stockDialog === 'adjust' && canStock ? (
         <AdjustStockDialog
           open
           product={product}

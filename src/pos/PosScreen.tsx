@@ -7,7 +7,7 @@ import { useMarketSettings } from '@/app/marketSettings';
 import { useData, useSyncStatus } from '@/app/appData';
 import { useSession } from '@/app/session';
 import { AppShell } from '@/app/AppShell';
-import { recordApproval } from '@/data/audit';
+import { recordApproval, type ApprovalTarget } from '@/data/audit';
 import { CreditLimitError } from '@/data/errors';
 import { invoiceForSale } from '@/data/invoices';
 import { findProductByBarcode, findProductByCode } from '@/data/products';
@@ -71,8 +71,11 @@ type OpenDialog =
   | { kind: 'receipts' }
   | { kind: 'drawer' }
   | { kind: 'void' | 'return' | 'invoice'; sale: SaleRecord }
-  | { kind: 'approve'; permission: Permission; next: () => void }
+  | ({ kind: 'approve' } & Approval)
   | null;
+
+/** An approval asked for, with what it is for, and what goes ahead once it is given. */
+type Approval = { permission: Permission; target?: ApprovalTarget; next: () => void };
 
 /** The register: search and scan on the left, the cart and payment on the right. */
 export function PosScreen(): JSX.Element {
@@ -85,6 +88,8 @@ export function PosScreen(): JSX.Element {
   const status = useSyncStatus(runner);
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => loadCart());
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  // An approval asked over a dialog that stays open beneath it, as for a discount being applied.
+  const [overlay, setOverlay] = useState<Approval | null>(null);
   const [held, setHeld] = useState(() => loadHeld());
   const [receiptSettings, setReceiptSettings] = useState(() => loadReceiptSettings());
   const [busy, setBusy] = useState(false);
@@ -235,15 +240,25 @@ export function PosScreen(): JSX.Element {
       creditApproved?: boolean;
     },
   ) {
-    // Whichever dialog a credit part comes from, it needs the person's permission or approval.
-    if (
-      payments.some((payment) => payment.method === 'credit') &&
-      !extra.creditApproved &&
-      !session.can('creditSale')
-    ) {
+    // Whichever dialog a credit part comes from, it needs the person's permission or approval,
+    // asked here once the customer and the amount are known, so the approver sees both.
+    const credit = payments
+      .filter((payment) => payment.method === 'credit')
+      .reduce((sum, payment) => sum + payment.amount, 0);
+    const customerName =
+      credit > 0 && extra.customerId
+        ? ((await db.customers.get(extra.customerId))?.name ?? 'Müşteri')
+        : 'Müşteri';
+    if (credit > 0 && !extra.creditApproved && !session.can('creditSale')) {
       setDialog({
         kind: 'approve',
         permission: 'creditSale',
+        target: {
+          entity: 'customer',
+          entityId: extra.customerId,
+          amount: credit,
+          summary: `${customerName}: veresiye ${formatTRY(credit)} · sepet ${formatTRY(cartTotals(cart).total)}`,
+        },
         next: () => void pay(payments, { ...extra, creditApproved: true }),
       });
       return;
@@ -275,6 +290,12 @@ export function PosScreen(): JSX.Element {
         setDialog({
           kind: 'approve',
           permission: 'overLimit',
+          target: {
+            entity: 'customer',
+            entityId: extra.customerId,
+            amount: credit,
+            summary: `${customerName}: limit aşımı · veresiye ${formatTRY(credit)}`,
+          },
           next: () => void pay(payments, { ...extra, allowOverLimit: true }),
         });
         return;
@@ -339,6 +360,11 @@ export function PosScreen(): JSX.Element {
     setDialog({ kind: 'receipts' });
   }
 
+  // Written down before the approved action goes ahead, with what it was approved for.
+  async function approved({ permission, target }: Approval, approverId: string) {
+    await recordApproval(db, { permission, approverId, ...target }, new Date(), actor);
+  }
+
   function finish(message: string) {
     setDialog(null);
     toast.show(message);
@@ -382,12 +408,12 @@ export function PosScreen(): JSX.Element {
             cart={cart}
             dispatch={dispatch}
             onPay={(method) =>
-              selling(method === 'credit' ? 'creditSale' : 'sell', () =>
-                setDialog({ kind: method }),
-              )
+              // A credit sale is approved once its customer is picked, in pay().
+              selling('sell', () => setDialog({ kind: method }))
             }
             onEditLine={(productId) => setDialog({ kind: 'line', productId })}
-            onDiscount={() => guarded('discount', () => setDialog({ kind: 'discount' }))}
+            // Anyone may type a discount; applying it asks for approval, for the amount typed.
+            onDiscount={() => setDialog({ kind: 'discount' })}
           />
         }
       >
@@ -445,7 +471,28 @@ export function PosScreen(): JSX.Element {
         />
       ) : null}
       {dialog?.kind === 'discount' ? (
-        <DiscountDialog open cart={cart} dispatch={dispatch} onClose={close} />
+        <DiscountDialog
+          open
+          cart={cart}
+          dispatch={dispatch}
+          onClose={close}
+          approve={({ amount, base }, apply) => {
+            if (session.can('discount')) {
+              apply();
+              return;
+            }
+            setOverlay({
+              permission: 'discount',
+              target: {
+                entity: 'cart',
+                entityId: cart.id,
+                amount,
+                summary: `Sepet indirimi ${formatTRY(amount)} · sepet ${formatTRY(base)}`,
+              },
+              next: apply,
+            });
+          }}
+        />
       ) : null}
       {editedLine ? (
         <LineDialog
@@ -462,11 +509,8 @@ export function PosScreen(): JSX.Element {
           busy={busy}
           onClose={close}
           onPick={(customer) =>
-            // The credit button was already allowed or approved before the picker opened.
-            void pay(singlePayment(cart, 'credit'), {
-              customerId: customer.id,
-              creditApproved: true,
-            })
+            // pay() asks for the approval, if needed, with this customer and this amount.
+            void pay(singlePayment(cart, 'credit'), { customerId: customer.id })
           }
         />
       ) : null}
@@ -549,16 +593,25 @@ export function PosScreen(): JSX.Element {
         <ApprovalDialog
           open
           permission={dialog.permission}
+          summary={dialog.target?.summary}
           onClose={close}
-          onApproved={(approver) => {
-            void recordApproval(
-              db,
-              { permission: dialog.permission, approverId: approver.id },
-              new Date(),
-              actor,
-            );
+          onApproved={async (approver) => {
+            await approved(dialog, approver.id);
             setDialog(null);
             dialog.next();
+          }}
+        />
+      ) : null}
+      {overlay ? (
+        <ApprovalDialog
+          open
+          permission={overlay.permission}
+          summary={overlay.target?.summary}
+          onClose={() => setOverlay(null)}
+          onApproved={async (approver) => {
+            await approved(overlay, approver.id);
+            setOverlay(null);
+            overlay.next();
           }}
         />
       ) : null}

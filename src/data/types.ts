@@ -361,6 +361,10 @@ export type MarketSettingsRecord = {
   cutoffMinutes: number;
   /** How the shop's scale prints its labels; absent means the common format. */
   scale?: ScaleConfig;
+  /** The credit limit a new customer gets unasked; absent means ₺500. */
+  newCustomerLimit?: Kurus;
+  /** Minutes an owner's or a manager's idle session stays open: 0 (never locks), 3, 10 or 30. */
+  idleLockMinutes?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -377,7 +381,8 @@ export type AuditAction =
   | 'purchase.reverse'
   | 'purchase.correct'
   | 'supplierPayment.reverse'
-  | 'supplierPayment.correct';
+  | 'supplierPayment.correct'
+  | 'supplierLedger.adjust';
 
 /** One management action: who did it, on which record, and what changed (DESIGN §6.3). */
 export type AuditRecord = {

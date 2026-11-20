@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPin, isValidPin, verifyPin } from './pin';
+import { hashPin, isValidPin, isValidNewPin, verifyPin } from './pin';
 
 function bytes(base64: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
@@ -9,6 +9,16 @@ describe('PIN', () => {
   it('accepts only four to six digits', () => {
     expect(['1234', '123456', '0000'].every(isValidPin)).toBe(true);
     expect(['123', '1234567', '12a4', ' 1234', '١٢٣٤', ''].some(isValidPin)).toBe(false);
+  });
+
+  it('asks six digits of a new owner or manager PIN', () => {
+    expect(isValidNewPin('1234', 'cashier')).toBe(true);
+    expect(isValidNewPin('1234', 'stock')).toBe(true);
+    expect(isValidNewPin('1234', 'owner')).toBe(false);
+    expect(isValidNewPin('12345', 'manager')).toBe(false);
+    expect(isValidNewPin('123456', 'owner')).toBe(true);
+    expect(isValidNewPin('123456', 'manager')).toBe(true);
+    expect(isValidNewPin('12a456', 'owner')).toBe(false);
   });
 
   it('hashes a PIN with its own salt and enough rounds', async () => {

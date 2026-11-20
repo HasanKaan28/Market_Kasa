@@ -2,7 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { UserPlus } from 'lucide-react';
 import { useRef, useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
+import { useSession } from '@/app/session';
 import { createCustomer, customerBalance, searchCustomers } from '@/data/customers';
+import { loadMarketSettings } from '@/data/settings';
 import type { CustomerRecord } from '@/data/types';
 import { Button, Dialog, TextField } from '@/design';
 import { formatTRY } from '@/domain/money';
@@ -100,6 +103,11 @@ function NewCustomerForm({
   onCancel(): void;
 }): JSX.Element {
   const { db } = useData();
+  const session = useSession();
+  const { newCustomerLimit } = useMarketSettings();
+  // Added here by someone who may not approve going over a limit, a customer gets the market's
+  // limit for new customers, never none.
+  const capped = !session.can('overLimit');
   const [name, setName] = useState('');
   const [error, setError] = useState<string>();
   // The customer is created once: a double click or a retry after a failed sale reuses it.
@@ -121,7 +129,13 @@ function NewCustomerForm({
     }
     saving.current = true;
     try {
-      created.current = await createCustomer(db, { name }, new Date());
+      // Read now, not from the live settings: the first add after start may beat their load.
+      const limit = capped ? (await loadMarketSettings(db)).newCustomerLimit : undefined;
+      created.current = await createCustomer(
+        db,
+        { name, ...(limit !== undefined ? { creditLimit: limit } : {}) },
+        new Date(),
+      );
       onPick(created.current);
     } finally {
       saving.current = false;
@@ -135,6 +149,7 @@ function NewCustomerForm({
         autoComplete="off"
         autoFocus
         value={name}
+        hint={capped ? `Veresiye limiti: ${formatTRY(newCustomerLimit)}` : undefined}
         error={error}
         onChange={(event) => {
           setName(event.target.value);

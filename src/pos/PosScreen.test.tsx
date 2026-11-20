@@ -116,7 +116,7 @@ describe('PosScreen', () => {
 
   it('sells in the name of the person signed in', async () => {
     const data = createTestData();
-    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, new Date());
+    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, new Date());
     const ayse = await createStaff(
       data.db,
       { name: 'Ayşe', role: 'cashier', pin: '1234' },

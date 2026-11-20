@@ -7,6 +7,7 @@ import { useData } from '@/app/appData';
 import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { useApproval } from '@/app/useApproval';
+import { signedTRY } from '@/customers/statement';
 import { AdjustmentForm } from '@/customers/PaymentForm';
 import { reversePurchase, reverseSupplierPayment } from '@/data/corrections';
 import { recordSupplierAdjustment } from '@/data/supplierLedger';
@@ -199,13 +200,25 @@ export function SupplierDialog({
           ) : null}
           {panel === 'adjustment' ? (
             <AdjustmentForm
-              save={(amount, note) =>
-                recordSupplierAdjustment(
+              // A hand-made change to what is owed needs the same say as a correction, asked
+              // for on save, for the amount typed; the log keeps it.
+              save={async (amount, note) => {
+                const approved = await approval.confirm('correctSupplier', {
+                  entity: 'supplier',
+                  entityId: supplierId,
+                  amount,
+                  summary: `${supplier?.name ?? 'Tedarikçi'}: borç ${signedTRY(amount)}`,
+                });
+                if (!approved) {
+                  return false;
+                }
+                return recordSupplierAdjustment(
                   db,
                   { supplierId, amount, note, staffId: staff?.id, cutoffMinutes },
                   new Date(),
-                )
-              }
+                  actor,
+                );
+              }}
               onSaved={saved}
               onCancel={() => setPanel(null)}
             />

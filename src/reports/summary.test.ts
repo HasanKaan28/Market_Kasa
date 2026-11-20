@@ -219,7 +219,7 @@ describe('buildSummary', () => {
 
   it('sums sales by who made them', async () => {
     const { tea, sell } = await setup();
-    const ayse = await createStaff(db, { name: 'Kaan', role: 'owner', pin: '4821' }, day(1)).then(
+    const ayse = await createStaff(db, { name: 'Kaan', role: 'owner', pin: '482100' }, day(1)).then(
       () => createStaff(db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, day(1)),
     );
     const byAyse = (at: Date, pieces: number) =>

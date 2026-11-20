@@ -1,5 +1,5 @@
 import { PERMISSIONS, ROLES, type Permission, type Role } from '@/domain/permissions';
-import { hashPin, isValidPin, verifyPin } from '@/domain/pin';
+import { hashPin, isValidNewPin, verifyPin } from '@/domain/pin';
 import { addAudit, auditChange, type Actor } from './audit';
 import type { MarketDb } from './db';
 import { LastOwnerError, RecordNotFoundError } from './errors';
@@ -46,7 +46,7 @@ export async function createStaff(
   assertRole(input.role);
   const permissions = cleanPermissions(input.permissions);
   // Hashed before the transaction: IndexedDB commits a transaction left waiting on other work.
-  const pin = await hashPin(requirePin(input.pin));
+  const pin = await hashPin(requirePin(input.pin, input.role));
   const stamp = at.toISOString();
   const record: StaffRecord = withoutUndefined({
     id: newId(at.getTime()),
@@ -129,7 +129,8 @@ export async function setStaffPin(
   at: Date,
   actor?: Actor,
 ): Promise<StaffRecord> {
-  const hashed = await hashPin(requirePin(pin));
+  // Checked against the role the person has now: an owner's or a manager's new PIN is six digits.
+  const hashed = await hashPin(requirePin(pin, (await requireStaff(db, id)).role));
   return db.transaction('rw', db.staff, db.outbox, db.meta, db.auditLog, async () => {
     const current = await requireStaff(db, id);
     await db.meta.delete(lockKey(id));
@@ -287,9 +288,14 @@ function requireName(name: string): string {
   return trimmed;
 }
 
-function requirePin(pin: string): string {
-  if (!isValidPin(pin)) {
-    throw new RangeError('A PIN is four to six digits');
+/** A PIN set now: four to six digits, six for an owner or a manager. PINs set before still work. */
+function requirePin(pin: string, role: Role): string {
+  if (!isValidNewPin(pin, role)) {
+    throw new RangeError(
+      role === 'owner' || role === 'manager'
+        ? 'An owner or manager PIN is six digits'
+        : 'A PIN is four to six digits',
+    );
   }
   return pin;
 }

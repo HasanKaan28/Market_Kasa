@@ -63,4 +63,72 @@ describe('describeAudit', () => {
       ),
     ).toBe('Tedarikçi ödemesi düzeltildi · ₺300,00 → ₺250,00');
   });
+
+  it('tells what an approval was for', () => {
+    expect(
+      describeAudit(
+        entry({
+          after: {
+            permission: 'discount',
+            approverId: 's1',
+            amount: 500,
+            summary: 'Sepet indirimi ₺5,00 · sepet ₺42,50',
+          },
+        }),
+        names,
+      ),
+    ).toBe('İndirim onayı · Sepet indirimi ₺5,00 · sepet ₺42,50 · onaylayan Ayşe');
+    expect(
+      describeAudit(entry({ after: { permission: 'discount', approverId: 's1' } }), names),
+    ).toBe('İndirim onayı · onaylayan Ayşe');
+  });
+
+  it('tells a supplier balance changed by hand', () => {
+    expect(
+      describeAudit(
+        entry({
+          action: 'supplierLedger.adjust',
+          entity: 'supplierLedger',
+          after: { supplierId: 'x', amount: -2500, note: 'İskonto' },
+        }),
+        names,
+      ),
+    ).toBe('Tedarikçi borcu elle düzeltildi · −₺25,00 · İskonto');
+  });
+
+  it('tells each market setting changed', () => {
+    expect(
+      describeAudit(
+        entry({
+          action: 'settings.update',
+          entity: 'settings',
+          before: { newCustomerLimit: 50000 },
+          after: { newCustomerLimit: 75000 },
+        }),
+        names,
+      ),
+    ).toBe('Yeni müşteri veresiye limiti ₺500,00 → ₺750,00');
+    expect(
+      describeAudit(
+        entry({
+          action: 'settings.update',
+          entity: 'settings',
+          before: { idleLockMinutes: 10 },
+          after: { idleLockMinutes: 0 },
+        }),
+        names,
+      ),
+    ).toBe('Otomatik kilit 10 dk → Kapalı');
+    expect(
+      describeAudit(
+        entry({
+          action: 'settings.update',
+          entity: 'settings',
+          before: { cutoffMinutes: 0 },
+          after: { cutoffMinutes: 120 },
+        }),
+        names,
+      ),
+    ).toBe('Gün dönümü 00:00 → 02:00');
+  });
 });

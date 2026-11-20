@@ -10,4 +10,5 @@ afterEach(async () => {
   cleanup();
   await disposeTestData();
   localStorage.clear();
+  sessionStorage.clear();
 });

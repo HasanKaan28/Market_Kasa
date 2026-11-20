@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
+import { useSession } from '@/app/session';
 import type { ProductRecord } from '@/data/types';
 import { Button, ChoiceGroup, Dialog, TextField } from '@/design';
 import { formatTRY, parseTRY } from '@/domain/money';
@@ -46,7 +47,10 @@ type Outcome =
       unknown: number;
     };
 
-/** Raises or lowers one price of the listed products by a percentage or an amount, rounded. */
+/**
+ * Raises or lowers one price of the listed products by a percentage or an amount, rounded. The buy
+ * price is offered only to those who may see cost.
+ */
 export function BulkPriceDialog({
   open,
   products,
@@ -55,7 +59,9 @@ export function BulkPriceDialog({
 }: BulkPriceDialogProps): JSX.Element {
   const { db } = useData();
   const actor = useActor();
-  const [target, setTarget] = useState<PriceChange['target']>('sellPrice');
+  const showCost = useSession().can('seeCost');
+  const [chosenTarget, setTarget] = useState<PriceChange['target']>('sellPrice');
+  const target = showCost ? chosenTarget : 'sellPrice';
   const [direction, setDirection] = useState<1 | -1>(1);
   const [by, setBy] = useState<PriceChange['by']>('percent');
   const [amount, setAmount] = useState('');
@@ -93,13 +99,15 @@ export function BulkPriceDialog({
       description={`Listedeki ${products.length} ürün`}
     >
       <div className="flex flex-col gap-4">
-        <ChoiceGroup
-          legend="Hangi fiyat"
-          name="target"
-          options={TARGETS}
-          value={target}
-          onChange={(next) => setTarget(next)}
-        />
+        {showCost ? (
+          <ChoiceGroup
+            legend="Hangi fiyat"
+            name="target"
+            options={TARGETS}
+            value={target}
+            onChange={(next) => setTarget(next)}
+          />
+        ) : null}
         <ChoiceGroup
           legend="Değişim"
           name="direction"

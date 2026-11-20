@@ -9,7 +9,15 @@ import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
 import { currentCashSession } from '@/data/cash';
 import { pendingCount } from '@/data/outbox';
-import { saveMarketSettings } from '@/data/settings';
+import {
+  IDLE_LOCK_CHOICES,
+  isValidCustomerLimit,
+  isValidIdleLock,
+  saveMarketSettings,
+} from '@/data/settings';
+import { formatTRY, parseTRY } from '@/domain/money';
+import { MAX_UNIT_PRICE } from '@/domain/pricing';
+import { formatPriceInput } from '@/pos/format';
 import { Button, SelectField, TextField } from '@/design';
 import { licenseState } from '@/domain/license';
 import { ReceiptSettingsDialog } from '@/pos/ReceiptSettingsDialog';
@@ -100,6 +108,132 @@ export function MarketSection({ onDone }: { onDone(message: string): void }): JS
         </div>
         <Button type="submit" disabled={saving || value === String(cutoffMinutes)}>
           Market ayarını kaydet
+        </Button>
+      </form>
+    </SettingsSection>
+  );
+}
+
+const IDLE_LOCK_OPTIONS = IDLE_LOCK_CHOICES.map((minutes) => ({
+  value: String(minutes),
+  label: minutes === 0 ? 'Kapalı' : `${minutes} dk`,
+}));
+
+/**
+ * How long an owner's or a manager's session stays open with nobody at the register, the same on
+ * every register; a cashier's never locks by itself.
+ */
+export function LockSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const { idleLockMinutes } = useMarketSettings();
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const value = chosen ?? String(idleLockMinutes);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const minutes = Number(value);
+    if (!isValidIdleLock(minutes)) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveMarketSettings(db, { idleLockMinutes: minutes }, new Date(), actor);
+      setChosen(null);
+      onDone('Otomatik kilit kaydedildi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="lock-heading"
+      title="Otomatik kilit"
+      description="Sahip ya da yönetici girişliyken kasaya bu süre dokunulmazsa kasa kilitlenir, PIN sorulur. Kapalıyken PIN 24 saatte bir sorulur. Kasiyer girişi kendiliğinden kilitlenmez."
+    >
+      <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => void save(event)}>
+        <div className="w-56">
+          <SelectField
+            label="Hareketsiz kalınca kilitle"
+            options={IDLE_LOCK_OPTIONS}
+            value={value}
+            onChange={(event) => setChosen(event.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={saving || value === String(idleLockMinutes)}>
+          Kilit ayarını kaydet
+        </Button>
+      </form>
+    </SettingsSection>
+  );
+}
+
+/**
+ * The credit a new customer gets when a cashier, or anyone else who may not approve going over a
+ * limit, adds them: never none, so unlimited credit is always a manager's or the owner's call.
+ */
+export function CreditSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const { newCustomerLimit } = useMarketSettings();
+  const [typed, setTyped] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const value = typed ?? formatPriceInput(newCustomerLimit);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    let amount: number;
+    try {
+      amount = parseTRY(value);
+    } catch {
+      setError(value.trim() === '' ? 'Bir tutar girin.' : 'Geçerli bir tutar girin.');
+      return;
+    }
+    if (!isValidCustomerLimit(amount)) {
+      setError(
+        amount <= 0
+          ? 'Limit sıfırdan büyük olmalı.'
+          : `Limit en fazla ${formatTRY(MAX_UNIT_PRICE)} olabilir.`,
+      );
+      return;
+    }
+    setError(undefined);
+    setSaving(true);
+    try {
+      await saveMarketSettings(db, { newCustomerLimit: amount }, new Date(), actor);
+      setTyped(null);
+      onDone('Veresiye ayarı kaydedildi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="credit-heading"
+      title="Veresiye"
+      description="Kasiyerin açtığı yeni müşteriye bu limit verilir. Limitsiz ya da daha yüksek limit için yetkili onayı gerekir."
+    >
+      <form
+        noValidate
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(event) => void save(event)}
+      >
+        <div className="w-56">
+          <TextField
+            label="Yeni müşteri veresiye limiti"
+            inputMode="decimal"
+            autoComplete="off"
+            value={value}
+            error={error}
+            onChange={(event) => setTyped(event.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={saving || typed === null}>
+          Limiti kaydet
         </Button>
       </form>
     </SettingsSection>

@@ -7,6 +7,7 @@ import { createProduct, deleteProduct, updateProduct } from '@/data/products';
 import { stockOf } from '@/data/stock';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 import { scan } from '@/test/scan';
+import { asPersonWho } from '@/test/session';
 import { ProductFormDialog } from './ProductFormDialog';
 
 const at = new Date('2026-10-29T09:00:00Z');
@@ -363,5 +364,34 @@ describe('ProductFormDialog', () => {
       ).toEqual(['Kategorisiz', 'İçecek']),
     );
     expect(select).toHaveDisplayValue('Kategorisiz');
+  });
+
+  it('keeps the buy price and the stock to those allowed them', async () => {
+    const data = createTestData();
+    const product = await createProduct(data.db, { ...milk, buyPrice: 3000 }, at, {
+      openingStockMilli: 5000,
+    });
+    const onSaved = vi.fn();
+    await renderWithData(
+      asPersonWho(
+        ['editProducts'],
+        <ProductFormDialog open product={product} onClose={vi.fn()} onSaved={onSaved} />,
+      ),
+      data,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Ürünü düzenle' });
+    expect(within(dialog).queryByLabelText('Alış fiyatı')).toBeNull();
+    expect(within(dialog).queryByText(/kâr/i)).toBeNull();
+    expect(await within(dialog).findByText('Stok: 5 adet')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Stoğu düzelt' })).toBeNull();
+    await userEvent.clear(within(dialog).getByLabelText('Satış fiyatı'));
+    await userEvent.type(within(dialog).getByLabelText('Satış fiyatı'), '45');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Ürün kaydedildi.'));
+    // The hidden buy price is kept as it was.
+    expect(await data.db.products.get(product.id)).toMatchObject({
+      sellPrice: 4500,
+      buyPrice: 3000,
+    });
   });
 });

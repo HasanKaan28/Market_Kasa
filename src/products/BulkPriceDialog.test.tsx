@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createProduct } from '@/data/products';
 import { createTestData, renderWithData } from '@/test/renderWithData';
+import { asPersonWho } from '@/test/session';
 import { BulkPriceDialog } from './BulkPriceDialog';
 
 const at = new Date('2026-10-29T09:00:00Z');
@@ -90,5 +91,25 @@ describe('BulkPriceDialog', () => {
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('1 ürünün fiyatı değişti.'));
     expect((await data.db.products.get(tea.id))?.buyPrice).toBe(0);
     expect((await data.db.products.get(milk.id))?.buyPrice).toBe(3500);
+  });
+
+  it('changes only sell prices for someone not allowed to see cost', async () => {
+    const data = createTestData();
+    const milk = await createProduct(
+      data.db,
+      { name: 'Süt', sellPrice: 4250, buyPrice: 3000, vatRate: 1 },
+      at,
+    );
+    await renderWithData(
+      asPersonWho(
+        ['editProducts'],
+        <BulkPriceDialog open products={[milk]} onClose={vi.fn()} onDone={vi.fn()} />,
+      ),
+      data,
+    );
+    await screen.findByRole('dialog', { name: 'Toplu fiyat değişikliği' });
+    expect(screen.queryByRole('radio', { name: 'Alış fiyatı' })).toBeNull();
+    await userEvent.type(screen.getByLabelText('Miktar'), '10');
+    expect(screen.getByText('Süt: ₺42,50 → ₺46,75')).toBeInTheDocument();
   });
 });

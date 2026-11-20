@@ -2,7 +2,9 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppData } from '@/app/appData';
-import { createCustomer } from '@/data/customers';
+import { createCustomer, customerBalance } from '@/data/customers';
+import { recordAdjustment } from '@/data/ledger';
+import { saveMarketSettings } from '@/data/settings';
 import { createProduct } from '@/data/products';
 import { recentSales, recordSale } from '@/data/sales';
 import { createStaff } from '@/data/staff';
@@ -21,10 +23,10 @@ const before = () => new Date(Date.now() - 60_000);
 
 async function team() {
   const data = createTestData();
-  const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, before());
+  const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
   const mehmet = await createStaff(
     data.db,
-    { name: 'Mehmet', role: 'manager', pin: '2222', permissions: { seeCost: false } },
+    { name: 'Mehmet', role: 'manager', pin: '222222', permissions: { seeCost: false } },
     before(),
   );
   const ayse = await createStaff(data.db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, before());
@@ -84,12 +86,17 @@ describe('access', () => {
     ).toEqual(['Kasa', 'Müşteriler', 'Faturalar']);
   });
 
-  it('asks a permitted person to approve a discount', async () => {
+  it('asks a permitted person to approve a discount for the amount typed', async () => {
     const { data, ayse, mehmet } = await team();
     signedIn(ayse.id);
     await register(data);
+    // The dialog opens for anyone; the approval is asked for the discount itself.
     await userEvent.click(screen.getByRole('button', { name: 'İndirim' }));
+    const discount = await screen.findByRole('dialog', { name: 'Sepet indirimi' });
+    await userEvent.type(within(discount).getByLabelText('İndirim'), '5');
+    await userEvent.click(within(discount).getByRole('button', { name: 'Uygula' }));
     const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(within(dialog).getByText('Sepet indirimi ₺5,00 · sepet ₺42,50')).toBeInTheDocument();
     await within(dialog).findByRole('option', { name: 'Kaan · Sahip' });
     const options = within(within(dialog).getByLabelText('Onaylayan')).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
@@ -98,19 +105,42 @@ describe('access', () => {
     ]);
     await approve('Mehmet · Yönetici', '9999');
     expect(await within(dialog).findByText('PIN yanlış. 4 deneme kaldı.')).toBeInTheDocument();
-    await userEvent.type(within(dialog).getByLabelText('PIN'), '2222');
+    await userEvent.type(within(dialog).getByLabelText('PIN'), '222222');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Onayla' }));
-    expect(await screen.findByRole('dialog', { name: 'Sepet indirimi' })).toBeInTheDocument();
-    // The approval is on record: who asked, who approved, for what.
+    await vi.waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('₺37,50'));
+    expect(screen.queryByRole('dialog', { name: 'Sepet indirimi' })).not.toBeInTheDocument();
+    // The approval is on record: who asked, who approved, for what and how much.
     await vi.waitFor(async () =>
       expect(await data.db.auditLog.toArray()).toMatchObject([
         {
           action: 'approval',
           staffId: ayse.id,
-          after: { permission: 'discount', approverId: mehmet.id },
+          after: {
+            permission: 'discount',
+            approverId: mehmet.id,
+            amount: 500,
+            summary: 'Sepet indirimi ₺5,00 · sepet ₺42,50',
+          },
         },
       ]),
     );
+  });
+
+  it('leaves the cart as it was when a discount is not approved', async () => {
+    const { data, ayse } = await team();
+    signedIn(ayse.id);
+    await register(data);
+    await userEvent.click(screen.getByRole('button', { name: 'İndirim' }));
+    const discount = await screen.findByRole('dialog', { name: 'Sepet indirimi' });
+    await userEvent.type(within(discount).getByLabelText('İndirim'), '5');
+    await userEvent.click(within(discount).getByRole('button', { name: 'Uygula' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(dialog).not.toBeInTheDocument());
+    // What was typed is still there to change or approve again.
+    expect(screen.getByRole('dialog', { name: 'Sepet indirimi' })).toBeInTheDocument();
+    expect(screen.getByTestId('total')).toHaveTextContent('₺42,50');
+    expect(await data.db.auditLog.count()).toBe(0);
   });
 
   it('sells over the credit limit only with approval', async () => {
@@ -121,7 +151,7 @@ describe('access', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Veresiye' }));
     await userEvent.type(await screen.findByLabelText('Müşteri ara'), 'ahmet');
     await userEvent.click(await screen.findByRole('button', { name: /Ahmet Yılmaz/ }));
-    await approve('Kaan · Sahip', '4821');
+    await approve('Kaan · Sahip', '482100');
     expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
     expect((await recentSales(data.db))[0]?.payments).toEqual([{ method: 'credit', amount: 4250 }]);
   });
@@ -182,6 +212,11 @@ describe('access', () => {
       { name: 'Ahmet Yılmaz', creditLimit: 1000 },
       before(),
     );
+    await recordAdjustment(
+      data.db,
+      { customerId: ahmet.id, amount: 30000, note: 'Eski borç' },
+      before(),
+    );
     await renderWithData(
       <SessionProvider>
         <CustomersScreen />
@@ -189,22 +224,181 @@ describe('access', () => {
       data,
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Ahmet Yılmaz' }));
+    // The adjustment is typed first; the approval is asked for its amount on save.
     await userEvent.click(await screen.findByRole('button', { name: 'Düzeltme' }));
-    expect(await screen.findByRole('dialog', { name: 'Yetkili onayı' })).toBeInTheDocument();
-    await userEvent.keyboard('{Escape}');
+    const adjustment = await screen.findByRole('form', { name: 'Düzeltme' });
+    await userEvent.click(within(adjustment).getByRole('radio', { name: 'Borç düş' }));
+    await userEvent.type(within(adjustment).getByLabelText('Tutar'), '100');
+    await userEvent.type(within(adjustment).getByLabelText('Neden'), 'İndirim');
+    await userEvent.click(within(adjustment).getByRole('button', { name: 'Düzeltmeyi kaydet' }));
+    const approval = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(within(approval).getByText('Ahmet Yılmaz: borç −₺100,00')).toBeInTheDocument();
+    await approve('Kaan · Sahip', '482100');
+    await vi.waitFor(async () => expect(await customerBalance(data.db, ahmet.id)).toBe(20000));
+    expect((await data.db.auditLog.toArray()).at(-1)).toMatchObject({
+      action: 'approval',
+      entityId: ahmet.id,
+      after: { permission: 'overLimit', entity: 'customer', amount: -10000 },
+    });
     await userEvent.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const form = await screen.findByRole('dialog', { name: 'Müşteriyi düzenle' });
     await userEvent.clear(within(form).getByLabelText('Limit'));
     await userEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
-    await approve('Kaan · Sahip', '4821');
+    await approve('Kaan · Sahip', '482100');
     await vi.waitFor(async () =>
       expect((await data.db.customers.get(ahmet.id))?.creditLimit).toBe(0),
     );
   });
 
+  it('asks approval for a card collection, which leaves nothing in the drawer', async () => {
+    const { data, ayse } = await team();
+    signedIn(ayse.id);
+    const ahmet = await createCustomer(data.db, { name: 'Ahmet Yılmaz' }, before());
+    await recordAdjustment(
+      data.db,
+      { customerId: ahmet.id, amount: 30000, note: 'Eski borç' },
+      before(),
+    );
+    await renderWithData(
+      <SessionProvider>
+        <CustomersScreen />
+      </SessionProvider>,
+      data,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Ahmet Yılmaz' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Tahsilat al' }));
+    const payment = await screen.findByRole('form', { name: 'Tahsilat' });
+    await userEvent.click(within(payment).getByRole('radio', { name: 'Kart' }));
+    await userEvent.click(within(payment).getByRole('button', { name: 'Tahsilatı kaydet' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(within(dialog).getByText('Ahmet Yılmaz: kartla tahsilat ₺300,00')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(await customerBalance(data.db, ahmet.id)).toBe(30000);
+    // In cash it goes into the drawer and shows on the Z, so it needs nobody's say.
+    await userEvent.click(within(payment).getByRole('radio', { name: 'Nakit' }));
+    await userEvent.click(within(payment).getByRole('button', { name: 'Tahsilatı kaydet' }));
+    await vi.waitFor(async () => expect(await customerBalance(data.db, ahmet.id)).toBe(0));
+  });
+
+  it("gives a customer a cashier adds the market's limit, not none", async () => {
+    const { data, ayse } = await team();
+    signedIn(ayse.id);
+    await renderWithData(
+      <SessionProvider>
+        <CustomersScreen />
+      </SessionProvider>,
+      data,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Yeni müşteri' }));
+    const form = await screen.findByRole('dialog', { name: 'Yeni müşteri' });
+    expect(await within(form).findByDisplayValue('500,00')).toBeInTheDocument();
+    await userEvent.type(within(form).getByLabelText('Ad'), 'Veli');
+    await userEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
+    await vi.waitFor(async () =>
+      expect(await data.db.customers.toArray()).toMatchObject([
+        { name: 'Veli', creditLimit: 50000 },
+      ]),
+    );
+    // No limit at all, or a higher one, is a manager's call.
+    await userEvent.click(await screen.findByRole('button', { name: 'Yeni müşteri' }));
+    const second = await screen.findByRole('dialog', { name: 'Yeni müşteri' });
+    await userEvent.type(within(second).getByLabelText('Ad'), 'Can');
+    await userEvent.clear(within(second).getByLabelText('Limit'));
+    await userEvent.click(within(second).getByRole('button', { name: 'Kaydet' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(within(dialog).getByText('Yeni müşteri Can: limit yok')).toBeInTheDocument();
+    await approve('Kaan · Sahip', '482100');
+    await vi.waitFor(async () =>
+      expect(
+        (await data.db.customers.toArray()).find((customer) => customer.name === 'Can'),
+      ).toMatchObject({ creditLimit: 0 }),
+    );
+  });
+
+  it("gives a customer added at the register the market's limit", async () => {
+    const { data, ayse } = await team();
+    signedIn(ayse.id);
+    await saveMarketSettings(data.db, { newCustomerLimit: 20000 }, before());
+    await register(data);
+    await userEvent.click(screen.getByRole('button', { name: 'Veresiye' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Yeni müşteri' }));
+    await userEvent.type(await screen.findByLabelText('Müşteri adı'), 'Veli');
+    expect(await screen.findByText('Veresiye limiti: ₺200,00')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ekle' }));
+    expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+    expect(await data.db.customers.toArray()).toMatchObject([{ name: 'Veli', creditLimit: 20000 }]);
+  });
+
+  it('shows the sales and purchases tab of Faturalar only with reports', async () => {
+    const { data, ayse, kaan } = await team();
+    signedIn(ayse.id);
+    const { unmount } = await renderWithData(
+      <SessionProvider>
+        <Screens route="invoices" />
+      </SessionProvider>,
+      data,
+    );
+    expect(await screen.findByRole('tab', { name: 'e-Arşiv' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.queryByRole('tab', { name: 'Alış ve satış' })).toBeNull();
+    unmount();
+    signedIn(kaan.id);
+    await renderWithData(
+      <SessionProvider>
+        <Screens route="invoices" />
+      </SessionProvider>,
+      data,
+    );
+    expect(await screen.findByRole('tab', { name: 'Alış ve satış' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('asks approval for a credit sale with its customer and amount', async () => {
+    const data = createTestData();
+    const kaan = await createStaff(
+      data.db,
+      { name: 'Kaan', role: 'owner', pin: '482100' },
+      before(),
+    );
+    const ayse = await createStaff(
+      data.db,
+      { name: 'Ayşe', role: 'cashier', pin: '1234', permissions: { creditSale: false } },
+      before(),
+    );
+    signedIn(ayse.id);
+    const ahmet = await createCustomer(data.db, { name: 'Ahmet Yılmaz' }, before());
+    await register(data);
+    // The customer is picked first; the approval is asked for this customer and this amount.
+    await userEvent.click(screen.getByRole('button', { name: 'Veresiye' }));
+    await userEvent.type(await screen.findByLabelText('Müşteri ara'), 'ahmet');
+    await userEvent.click(await screen.findByRole('button', { name: /Ahmet Yılmaz/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yetkili onayı' });
+    expect(
+      within(dialog).getByText('Ahmet Yılmaz: veresiye ₺42,50 · sepet ₺42,50'),
+    ).toBeInTheDocument();
+    await approve('Kaan · Sahip', '482100');
+    expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+    expect((await data.db.auditLog.toArray()).at(-1)).toMatchObject({
+      action: 'approval',
+      entityId: ahmet.id,
+      after: {
+        permission: 'creditSale',
+        approverId: kaan.id,
+        entity: 'customer',
+        amount: 4250,
+        summary: 'Ahmet Yılmaz: veresiye ₺42,50 · sepet ₺42,50',
+      },
+    });
+  });
+
   it('asks approval for the credit part of a split payment', async () => {
     const data = createTestData();
-    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, before());
+    await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
     const ayse = await createStaff(
       data.db,
       { name: 'Ayşe', role: 'cashier', pin: '1234', permissions: { creditSale: false } },
@@ -220,7 +414,7 @@ describe('access', () => {
     await userEvent.type(await screen.findByLabelText('Müşteri ara'), 'ahmet');
     await userEvent.click(await screen.findByRole('button', { name: /Ahmet Yılmaz/ }));
     await userEvent.click(within(split).getByRole('button', { name: 'Satışı tamamla' }));
-    await approve('Kaan · Sahip', '4821');
+    await approve('Kaan · Sahip', '482100');
     expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
   });
 
@@ -270,7 +464,7 @@ describe('access', () => {
     await userEvent.click(await screen.findByRole('button', { name: new RegExp(sale.receiptNo) }));
     await userEvent.click(await screen.findByRole('button', { name: 'Fatura kes' }));
     // Zeynep's own permissions leave invoicing out: an owner approves it.
-    await approve('Kaan · Sahip', '4821');
+    await approve('Kaan · Sahip', '482100');
     const dialog = await screen.findByRole('dialog', { name: 'Fatura kes' });
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Kurumsal' }));
     await userEvent.type(within(dialog).getByLabelText('Unvan'), 'Kurşunlu Gıda Ltd. Şti.');
@@ -314,7 +508,11 @@ describe('access', () => {
   it('says when nobody can approve', async () => {
     // Two registers offline can each demote an owner, and the sync leaves none.
     const data = createTestData();
-    const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '4821' }, before());
+    const kaan = await createStaff(
+      data.db,
+      { name: 'Kaan', role: 'owner', pin: '482100' },
+      before(),
+    );
     await createStaff(data.db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, before());
     // As the pull writes it: the server row wins.
     await data.db.staff.update(kaan.id, { role: 'cashier' });

@@ -1,4 +1,5 @@
 import { businessDate } from '@/domain/businessDate';
+import type { Kurus } from '@/domain/money';
 import type { Permission } from '@/domain/permissions';
 import type { MarketDb } from './db';
 import { newId } from './ids';
@@ -42,17 +43,44 @@ export async function addAudit(
   return record;
 }
 
-/** Records that a permitted person let someone else do something (`actor` is who asked). */
+/** What an approval was given for, as far as it is known when it is asked. */
+export type ApprovalTarget = {
+  /** The kind of record it acts on, e.g. `customer`, `supplier`, `cart`. */
+  entity?: string;
+  /** The record it acts on; kept as the entry's `entityId`. */
+  entityId?: string;
+  /** The amount approved, signed as it is written (a debt written down is negative). */
+  amount?: Kurus;
+  /** The line the approver was shown, e.g. "Sepet indirimi ₺5,00 · sepet ₺42,50". */
+  summary?: string;
+};
+
+/**
+ * Records that a permitted person let someone else do something (`actor` is who asked), with
+ * what it was for: the record, the amount and the summary the approver saw.
+ */
 export async function recordApproval(
   db: MarketDb,
-  { permission, approverId }: { permission: Permission; approverId: string },
+  {
+    permission,
+    approverId,
+    entity,
+    entityId,
+    amount,
+    summary,
+  }: { permission: Permission; approverId: string } & ApprovalTarget,
   at: Date,
   actor: Actor,
 ): Promise<AuditRecord> {
   return db.transaction('rw', db.auditLog, db.outbox, () =>
     addAudit(
       db,
-      { action: 'approval', entity: 'approval', after: { permission, approverId } },
+      {
+        action: 'approval',
+        entity: 'approval',
+        entityId,
+        after: withoutUndefined({ permission, approverId, entity, amount, summary }),
+      },
       actor,
       at,
     ),

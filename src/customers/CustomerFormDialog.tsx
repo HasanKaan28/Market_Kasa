@@ -1,5 +1,7 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
+import { useSession } from '@/app/session';
 import { useApproval } from '@/app/useApproval';
 import { createCustomer, updateCustomer } from '@/data/customers';
 import type { CustomerRecord } from '@/data/types';
@@ -19,7 +21,11 @@ export type CustomerFormDialogProps = {
 
 type Errors = { name?: string; limit?: string; form?: string };
 
-/** A credit customer's name, phone and limit; a limit of nothing means no limit. */
+/**
+ * A credit customer's name, phone and limit; a limit of nothing means no limit. Someone who may not
+ * approve going over a limit adds a customer with the market's limit for new customers; no limit,
+ * or a higher one, then needs a permitted person's approval.
+ */
 export function CustomerFormDialog({
   open,
   customer,
@@ -27,12 +33,18 @@ export function CustomerFormDialog({
   onSaved,
 }: CustomerFormDialogProps): JSX.Element {
   const { db } = useData();
+  const session = useSession();
   const approval = useApproval();
+  const { newCustomerLimit } = useMarketSettings();
+  // A new customer added by someone without the limit permission starts at the market's limit.
+  const capped = !customer && !session.can('overLimit');
   const [name, setName] = useState(customer?.name ?? '');
   const [phone, setPhone] = useState(customer?.phone ?? '');
-  const [limit, setLimit] = useState(
-    customer && customer.creditLimit > 0 ? formatPriceInput(customer.creditLimit) : '',
+  // Null until typed in: until then the box follows the market's limit as it loads.
+  const [typedLimit, setLimit] = useState<string | null>(
+    customer ? (customer.creditLimit > 0 ? formatPriceInput(customer.creditLimit) : '') : null,
   );
+  const limit = typedLimit ?? (capped ? formatPriceInput(newCustomerLimit) : '');
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
 
@@ -52,9 +64,22 @@ export function CustomerFormDialog({
     }
     setErrors({});
     const input = { name, phone, creditLimit };
-    // Changing a customer's limit is a manager's call (DESIGN §8.5, limit aşımı onayı).
+    const limitText = creditLimit === 0 ? 'limit yok' : `limit ${formatTRY(creditLimit)}`;
+    // Changing a customer's limit is a manager's call (DESIGN §8.5, limit aşımı onayı); so is a
+    // new customer with no limit, or one above the market's limit for new customers.
     if (customer && creditLimit !== customer.creditLimit) {
-      approval.ask('overLimit', () => void store(input));
+      approval.ask('overLimit', () => void store(input), {
+        entity: 'customer',
+        entityId: customer.id,
+        amount: creditLimit,
+        summary: `${customer.name}: ${limitText}`,
+      });
+    } else if (!customer && (creditLimit === 0 || creditLimit > newCustomerLimit)) {
+      approval.ask('overLimit', () => void store(input), {
+        entity: 'customer',
+        amount: creditLimit,
+        summary: `Yeni müşteri ${name.trim()}: ${limitText}`,
+      });
     } else {
       await store(input);
     }
@@ -103,7 +128,11 @@ export function CustomerFormDialog({
           />
           <TextField
             label="Limit"
-            hint="Veresiye üst sınırı. Boş bırakılırsa sınır yok."
+            hint={
+              capped
+                ? 'Veresiye üst sınırı. Boş bırakmak ya da artırmak yetkili onayı ister.'
+                : 'Veresiye üst sınırı. Boş bırakılırsa sınır yok.'
+            }
             inputMode="decimal"
             autoComplete="off"
             value={limit}

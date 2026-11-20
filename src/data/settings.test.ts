@@ -3,7 +3,7 @@ import { makeTestDb } from '@/test/db';
 import type { MarketDb } from './db';
 import { pendingOps } from './outbox';
 import { DEFAULT_SCALE } from '@/domain/scaleBarcode';
-import { loadMarketSettings, saveMarketSettings } from './settings';
+import { loadMarketSettings, saveMarketSettings, type MarketSettings } from './settings';
 
 let db: MarketDb;
 beforeEach(() => {
@@ -16,12 +16,36 @@ afterEach(async () => {
 const at = new Date('2026-10-29T09:00:00Z');
 
 describe('market settings', () => {
+  it('never locks an idle owner unless the market says so', async () => {
+    expect(await loadMarketSettings(db)).toMatchObject({ idleLockMinutes: 0 });
+    for (const minutes of [3, 10, 30, 0] as const) {
+      await saveMarketSettings(db, { idleLockMinutes: minutes }, at);
+      expect(await loadMarketSettings(db)).toMatchObject({ idleLockMinutes: minutes });
+    }
+    // As a newer register or a bad row might send it.
+    const odd = { idleLockMinutes: 5 } as unknown as Partial<MarketSettings>;
+    await expect(saveMarketSettings(db, odd, at)).rejects.toThrow(RangeError);
+  });
+
+  it('gives a new customer ₺500 of credit unless the market says otherwise', async () => {
+    expect(await loadMarketSettings(db)).toMatchObject({ newCustomerLimit: 50000 });
+    await saveMarketSettings(db, { newCustomerLimit: 20000 }, at);
+    expect(await loadMarketSettings(db)).toMatchObject({ newCustomerLimit: 20000 });
+    await expect(saveMarketSettings(db, { newCustomerLimit: 0 }, at)).rejects.toThrow(RangeError);
+    await expect(saveMarketSettings(db, { newCustomerLimit: 1.5 }, at)).rejects.toThrow(RangeError);
+  });
+
   it('keeps the scale label format for every register, apart from the day cutoff', async () => {
     expect((await loadMarketSettings(db)).scale).toEqual(DEFAULT_SCALE);
     const scale = { enabled: true, prefixes: ['28'], codeDigits: 4, value: 'price' as const };
     await saveMarketSettings(db, { scale }, at);
     await saveMarketSettings(db, { cutoffMinutes: 120 }, new Date(at.getTime() + 60_000));
-    expect(await loadMarketSettings(db)).toEqual({ cutoffMinutes: 120, scale });
+    expect(await loadMarketSettings(db)).toEqual({
+      cutoffMinutes: 120,
+      scale,
+      newCustomerLimit: 50000,
+      idleLockMinutes: 0,
+    });
     await expect(
       saveMarketSettings(db, { scale: { ...scale, prefixes: ['86'] } }, at),
     ).rejects.toThrow(RangeError);

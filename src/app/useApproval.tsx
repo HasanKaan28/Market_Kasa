@@ -1,49 +1,81 @@
-import { useState, type JSX } from 'react';
-import { recordApproval } from '@/data/audit';
+import { useRef, useState, type JSX } from 'react';
+import { recordApproval, type ApprovalTarget } from '@/data/audit';
 import type { Permission } from '@/domain/permissions';
 import { useActor } from './actor';
 import { ApprovalDialog } from './ApprovalDialog';
 import { useData } from './appData';
 import { useSession } from './session';
 
+type Pending = { permission: Permission; target?: ApprovalTarget; done(approved: boolean): void };
+
 /**
  * Lets a screen ask, as the register does, for a permitted person's PIN before an action the
- * person signed in may not do. The approval is logged; render `dialog` beside the screen.
+ * person signed in may not do. Ask once the amount is known, so the approver sees it in the
+ * `summary` and the log keeps it beside the record. The approval is logged before the action
+ * goes ahead; render `dialog` beside the screen.
  */
 export function useApproval(): {
-  ask(permission: Permission, next: () => void): void;
+  /** Runs `next` at once when allowed, else after an approval; nothing when it is turned down. */
+  ask(permission: Permission, next: () => void, target?: ApprovalTarget): void;
+  /** True when allowed or approved, false when the approval dialog is closed without one. */
+  confirm(permission: Permission, target?: ApprovalTarget): Promise<boolean>;
   dialog: JSX.Element | null;
 } {
   const { db } = useData();
   const session = useSession();
   const actor = useActor();
-  const [pending, setPending] = useState<{ permission: Permission; next: () => void } | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
+  // The approval waiting now. Each is answered once: a later ask turns the earlier one down, so
+  // nothing waits on it for ever, and a closed dialog never lets its action run.
+  const current = useRef<Pending | null>(null);
 
-  function ask(permission: Permission, next: () => void) {
+  function open(next: Pending) {
+    current.current?.done(false);
+    current.current = next;
+    setPending(next);
+  }
+
+  function finish(which: Pending, approved: boolean) {
+    if (current.current !== which) {
+      return;
+    }
+    current.current = null;
+    setPending(null);
+    which.done(approved);
+  }
+
+  function ask(permission: Permission, next: () => void, target?: ApprovalTarget) {
     if (session.can(permission)) {
       next();
     } else {
-      setPending({ permission, next });
+      open({ permission, target, done: (approved) => approved && next() });
     }
+  }
+
+  function confirm(permission: Permission, target?: ApprovalTarget): Promise<boolean> {
+    if (session.can(permission)) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => open({ permission, target, done: resolve }));
   }
 
   const dialog = pending ? (
     <ApprovalDialog
       open
       permission={pending.permission}
-      onClose={() => setPending(null)}
-      onApproved={(approver) => {
-        void recordApproval(
+      summary={pending.target?.summary}
+      onClose={() => finish(pending, false)}
+      onApproved={async (approver) => {
+        await recordApproval(
           db,
-          { permission: pending.permission, approverId: approver.id },
+          { permission: pending.permission, approverId: approver.id, ...pending.target },
           new Date(),
           actor,
         );
-        setPending(null);
-        pending.next();
+        finish(pending, true);
       }}
     />
   ) : null;
 
-  return { ask, dialog };
+  return { ask, confirm, dialog };
 }

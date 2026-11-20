@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { Button, Dialog } from '@/design';
-import { formatTRY } from '@/domain/money';
+import { formatTRY, type Kurus } from '@/domain/money';
 import { discountBase, type Cart, type CartAction } from './cart';
 import { DiscountField } from './DiscountField';
 import { readDiscount, type DiscountMode } from './discountInput';
@@ -10,6 +10,12 @@ export type DiscountDialogProps = {
   cart: Cart;
   onClose(): void;
   dispatch(action: CartAction): void;
+  /**
+   * Called with the discount once it is typed and checked; `apply` puts it on the cart. The
+   * register asks here for an approval, so it is given for this amount on this cart. Without it
+   * the discount applies at once.
+   */
+  approve?(request: { amount: Kurus; base: Kurus }, apply: () => void): void;
 };
 
 /** A discount on the whole cart, spread over the lines when the sale is recorded. */
@@ -18,6 +24,7 @@ export function DiscountDialog({
   cart,
   onClose,
   dispatch,
+  approve = (_request, apply) => apply(),
 }: DiscountDialogProps): JSX.Element {
   const [mode, setMode] = useState<DiscountMode>('amount');
   const [value, setValue] = useState('');
@@ -36,8 +43,10 @@ export function DiscountDialog({
       setError('İndirim toplamı aşamaz.');
       return;
     }
-    dispatch({ type: 'setCartDiscount', amount });
-    onClose();
+    approve({ amount, base }, () => {
+      dispatch({ type: 'setCartDiscount', amount });
+      onClose();
+    });
   }
 
   return (

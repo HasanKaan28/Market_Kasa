@@ -29,8 +29,21 @@ export function describeAudit(record: AuditRecord, names: AuditNames): string {
       return `${person} pasife alındı`;
     case 'staff.restore':
       return `${person} geri alındı`;
-    case 'settings.update':
-      return `Gün dönümü ${clock(before.cutoffMinutes)} → ${clock(after.cutoffMinutes)}`;
+    case 'settings.update': {
+      const parts = [
+        'cutoffMinutes' in after
+          ? `Gün dönümü ${clock(before.cutoffMinutes)} → ${clock(after.cutoffMinutes)}`
+          : null,
+        'newCustomerLimit' in after
+          ? `Yeni müşteri veresiye limiti ${price(before.newCustomerLimit)} → ${price(after.newCustomerLimit)}`
+          : null,
+        'idleLockMinutes' in after
+          ? `Otomatik kilit ${lockLabel(before.idleLockMinutes)} → ${lockLabel(after.idleLockMinutes)}`
+          : null,
+        'scale' in after ? 'Terazi ayarı değişti' : null,
+      ].filter((part) => part !== null);
+      return parts.length > 0 ? parts.join(', ') : 'Market ayarı değişti';
+    }
     case 'product.price': {
       const product = names.product(record.entityId);
       const parts = [
@@ -41,8 +54,11 @@ export function describeAudit(record: AuditRecord, names: AuditNames): string {
       ].filter((part) => part !== null);
       return `${product}: ${parts.join(', ')}`;
     }
-    case 'approval':
-      return `${PERMISSION_LABELS[after.permission as Permission] ?? String(after.permission)} onayı · onaylayan ${names.staff(String(after.approverId))}`;
+    case 'approval': {
+      const label = PERMISSION_LABELS[after.permission as Permission] ?? String(after.permission);
+      const summary = typeof after.summary === 'string' ? ` · ${after.summary}` : '';
+      return `${label} onayı${summary} · onaylayan ${names.staff(String(after.approverId))}`;
+    }
     case 'purchase.reverse': {
       const invoice =
         typeof before.invoiceNo === 'string'
@@ -56,6 +72,8 @@ export function describeAudit(record: AuditRecord, names: AuditNames): string {
       return `Tedarikçi ödemesi geri alındı · ${price(before.amount)} · ${String(after.reason)}`;
     case 'supplierPayment.correct':
       return `Tedarikçi ödemesi düzeltildi · ${price(before.amount)} → ${price(after.amount)}`;
+    case 'supplierLedger.adjust':
+      return `Tedarikçi borcu elle düzeltildi · ${signed(after.amount)} · ${String(after.note)}`;
   }
 }
 
@@ -70,4 +88,16 @@ function clock(minutes: unknown): string {
 
 function price(amount: unknown): string {
   return typeof amount === 'number' ? formatTRY(amount) : '—';
+}
+
+function lockLabel(minutes: unknown): string {
+  return minutes === 0 ? 'Kapalı' : typeof minutes === 'number' ? `${minutes} dk` : '—';
+}
+
+/** "+₺25,00" added, "−₺25,00" taken off. */
+function signed(amount: unknown): string {
+  if (typeof amount !== 'number') {
+    return '—';
+  }
+  return amount < 0 ? `−${formatTRY(-amount)}` : `+${formatTRY(amount)}`;
 }

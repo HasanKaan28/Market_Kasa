@@ -1,5 +1,6 @@
 import { businessDate } from '@/domain/businessDate';
 import { assertSafeInteger, type Kurus } from '@/domain/money';
+import { addAudit, type Actor } from './audit';
 import { addCashMovement } from './cash';
 import { isDate } from './dates';
 import type { MarketDb } from './db';
@@ -140,12 +141,14 @@ export type SupplierAdjustmentInput = {
 
 /**
  * Corrects what the market owes a supplier by a counter-entry (DESIGN §6.1), with its reason, in
- * one transaction: an opening balance, a mistyped invoice, a payment recorded twice.
+ * one transaction: an opening balance, a mistyped invoice, a payment recorded twice. With an
+ * `actor`, the audit log records it in the same transaction.
  */
 export async function recordSupplierAdjustment(
   db: MarketDb,
   input: SupplierAdjustmentInput,
   at: Date,
+  actor?: Actor,
 ): Promise<SupplierLedgerRecord> {
   assertSafeInteger(input.amount, 'Supplier adjustment');
   if (input.amount === 0) {
@@ -155,9 +158,10 @@ export async function recordSupplierAdjustment(
   if (note === '') {
     throw new RangeError('An adjustment needs a note');
   }
-  return db.transaction('rw', db.suppliers, db.supplierLedger, db.outbox, async () => {
+  const tables = [db.suppliers, db.supplierLedger, db.outbox, db.auditLog];
+  return db.transaction('rw', tables, async () => {
     await requireSupplier(db, input.supplierId, { active: false });
-    return addEntry(
+    const entry = await addEntry(
       db,
       {
         supplierId: input.supplierId,
@@ -169,6 +173,20 @@ export async function recordSupplierAdjustment(
       at,
       input.cutoffMinutes,
     );
+    if (actor) {
+      await addAudit(
+        db,
+        {
+          action: 'supplierLedger.adjust',
+          entity: 'supplierLedger',
+          entityId: entry.id,
+          after: { supplierId: input.supplierId, amount: input.amount, note },
+        },
+        actor,
+        at,
+      );
+    }
+    return entry;
   });
 }
 

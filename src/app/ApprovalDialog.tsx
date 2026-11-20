@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useState, type FormEvent, type JSX } from 'react';
+import { useRef, useState, type FormEvent, type JSX } from 'react';
 import { checkPin, listStaff } from '@/data/staff';
 import type { StaffRecord } from '@/data/types';
 import { Button, Dialog, SelectField, TextField } from '@/design';
@@ -11,7 +11,10 @@ import { useData } from './appData';
 export type ApprovalDialogProps = {
   open: boolean;
   permission: Permission;
-  onApproved(approver: StaffRecord): void;
+  /** What is being approved, shown to the approver: the amount and whose it is. */
+  summary?: string;
+  /** May wait on writing the approval down; if that fails, the dialog says so and stays. */
+  onApproved(approver: StaffRecord): void | Promise<void>;
   onClose(): void;
 };
 
@@ -22,6 +25,7 @@ export type ApprovalDialogProps = {
 export function ApprovalDialog({
   open,
   permission,
+  summary,
   onApproved,
   onClose,
 }: ApprovalDialogProps): JSX.Element {
@@ -32,22 +36,30 @@ export function ApprovalDialog({
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string>();
   const [checking, setChecking] = useState(false);
+  // Set from the moment the PIN is checked until the approval is written down: closing then would
+  // leave the action half approved, so the dialog stays until it is done.
+  const busy = useRef(false);
   const chosen = approvers.find((person) => person.id === chosenId) ?? approvers[0];
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!chosen || checking) {
+    if (!chosen || busy.current) {
       return;
     }
     if (!isValidPin(pin)) {
       setError('PIN 4–6 rakamdır.');
       return;
     }
+    busy.current = true;
     setChecking(true);
     try {
       const result = await checkPin(db, chosen.id, pin, new Date());
       if (result.ok && can(result.staff, permission)) {
-        onApproved(result.staff);
+        try {
+          await onApproved(result.staff);
+        } catch {
+          setError('Onay kaydedilemedi. Yeniden deneyin.');
+        }
         return;
       }
       setPin('');
@@ -61,6 +73,7 @@ export function ApprovalDialog({
               : 'Bu kişi artık onay veremez.',
       );
     } finally {
+      busy.current = false;
       setChecking(false);
     }
   }
@@ -68,10 +81,15 @@ export function ApprovalDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => !next && onClose()}
+      onOpenChange={(next) => !next && !busy.current && onClose()}
       title="Yetkili onayı"
       description={`"${PERMISSION_LABELS[permission]}" için yetkili birinin onayı gerekir.`}
     >
+      {summary ? (
+        <p className="rounded-control border border-line-strong bg-bg px-3 py-2 text-[17px] font-semibold">
+          {summary}
+        </p>
+      ) : null}
       {people === undefined ? (
         <p className="text-text-2">Yükleniyor…</p>
       ) : approvers.length === 0 ? (
