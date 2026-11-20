@@ -100,3 +100,68 @@ set expires_at = now() + interval '30 days'
 where code = app.canonical_activation_code('7KQ4-M2XD') and used_at is null
 returning code, expires_at;
 ```
+
+## Operator panel
+
+Everything above can also be done in the app, without SQL, in the **operator panel**. Schema:
+`supabase/migrations/20261120190000_m5_operator_panel.sql`.
+
+### Opening it
+
+The panel has its own address and no link anywhere in the shop's screens:
+
+- Local dev server (`npm run dev`): `http://localhost:5173/#/operator`
+- Deployed web app: `https://hasankaan28.github.io/Market_Kasa/app/#/operator`
+
+Sign in with your own email and password, or create the account there with **Hesap oluştur**.
+The panel keeps its session under its own storage key (`mk2.operator`), apart from the register's
+device session (`mk2.auth`), so signing in or out of the panel never signs a register out on the
+same browser. It never opens the shop's local data.
+
+An account without operator rights sees "Bu hesabın yetkisi yok." and nothing else.
+
+The panel has three parts:
+
+- **Kod üret:** a note and a number of days (1-365) make one code, shown large with a copy button.
+- **Kodlar:** the latest 500 codes with their status (unused, used, expired, revoked). An unused
+  or expired code can be extended by 30 days or revoked.
+- **Marketler:** every market with its status, registers, last sync and owner email. A market can
+  be suspended (its registers stop syncing and keep selling offline) or activated again. Both ask
+  for confirmation.
+
+### Granting operator rights
+
+Operators are listed in `app.operators` by auth user id, never by email: email confirmation is off
+on this project, so anyone could sign up with someone else's address. First create the account
+(in the panel or the Supabase dashboard), check in **Authentication > Users** that it is yours,
+then run this once in the SQL editor, with the address in place of the placeholder:
+
+```sql
+insert into app.operators (user_id)
+select id from auth.users where lower(email) = lower('<operator-email>');
+```
+
+It inserts nothing when no account has that address. To take the rights away:
+
+```sql
+delete from app.operators
+where user_id = (select id from auth.users where lower(email) = lower('<operator-email>'));
+```
+
+### One-time claim (first operator only)
+
+While `app.operators` is empty, the panel can make the first operator itself. Put the address in
+`app.operator_claims` by hand:
+
+```sql
+insert into app.operator_claims (email) values (lower('<operator-email>'));
+```
+
+After every sign-in the panel calls `public.op_claim()`. It makes the caller an operator only when
+`app.operators` is still empty and the caller's account email matches a claim, then deletes that
+claim. Once any operator exists, no one can claim again. Since email confirmation is off, keep the
+window short: add the claim only right before you sign up or sign in, and check
+`select * from app.operator_claims;` is empty afterwards.
+
+Never write a real address in this repository; the claim and the grant are run only in the SQL
+editor.
