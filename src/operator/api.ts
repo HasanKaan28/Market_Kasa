@@ -45,9 +45,14 @@ export type ActivationCode = {
   status: CodeStatus;
   marketId: string | null;
   marketName: string | null;
+  /** The account that used it; absent from servers before the m6 migration. */
+  usedByEmail?: string | null;
 };
 
 export type MarketStatus = 'active' | 'suspended';
+
+/** A count and its total in kuruş: voided sales are left out. */
+export type SalesSum = { count: number; total: number };
 
 export type OperatorMarket = {
   id: string;
@@ -59,6 +64,70 @@ export type OperatorMarket = {
   devices: number;
   lastSyncAt: string | null;
   ownerEmail: string | null;
+  /** The rest arrive with the m6 migration; the list works without them. */
+  staff?: number;
+  sales30?: SalesSum;
+  lastSaleAt?: string | null;
+  plan?: string | null;
+  planUntil?: string | null;
+};
+
+export type Overview = {
+  markets: { total: number; active: number; suspended: number; new30: number };
+  codes: Record<'issued' | 'used' | 'unused' | 'expired' | 'revoked', number>;
+  devices: { total: number; seenToday: number };
+  sales: { today: SalesSum; last30: SalesSum };
+  expiringCodes: { code: string; note: string; expiresAt: string }[];
+  planDue: { id: string; name: string; plan: string | null; planUntil: string }[];
+  quiet: { id: string; name: string; lastSyncAt: string | null }[];
+};
+
+export type Device = {
+  id: string;
+  code: string;
+  name: string;
+  platform: string;
+  createdAt: string;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+};
+
+export type MarketDetail = {
+  id: string;
+  name: string;
+  status: MarketStatus;
+  createdAt: string;
+  activatedAt: string | null;
+  activationCode: string | null;
+  code: { note: string; createdAt: string; usedAt: string | null } | null;
+  people: { email: string | null; role: 'owner' | 'manager' }[];
+  devices: Device[];
+  staff: { active: number; archived: number };
+  rowCounts: { table: string; count: number }[];
+  bytes: number;
+  lastSyncAt: string | null;
+  lastSaleAt: string | null;
+  sales: { today: SalesSum; last30: SalesSum; all: SalesSum };
+  voids30: number;
+  returns30: SalesSum;
+  activeDevices30: number;
+  /** The operator's own record; nothing in the shop reads it. */
+  info: {
+    plan: string | null;
+    planUntil: string | null;
+    note: string | null;
+    updatedAt: string;
+  } | null;
+};
+
+export type LogEntry = {
+  id: number;
+  at: string;
+  action: string;
+  marketId: string | null;
+  marketName: string | null;
+  operatorEmail: string | null;
+  details: Record<string, unknown>;
 };
 
 /** A refusal from the server, carrying its reason (`not_operator`, `code_used`, …). */
@@ -88,6 +157,30 @@ export function operatorApi(client: OperatorClient) {
     listMarkets: () => call<OperatorMarket[]>(client, 'op_list_markets'),
     setMarketStatus: (marketId: string, status: MarketStatus) =>
       call<void>(client, 'op_set_market_status', { market_id: marketId, status }),
+    issueCodes: (note: string, days: number, count: number) =>
+      call<string[]>(client, 'op_issue_codes', { note, days, count }),
+    overview: () => call<Overview>(client, 'op_overview'),
+    market: (marketId: string) => call<MarketDetail>(client, 'op_market', { market_id: marketId }),
+    history: ({
+      limit = 50,
+      beforeId = null,
+      marketId = null,
+    }: { limit?: number; beforeId?: number | null; marketId?: string | null } = {}) =>
+      call<LogEntry[]>(client, 'op_history', {
+        lim: limit,
+        before_id: beforeId,
+        market_id: marketId,
+      }),
+    revokeDevice: (deviceId: string) =>
+      call<void>(client, 'op_revoke_device', { device_id: deviceId }),
+    setPlan: (marketId: string, plan: string, planUntil: string | null) =>
+      call<{ plan: string | null; planUntil: string | null }>(client, 'op_set_market_plan', {
+        market_id: marketId,
+        plan,
+        plan_until: planUntil,
+      }),
+    setNote: (marketId: string, note: string) =>
+      call<void>(client, 'op_set_market_note', { market_id: marketId, note }),
   };
 }
 
@@ -109,6 +202,12 @@ export function messageOf(error: unknown): string {
     ['code_revoked', 'Kod iptal edilmiş.'],
     ['bad_status', 'Geçersiz durum.'],
     ['market_not_found', 'Market bulunamadı.'],
+    ['bad_count', 'Adet 1–50 arası olmalı.'],
+    ['bad_plan', 'Paket adı en çok 40 karakter olmalı.'],
+    ['bad_date', 'Tarih bugünden en çok 10 yıl uzakta olabilir.'],
+    ['note_too_long', 'Not en çok 2000 karakter olabilir.'],
+    ['device_not_found', 'Cihaz bulunamadı.'],
+    ['device_revoked', 'Cihaz zaten iptal edilmiş.'],
     ['Invalid login credentials', 'E-posta ya da şifre yanlış.'],
     ['User already registered', 'Bu e-postayla hesap var. Giriş yapın.'],
   ];

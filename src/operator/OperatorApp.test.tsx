@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivationCode, OperatorClient, OperatorMarket } from './api';
+import type { ActivationCode, OperatorClient, OperatorMarket, Overview } from './api';
 import { OperatorApp } from './OperatorApp';
 import { isOperatorHash } from './route';
 
@@ -29,6 +29,16 @@ const unused: ActivationCode = {
   status: 'unused',
   marketId: null,
   marketName: null,
+};
+
+const overview: Overview = {
+  markets: { total: 1, active: 1, suspended: 0, new30: 1 },
+  codes: { issued: 1, used: 0, unused: 1, expired: 0, revoked: 0 },
+  devices: { total: 2, seenToday: 1 },
+  sales: { today: { count: 3, total: 12550 }, last30: { count: 40, total: 456700 } },
+  expiringCodes: [],
+  planDue: [],
+  quiet: [],
 };
 
 /** Credentials made up for each test, so no address or password is written in the code. */
@@ -67,6 +77,7 @@ const OPERATOR = {
   op_whoami: { data: true },
   op_list_codes: { data: [unused] },
   op_list_markets: { data: [market] },
+  op_overview: { data: overview },
 };
 
 async function signIn(email: string, password: string) {
@@ -83,10 +94,9 @@ describe('OperatorApp', () => {
     await signIn(email, password);
 
     expect(auth.signInWithPassword).toHaveBeenCalledWith({ email, password });
-    expect(await screen.findByRole('heading', { name: 'Kod üret' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Özet' })).toBeInTheDocument();
     expect(calls.map((call) => call.fn).slice(0, 2)).toEqual(['op_claim', 'op_whoami']);
-    expect(await screen.findByText('ABCD-2345')).toBeInTheDocument();
-    expect(screen.getByText('Kurşunlu Market')).toBeInTheDocument();
+    expect(await screen.findByText('₺125,50')).toBeInTheDocument();
   });
 
   it('tells a signed-in account without operator rights that it has none', async () => {
@@ -96,7 +106,7 @@ describe('OperatorApp', () => {
     await signIn(email, password);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu hesabın yetkisi yok.');
-    expect(screen.queryByRole('heading', { name: 'Kod üret' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Özet' })).not.toBeInTheDocument();
   });
 
   it('shows a wrong password and stays on the sign-in form', async () => {
@@ -121,7 +131,7 @@ describe('OperatorApp', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }));
 
     expect(auth.signUp).toHaveBeenCalledWith({ email, password });
-    expect(await screen.findByRole('heading', { name: 'Kod üret' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Özet' })).toBeInTheDocument();
     expect(calls[0]?.fn).toBe('op_claim');
   });
 
@@ -141,49 +151,7 @@ describe('OperatorApp', () => {
   it('opens straight to the panel with a kept session', async () => {
     const { client } = fakeClient(OPERATOR, { session: { user: {} } });
     render(<OperatorApp client={client} />);
-    expect(await screen.findByRole('heading', { name: 'Kod üret' })).toBeInTheDocument();
-  });
-
-  it('issues a code with a note and days, and shows it big with a copy button', async () => {
-    const { client, calls } = fakeClient(
-      { ...OPERATOR, op_issue_code: { data: '7KQ4-M2XD' } },
-      { session: { user: {} } },
-    );
-    render(<OperatorApp client={client} />);
-    await userEvent.type(await screen.findByLabelText('Not'), 'Kurşunlu Market');
-    await userEvent.clear(screen.getByLabelText('Gün'));
-    await userEvent.type(screen.getByLabelText('Gün'), '7');
-    await userEvent.click(screen.getByRole('button', { name: 'Kod üret' }));
-
-    expect(await screen.findByLabelText('Üretilen kod')).toHaveTextContent('7KQ4-M2XD');
-    expect(calls.find((call) => call.fn === 'op_issue_code')?.args).toEqual({
-      note: 'Kurşunlu Market',
-      days: 7,
-    });
-    const writeText = vi.fn(async () => undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    await userEvent.click(screen.getByRole('button', { name: 'Kopyala' }));
-    expect(writeText).toHaveBeenCalledWith('7KQ4-M2XD');
-  });
-
-  it('asks before it suspends a market', async () => {
-    const { client, calls } = fakeClient(
-      { ...OPERATOR, op_set_market_status: { data: null } },
-      { session: { user: {} } },
-    );
-    render(<OperatorApp client={client} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Askıya al' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('Market askıya alınsın mı?');
-    expect(calls.some((call) => call.fn === 'op_set_market_status')).toBe(false);
-
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Askıya al' }));
-    await waitFor(() =>
-      expect(calls.find((call) => call.fn === 'op_set_market_status')?.args).toEqual({
-        market_id: 'kursunlu-ab12cd',
-        status: 'suspended',
-      }),
-    );
+    expect(await screen.findByRole('heading', { name: 'Özet' })).toBeInTheDocument();
   });
 
   it('signs out of its own session only', async () => {

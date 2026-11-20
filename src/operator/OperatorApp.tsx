@@ -1,4 +1,4 @@
-import { Copy, LogOut, RefreshCw } from 'lucide-react';
+import { History, KeyRound, LayoutDashboard, LogOut, Store } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -6,25 +6,30 @@ import {
   useState,
   type FormEvent,
   type JSX,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { Button, ChoiceGroup, Dialog, Logo, TextField, ToastRegion, useToast } from '@/design';
-import { formatDateTime } from '@/pos/format';
 import {
-  messageOf,
-  operatorApi,
-  type ActivationCode,
-  type CodeStatus,
-  type OperatorApi,
-  type OperatorClient,
-  type OperatorMarket,
-} from './api';
+  Button,
+  ChoiceGroup,
+  Logo,
+  TextField,
+  ToastRegion,
+  useBottomBar,
+  useToast,
+} from '@/design';
+import { messageOf, operatorApi, type OperatorApi, type OperatorClient } from './api';
+import { CodesTab } from './CodesTab';
+import { HistoryTab } from './HistoryTab';
+import { MarketDetail } from './MarketDetail';
+import { MarketsTab } from './MarketsTab';
+import { OverviewTab } from './OverviewTab';
 
 type Phase = 'loading' | 'signedOut' | 'denied' | 'operator';
 
 /**
- * The developer's operator panel (#/operator): his own sign-in, then activation codes and
- * markets. It has its own Supabase session and never opens a register's database or session.
+ * The developer's operator panel (#/operator): his own sign-in, then an overview, the markets
+ * and each one's detail, activation codes and the log of every change made here. It has its own Supabase session and never opens a register's database or session.
  */
 export function OperatorApp({ client }: { client: OperatorClient | null }): JSX.Element {
   const api = useMemo(() => (client ? operatorApi(client) : null), [client]);
@@ -223,352 +228,120 @@ function SignIn({
   );
 }
 
-const CODE_STATUS: Record<CodeStatus, { label: string; tone: string }> = {
-  unused: { label: 'Kullanılmadı', tone: 'bg-success-bg text-success' },
-  used: { label: 'Kullanıldı', tone: 'bg-bg text-text-2' },
-  expired: { label: 'Süresi doldu', tone: 'bg-warning-bg text-warning' },
-  revoked: { label: 'İptal', tone: 'bg-danger-bg text-danger' },
-};
+type Tab = 'overview' | 'markets' | 'codes' | 'history';
+const TABS: readonly { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: 'overview', label: 'Özet', icon: LayoutDashboard },
+  { id: 'markets', label: 'Marketler', icon: Store },
+  { id: 'codes', label: 'Kodlar', icon: KeyRound },
+  { id: 'history', label: 'Geçmiş', icon: History },
+];
 
-type Confirm = {
-  title: string;
-  description: string;
-  action: string;
-  danger: boolean;
-  run(): Promise<unknown>;
-  done: string;
-};
+/** Under 640 px the tabs sit at the bottom, under the thumb, as the app's own do. */
+const PHONE = '(max-width: 639px)';
 
 function Panel({ api, onSignOut }: { api: OperatorApi; onSignOut(): void }): JSX.Element {
   const toast = useToast();
-  const [codes, setCodes] = useState<ActivationCode[] | null>(null);
-  const [markets, setMarkets] = useState<OperatorMarket[] | null>(null);
-  const [confirm, setConfirm] = useState<Confirm | null>(null);
-  const [busy, setBusy] = useState(false);
-  const show = toast.show;
+  const [tab, setTab] = useState<Tab>('overview');
+  // A market opened from any tab; its detail takes the panel until "Geri".
+  const [opened, setOpened] = useState<string | null>(null);
+  const bar = useBottomBar<HTMLDivElement>(PHONE);
+  const notify = toast.show;
 
-  // Each bump reads the codes and markets again.
-  const [version, setVersion] = useState(0);
-  const refresh = useCallback(() => setVersion((current) => current + 1), []);
+  function choose(next: Tab) {
+    setTab(next);
+    setOpened(null);
+    window.scrollTo?.({ top: 0 });
+  }
 
-  useEffect(() => {
-    let live = true;
-    Promise.all([api.listCodes(), api.listMarkets()]).then(
-      ([nextCodes, nextMarkets]) => {
-        if (live) {
-          setCodes(nextCodes);
-          setMarkets(nextMarkets);
-        }
-      },
-      (failure: unknown) => {
-        if (live) {
-          show(messageOf(failure));
-        }
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [api, show, version]);
+  function open(marketId: string) {
+    setOpened(marketId);
+    window.scrollTo?.({ top: 0 });
+  }
 
-  async function act(run: () => Promise<unknown>, done: string) {
-    setBusy(true);
-    try {
-      await run();
-      show(done);
-      refresh();
-    } catch (failure) {
-      show(messageOf(failure));
-    } finally {
-      setBusy(false);
+  function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return;
     }
+    const at = TABS.findIndex((item) => item.id === tab);
+    const step = event.key === 'ArrowRight' ? 1 : -1;
+    const next = TABS[(at + step + TABS.length) % TABS.length]?.id ?? tab;
+    choose(next);
+    document.getElementById(`tab-${next}`)?.focus();
   }
 
   return (
-    <main className="min-h-dvh bg-bg">
-      <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
-        <div className="flex items-center gap-3">
+    <div className="min-h-dvh bg-bg">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2">
           <Logo />
           <h1 className="font-display text-xl font-semibold tracking-[-0.01em]">Operatör</h1>
-        </div>
-        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
-            size="icon"
-            aria-label="Yenile"
-            icon={<RefreshCw aria-hidden="true" size={18} />}
-            onClick={refresh}
-          />
-          <Button
-            variant="ghost"
+            className="ml-auto"
             icon={<LogOut aria-hidden="true" size={18} />}
             onClick={onSignOut}
           >
             Çıkış
           </Button>
         </div>
+        <div
+          ref={bar}
+          role="tablist"
+          aria-label="Operatör"
+          onKeyDown={onTabKey}
+          className="mx-auto flex max-w-3xl gap-1 px-4 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-20 max-sm:gap-0 max-sm:border-t max-sm:border-line max-sm:bg-surface max-sm:px-0 max-sm:pb-[env(safe-area-inset-bottom)]"
+        >
+          {TABS.map((item) => {
+            const Icon = item.icon;
+            const selected = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`tab-${item.id}`}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`panel-${item.id}`}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => choose(item.id)}
+                className={`flex min-h-touch items-center justify-center gap-2 font-semibold transition-colors max-sm:min-w-0 max-sm:flex-1 max-sm:flex-col max-sm:gap-0.5 max-sm:py-2 max-sm:text-meta sm:border-b-2 sm:px-3 ${
+                  selected
+                    ? 'text-text max-sm:text-accent sm:border-accent'
+                    : 'text-text-2 hover:text-text sm:border-transparent'
+                }`}
+              >
+                <Icon aria-hidden="true" size={20} strokeWidth={selected ? 2.25 : 1.75} />
+                <span className="max-sm:max-w-full max-sm:truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </header>
-
-      <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 p-4">
-        <IssueCode api={api} onIssued={refresh} onMessage={show} />
-
-        <Section title="Kodlar">
-          {codes === null ? (
-            <p className="text-text-2">Yükleniyor…</p>
-          ) : codes.length === 0 ? (
-            <p className="text-text-2">Henüz kod yok.</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line">
-              {codes.map((code) => (
-                <li key={code.code} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-label font-medium">{code.code}</span>
-                      <span
-                        className={`rounded-chip px-2 py-0.5 text-meta font-semibold ${CODE_STATUS[code.status].tone}`}
-                      >
-                        {CODE_STATUS[code.status].label}
-                      </span>
-                    </div>
-                    <span className="break-words">{code.note}</span>
-                    <span className="text-meta text-muted">
-                      {code.status === 'used' && code.usedAt
-                        ? `Kullanıldı ${formatDateTime(code.usedAt)}${code.marketName ? ` · ${code.marketName}` : ''}`
-                        : `Son gün ${formatDateTime(code.expiresAt)} · Üretildi ${formatDateTime(code.createdAt)}`}
-                    </span>
-                  </div>
-                  {code.status === 'unused' || code.status === 'expired' ? (
-                    <div className="flex gap-2">
-                      <Button
-                        disabled={busy}
-                        onClick={() =>
-                          void act(() => api.extendCode(code.code, 30), 'Kod 30 gün uzatıldı.')
-                        }
-                      >
-                        30 gün uzat
-                      </Button>
-                      <Button
-                        variant="danger"
-                        disabled={busy}
-                        onClick={() =>
-                          setConfirm({
-                            title: 'Kod iptal edilsin mi?',
-                            description: `${code.code} artık market açamaz.`,
-                            action: 'İptal et',
-                            danger: true,
-                            run: () => api.revokeCode(code.code),
-                            done: 'Kod iptal edildi.',
-                          })
-                        }
-                      >
-                        İptal et
-                      </Button>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
-
-        <Section title="Marketler">
-          {markets === null ? (
-            <p className="text-text-2">Yükleniyor…</p>
-          ) : markets.length === 0 ? (
-            <p className="text-text-2">Henüz market yok.</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line">
-              {markets.map((market) => {
-                const active = market.status === 'active';
-                return (
-                  <li key={market.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold break-words">{market.name}</span>
-                        <span
-                          className={`rounded-chip px-2 py-0.5 text-meta font-semibold ${
-                            active ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'
-                          }`}
-                        >
-                          {active ? 'Etkin' : 'Askıda'}
-                        </span>
-                      </div>
-                      <span className="text-meta break-all text-muted">
-                        {market.ownerEmail ?? 'Sahip yok'}
-                      </span>
-                      <span className="text-meta text-muted">
-                        {[
-                          `${market.devices} kasa`,
-                          market.lastSyncAt
-                            ? `Son eşitleme ${formatDateTime(market.lastSyncAt)}`
-                            : 'Hiç eşitlenmedi',
-                          `Açıldı ${formatDateTime(market.createdAt)}`,
-                        ].join(' · ')}
-                      </span>
-                    </div>
-                    <Button
-                      variant={active ? 'danger' : 'primary'}
-                      disabled={busy}
-                      onClick={() =>
-                        setConfirm(
-                          active
-                            ? {
-                                title: 'Market askıya alınsın mı?',
-                                description: `${market.name}: kasalar eşitlenmez, çevrimdışı satış sürer.`,
-                                action: 'Askıya al',
-                                danger: true,
-                                run: () => api.setMarketStatus(market.id, 'suspended'),
-                                done: 'Market askıya alındı.',
-                              }
-                            : {
-                                title: 'Market etkinleştirilsin mi?',
-                                description: `${market.name}: kasalar yeniden eşitlenir.`,
-                                action: 'Etkinleştir',
-                                danger: false,
-                                run: () => api.setMarketStatus(market.id, 'active'),
-                                done: 'Market etkinleştirildi.',
-                              },
-                        )
-                      }
-                    >
-                      {active ? 'Askıya al' : 'Etkinleştir'}
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Section>
-      </div>
-
-      <Dialog
-        open={confirm !== null}
-        onOpenChange={(open) => (open ? undefined : setConfirm(null))}
-        title={confirm?.title ?? ''}
-        description={confirm?.description}
+      <main
+        id={`panel-${tab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${tab}`}
+        className="mx-auto flex max-w-3xl min-w-0 flex-col gap-6 px-4 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] max-sm:pb-[calc(6rem+env(safe-area-inset-bottom))]"
       >
-        <div className="flex justify-end gap-2">
-          <Button onClick={() => setConfirm(null)}>Vazgeç</Button>
-          <Button
-            variant={confirm?.danger ? 'danger' : 'primary'}
-            disabled={busy}
-            onClick={() => {
-              const chosen = confirm;
-              setConfirm(null);
-              if (chosen) {
-                void act(chosen.run, chosen.done);
-              }
-            }}
-          >
-            {confirm?.action}
-          </Button>
-        </div>
-      </Dialog>
+        {opened ? (
+          <MarketDetail
+            key={opened}
+            api={api}
+            marketId={opened}
+            notify={notify}
+            onBack={() => setOpened(null)}
+          />
+        ) : tab === 'overview' ? (
+          <OverviewTab api={api} onOpen={open} notify={notify} />
+        ) : tab === 'markets' ? (
+          <MarketsTab api={api} onOpen={open} />
+        ) : tab === 'codes' ? (
+          <CodesTab api={api} onOpen={open} notify={notify} />
+        ) : (
+          <HistoryTab api={api} onOpen={open} />
+        )}
+      </main>
       <ToastRegion message={toast.message} />
-    </main>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }): JSX.Element {
-  return (
-    <section className="flex flex-col gap-3 rounded-plate border border-line bg-surface p-4 sm:p-5">
-      <h2 className="font-display text-label font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function IssueCode({
-  api,
-  onIssued,
-  onMessage,
-}: {
-  api: OperatorApi;
-  onIssued(): void;
-  onMessage(message: string): void;
-}): JSX.Element {
-  const [note, setNote] = useState('');
-  const [days, setDays] = useState('30');
-  const [issued, setIssued] = useState<string | null>(null);
-  const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const dayCount = Number(days);
-    if (!note.trim()) {
-      setError('Not yazın: kodun kime verildiği.');
-      return;
-    }
-    if (!Number.isInteger(dayCount) || dayCount < 1 || dayCount > 365) {
-      setError('Gün 1–365 arası olmalı.');
-      return;
-    }
-    setBusy(true);
-    setError(undefined);
-    try {
-      setIssued(await api.issueCode(note.trim(), dayCount));
-      setNote('');
-      onIssued();
-    } catch (failure) {
-      setError(messageOf(failure));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copy(code: string) {
-    try {
-      await navigator.clipboard.writeText(code);
-      onMessage('Kopyalandı.');
-    } catch {
-      onMessage('Kopyalanamadı. Kodu elle seçin.');
-    }
-  }
-
-  return (
-    <Section title="Kod üret">
-      <form noValidate className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
-        <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
-          <TextField
-            label="Not"
-            hint="Kime verildiği, ör. market adı ve telefon"
-            maxLength={200}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
-          <TextField
-            label="Gün"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={365}
-            value={days}
-            onChange={(event) => setDays(event.target.value)}
-          />
-        </div>
-        {error ? (
-          <p role="alert" className="text-sm font-medium text-danger">
-            {error}
-          </p>
-        ) : null}
-        <Button type="submit" variant="primary" size="lg" disabled={busy}>
-          Kod üret
-        </Button>
-      </form>
-      {issued ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-line bg-bg p-4">
-          <output
-            aria-label="Üretilen kod"
-            className="font-mono text-[2.25rem] leading-none font-medium tracking-[0.08em] select-all"
-          >
-            {issued}
-          </output>
-          <Button icon={<Copy aria-hidden="true" size={18} />} onClick={() => void copy(issued)}>
-            Kopyala
-          </Button>
-        </div>
-      ) : null}
-    </Section>
+    </div>
   );
 }

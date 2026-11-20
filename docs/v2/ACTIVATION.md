@@ -120,14 +120,43 @@ same browser. It never opens the shop's local data.
 
 An account without operator rights sees "Bu hesabın yetkisi yok." and nothing else.
 
-The panel has three parts:
+The panel has four tabs (on a phone they sit at the bottom). Its detail views and log come from
+`supabase/migrations/20261121090000_m6_operator_panel_detail.sql`; until that migration is run,
+Özet, market details and Geçmiş show an error and the rest works as before.
 
-- **Kod üret:** a note and a number of days (1-365) make one code, shown large with a copy button.
-- **Kodlar:** the latest 500 codes with their status (unused, used, expired, revoked). An unused
+- **Özet:** sales today and over the last 30 days across every market; markets (total, active,
+  suspended, opened in 30 days); codes (issued, used, waiting, expired, revoked); registers
+  (connected, seen in 24 hours). Below: unused codes ending within 7 days (+30 days in one tap),
+  markets whose recorded plan date is within 7 days or up to 30 days past (+1 month / +1 year),
+  and quiet markets (active, with registers, no sync for 7 days).
+- **Marketler:** every market with its owner email, registers and staff, last sync, last sale,
+  30-day sales (count and sum), plan record, opening day and the code that opened it. Search by
+  name, id, email or plan; filter Tümü / Etkin / Askıda / Sessiz; sort by newest, name, last sync
+  or 30-day sales. A market opens its detail.
+- **Market detail:** owners and managers, registers and staff counts, the activation code and its
+  note, last sync and last sale, sales today / 30 days / all time (voided sales left out), voids
+  and returns over 30 days, records per table and their size, every register (platform, added,
+  last seen, revoked), the plan record and the private note, its last 10 log lines, and its state.
+- **Kodlar:** one code or up to 50 at once with a note and a validity (7, 30, 90 days or 1-365),
+  shown large with WhatsApp and copy. The latest 500 codes, filtered by state (with counts) and
+  searched by code, note, market or the account that used it; the list can be copied. An unused
   or expired code can be extended by 30 days or revoked.
-- **Marketler:** every market with its status, registers, last sync and owner email. A market can
-  be suspended (its registers stop syncing and keep selling offline) or activated again. Both ask
-  for confirmation.
+- **Geçmiş:** every change made from the panel, newest first, 50 at a time, with who made it.
+
+What the panel can change in a shop, each behind a dialog that names the market:
+
+- **Askıya al / Etkinleştir:** a suspended market's registers stop syncing and keep selling
+  offline; activating it lets them sync again.
+- **Cihazı iptal et:** one register's next sync is refused (`device_revoked`), as when the owner
+  revokes it. Its records stay; the owner can pair it again.
+
+**Paket and Özel not are information only.** They are kept in `app.operator_market_info`, which
+no register, owner or sync function reads. A plan date that has passed limits nothing: there is
+no licence expiry, no device limit and no sync blocking. Sales figures are counts and sums only;
+no receipt, customer or product row leaves the server through the panel.
+
+Every change made from the panel (codes issued, extended or revoked, state changes, register
+revokes, plan records and notes) is written to `app.operator_log`.
 
 ### Granting operator rights
 
