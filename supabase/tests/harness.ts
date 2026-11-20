@@ -51,12 +51,23 @@ export type TestServer = {
   addOwner(marketId: string, email?: string): Promise<string>;
 };
 
-export async function createTestServer(): Promise<TestServer> {
+export type TestServerOptions = {
+  /**
+   * SQL run as `postgres` just before the migration whose file name starts with `migration`:
+   * rows the live server already held when that migration was applied.
+   */
+  before?: { migration: string; sql: string };
+};
+
+export async function createTestServer(options: TestServerOptions = {}): Promise<TestServer> {
   const db = new PGlite();
   await db.exec(SUPABASE_BASE);
   for (const name of readdirSync(MIGRATIONS)
     .filter((file) => file.endsWith('.sql'))
     .sort()) {
+    if (options.before && name.startsWith(options.before.migration)) {
+      await db.exec(options.before.sql);
+    }
     await db.exec(readFileSync(join(MIGRATIONS, name), 'utf8'));
   }
 

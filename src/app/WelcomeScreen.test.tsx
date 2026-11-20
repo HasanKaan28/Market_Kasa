@@ -34,12 +34,14 @@ describe('WelcomeScreen', () => {
     await userEvent.type(screen.getByLabelText('E-posta'), 'emin@example.com');
     await userEvent.type(screen.getByLabelText('Şifre'), 'gizli-sifre');
     await userEvent.type(screen.getByLabelText('Şifre (tekrar)'), 'gizli-sifre');
+    await userEvent.type(screen.getByLabelText('Kurulum kodu'), 'abcd2345');
     await userEvent.click(screen.getByRole('button', { name: 'Marketi kur' }));
 
     expect(props.open).toHaveBeenCalledWith({
       marketName: 'Kurşunlu Market',
       email: 'emin@example.com',
       password: 'gizli-sifre',
+      activationCode: 'ABCD-2345',
     });
     expect(props.onDone).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -59,6 +61,7 @@ describe('WelcomeScreen', () => {
     await userEvent.type(screen.getByLabelText('E-posta'), 'a@example.com');
     await userEvent.type(screen.getByLabelText('Şifre'), 'kisa');
     await userEvent.type(screen.getByLabelText('Şifre (tekrar)'), 'kisa');
+    await userEvent.type(screen.getByLabelText('Kurulum kodu'), 'ABCD2345');
     await userEvent.click(screen.getByRole('button', { name: 'Marketi kur' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Şifre en az 8 karakter olmalı.');
 
@@ -76,9 +79,56 @@ describe('WelcomeScreen', () => {
     await userEvent.type(screen.getByLabelText('E-posta'), 'a@example.com');
     await userEvent.type(screen.getByLabelText('Şifre'), 'gizli-sifre');
     await userEvent.type(screen.getByLabelText('Şifre (tekrar)'), 'gizli-sifre');
+    await userEvent.type(screen.getByLabelText('Kurulum kodu'), 'ABCD-2345');
     await userEvent.click(screen.getByRole('button', { name: 'Marketi kur' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
       'E-postanıza gelen bağlantıya tıklayın, sonra “Markete giriş yap” ile girin.',
+    );
+  });
+
+  it('asks for the activation code only when opening a new market', async () => {
+    setup();
+    expect(screen.queryByLabelText('Kurulum kodu')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Markete giriş yap' }));
+    expect(screen.queryByLabelText('Kurulum kodu')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Geri' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Market kur' }));
+    const field = screen.getByLabelText('Kurulum kodu');
+    expect(field).toBeRequired();
+    expect(field).toHaveAccessibleDescription(/Kodu almak için bize ulaşın/);
+  });
+
+  it('groups the code as it is typed and checks it is whole before asking the server', async () => {
+    const props = setup();
+    await userEvent.click(screen.getByRole('button', { name: 'Market kur' }));
+    await userEvent.type(screen.getByLabelText('Market adı'), 'M');
+    await userEvent.type(screen.getByLabelText('E-posta'), 'a@example.com');
+    await userEvent.type(screen.getByLabelText('Şifre'), 'gizli-sifre');
+    await userEvent.type(screen.getByLabelText('Şifre (tekrar)'), 'gizli-sifre');
+    await userEvent.type(screen.getByLabelText('Kurulum kodu'), 'ab cd o1');
+    expect(screen.getByLabelText('Kurulum kodu')).toHaveValue('ABCD-01');
+    await userEvent.click(screen.getByRole('button', { name: 'Marketi kur' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Kurulum kodu 8 karakter olmalı (örneğin ABCD-2345).',
+    );
+    expect(props.open).not.toHaveBeenCalled();
+  });
+
+  it('shows why the server refused the code', async () => {
+    setup({
+      open: vi.fn(async () => {
+        throw new Error('Bu kurulum kodu daha önce kullanılmış. Yeni kod için bize ulaşın.');
+      }),
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Market kur' }));
+    await userEvent.type(screen.getByLabelText('Market adı'), 'M');
+    await userEvent.type(screen.getByLabelText('E-posta'), 'a@example.com');
+    await userEvent.type(screen.getByLabelText('Şifre'), 'gizli-sifre');
+    await userEvent.type(screen.getByLabelText('Şifre (tekrar)'), 'gizli-sifre');
+    await userEvent.type(screen.getByLabelText('Kurulum kodu'), 'ABCD2345');
+    await userEvent.click(screen.getByRole('button', { name: 'Marketi kur' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Bu kurulum kodu daha önce kullanılmış. Yeni kod için bize ulaşın.',
     );
   });
 

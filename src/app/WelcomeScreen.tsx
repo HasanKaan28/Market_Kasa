@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { Button, Logo, SelectField, TextField } from '@/design';
+import { activationCodeOf, typedActivationCode } from '@/domain/activationCode';
 import type { OnboardingResult } from '@/server/onboarding';
 import { pairedSettings, type OwnedMarket } from '@/server/pairing';
 import type { DeviceSettings } from './device';
@@ -8,7 +9,9 @@ type Credentials = { email: string; password: string };
 
 export type WelcomeScreenProps = {
   current: DeviceSettings;
-  open(input: Credentials & { marketName: string }): Promise<OnboardingResult>;
+  open(
+    input: Credentials & { marketName: string; activationCode: string },
+  ): Promise<OnboardingResult>;
   join(input: Credentials & { marketId?: string }): Promise<OnboardingResult>;
   onDone(settings: DeviceSettings): void;
   onSkip(): void;
@@ -35,6 +38,7 @@ export function WelcomeScreen({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
+  const [activationCode, setActivationCode] = useState('');
   const [markets, setMarkets] = useState<OwnedMarket[]>();
   const [marketId, setMarketId] = useState('');
   const [error, setError] = useState<string>();
@@ -76,7 +80,14 @@ export function WelcomeScreen({
       setError('Şifreler aynı değil.');
       return;
     }
-    void run(() => open({ marketName: marketName.trim(), email: email.trim(), password }));
+    const code = activationCodeOf(activationCode);
+    if (!code) {
+      setError('Kurulum kodu 8 karakter olmalı (örneğin ABCD-2345).');
+      return;
+    }
+    void run(() =>
+      open({ marketName: marketName.trim(), email: email.trim(), password, activationCode: code }),
+    );
   }
 
   function submitJoin(event: FormEvent<HTMLFormElement>) {
@@ -143,6 +154,19 @@ export function WelcomeScreen({
 
         {mode === 'open' ? (
           <form className="flex flex-col gap-3" onSubmit={submitOpen}>
+            <TextField
+              label="Kurulum kodu"
+              name="activation-code"
+              hint="Yeni market için tek kullanımlık kod. Kodu almak için bize ulaşın."
+              placeholder="XXXX-XXXX"
+              autoComplete="off"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+              value={activationCode}
+              onChange={(event) => setActivationCode(typedActivationCode(event.target.value))}
+            />
             <TextField
               label="Market adı"
               value={marketName}

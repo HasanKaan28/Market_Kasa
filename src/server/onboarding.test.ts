@@ -45,6 +45,7 @@ describe('opening a market', () => {
       email: ' emin@example.com ',
       password: 'gizli-sifre',
       marketName: ' Kurşunlu Market ',
+      activationCode: 'ABCD-2345',
       platform: 'windows',
     });
 
@@ -53,7 +54,7 @@ describe('opening a market', () => {
       password: 'gizli-sifre',
     });
     expect(owner.calls.map((call) => call.fn)).toEqual(['create_own_market', 'create_pairing']);
-    expect(owner.calls[0]?.args).toEqual({ name: 'Kurşunlu Market' });
+    expect(owner.calls[0]?.args).toEqual({ name: 'Kurşunlu Market', code: 'ABCD-2345' });
     expect(owner.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
     expect(device.calls[0]?.args).toMatchObject({ code: 'ABCD2345', device_code: '' });
     expect(result).toEqual({ claimed });
@@ -68,6 +69,7 @@ describe('opening a market', () => {
       email: 'emin@example.com',
       password: 'gizli-sifre',
       marketName: 'Market',
+      activationCode: 'ABCD-2345',
       platform: 'web',
     });
     expect(result).toEqual({ confirmEmail: true });
@@ -90,6 +92,7 @@ describe('opening a market', () => {
       email: 'emin@example.com',
       password: 'gizli-sifre',
       marketName: 'Market',
+      activationCode: 'ABCD-2345',
       platform: 'web',
     });
     expect(owner.auth.signInWithPassword).toHaveBeenCalled();
@@ -108,6 +111,7 @@ describe('opening a market', () => {
         email: 'a@example.com',
         password: '123',
         marketName: 'M',
+        activationCode: 'ABCD-2345',
         platform: 'web',
       }),
     ).rejects.toThrow('Şifre en az 8 karakter olmalı.');
@@ -119,9 +123,50 @@ describe('opening a market', () => {
         email: 'a@example.com',
         password: 'gizli-sifre',
         marketName: 'M',
+        activationCode: 'ABCD-2345',
         platform: 'web',
       }),
     ).rejects.toThrow('Bu hesapla en çok 3 market açılabilir.');
+  });
+});
+
+describe('opening a market with an activation code', () => {
+  const open = (owner: ServerClient) =>
+    openMarket({
+      owner,
+      device: fakeClient({}).client,
+      email: 'a@example.com',
+      password: 'gizli-sifre',
+      marketName: 'Yeni Market',
+      activationCode: 'ABCD-2345',
+      platform: 'web',
+    });
+
+  it('says why the code was refused', async () => {
+    const cases: [string, string][] = [
+      ['activation_invalid', 'Kurulum kodu geçersiz. Kodu kontrol edin ya da bize ulaşın.'],
+      ['activation_used', 'Bu kurulum kodu daha önce kullanılmış. Yeni kod için bize ulaşın.'],
+      ['activation_expired', 'Bu kurulum kodunun süresi dolmuş. Yeni kod için bize ulaşın.'],
+      ['activation_required', 'Uygulamanın bu sürümü eski. Güncel sürümü yükleyin.'],
+    ];
+    for (const [reason, message] of cases) {
+      const owner = fakeClient({
+        create_own_market: { error: { message: reason } },
+        owner_markets: { data: [] },
+      });
+      await expect(open(owner.client), reason).rejects.toThrow(message);
+      expect(owner.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    }
+  });
+
+  it('points an owner whose code is used to signing in, when the account has a market', async () => {
+    const owner = fakeClient({
+      create_own_market: { error: { message: 'activation_used' } },
+      owner_markets: { data: [{ id: 'yeni-market-ab12cd', name: 'Yeni Market' }] },
+    });
+    await expect(open(owner.client)).rejects.toThrow(
+      'Bu kurulum kodu daha önce kullanılmış. Bu hesabın marketi var (Yeni Market): bu cihazı eklemek için “Markete giriş yap”.',
+    );
   });
 });
 
@@ -141,6 +186,8 @@ describe('joining a market from another device', () => {
     });
     expect(device.calls[0]?.args).toMatchObject({ code: 'ZZZZ2345', device_code: '' });
     expect(result).toEqual({ claimed: { ...claimed, deviceCode: 'K2' } });
+    // An existing market's owner never needs an activation code.
+    expect(owner.calls.map((call) => call.fn)).toEqual(['owner_markets', 'create_pairing']);
   });
 
   it('lists the markets when the owner has several', async () => {

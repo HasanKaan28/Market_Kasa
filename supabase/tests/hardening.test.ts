@@ -280,7 +280,7 @@ describe('a suspended market', () => {
 describe('opening a market', () => {
   it('takes a lock per person before counting their markets', async () => {
     const [definition] = await server.query<{ body: string }>(
-      "select pg_get_functiondef('public.create_own_market(text)'::regprocedure) as body",
+      "select pg_get_functiondef('public.create_own_market(text, text)'::regprocedure) as body",
     );
     const body = definition?.body ?? '';
     expect(body).toContain("pg_advisory_xact_lock(hashtext('owner:' || auth.uid()::text))");

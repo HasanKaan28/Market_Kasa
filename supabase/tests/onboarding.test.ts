@@ -11,6 +11,14 @@ beforeEach(async () => {
   server = await createTestServer();
 });
 
+/** A code as the operator issues it in the SQL editor. */
+async function issue(): Promise<string> {
+  const [row] = await server.query<{ code: string }>(
+    "select app.issue_activation_code('test') as code",
+  );
+  return row?.code ?? '';
+}
+
 const errorOf = (promise: Promise<unknown>) =>
   promise.then(
     () => 'no error',
@@ -20,7 +28,9 @@ const errorOf = (promise: Promise<unknown>) =>
 describe('a shop opens its own market', () => {
   it('opens a market for the person who signed in and makes them its owner', async () => {
     const owner = await server.addUser({ email: 'emin@example.com' });
-    const market = await server.as(owner).rpc<Market>('create_own_market', ['Kurşunlu Market']);
+    const market = await server
+      .as(owner)
+      .rpc<Market>('create_own_market', ['Kurşunlu Market', await issue()]);
 
     expect(market.name).toBe('Kurşunlu Market');
     expect(market.id).toMatch(/^kursunlu-market-[a-z0-9]{6}$/);
@@ -29,22 +39,26 @@ describe('a shop opens its own market', () => {
 
   it('refuses an anonymous session, an empty name and a fourth market', async () => {
     const anonymous = await server.addUser({ anonymous: true });
-    expect(await errorOf(server.as(anonymous).rpc('create_own_market', ['X']))).toContain(
-      'not_signed_in',
-    );
+    expect(
+      await errorOf(server.as(anonymous).rpc('create_own_market', ['X', await issue()])),
+    ).toContain('not_signed_in');
     const owner = await server.addUser({ email: 'a@example.com' });
-    expect(await errorOf(server.as(owner).rpc('create_own_market', ['  ']))).toContain('bad_name');
+    expect(
+      await errorOf(server.as(owner).rpc('create_own_market', ['  ', await issue()])),
+    ).toContain('bad_name');
     for (const name of ['Bir', 'İki', 'Üç']) {
-      await server.as(owner).rpc('create_own_market', [name]);
+      await server.as(owner).rpc('create_own_market', [name, await issue()]);
     }
-    expect(await errorOf(server.as(owner).rpc('create_own_market', ['Dört']))).toContain(
-      'too_many_markets',
-    );
+    expect(
+      await errorOf(server.as(owner).rpc('create_own_market', ['Dört', await issue()])),
+    ).toContain('too_many_markets');
   });
 
   it('gives each new register the next free code when none is asked for', async () => {
     const owner = await server.addUser({ email: 'b@example.com' });
-    const market = await server.as(owner).rpc<Market>('create_own_market', ['Market']);
+    const market = await server
+      .as(owner)
+      .rpc<Market>('create_own_market', ['Market', await issue()]);
     const join = async () => {
       const code = await server.as(owner).rpc<string>('create_pairing', [market.id]);
       const device = await server.addUser({ anonymous: true });
