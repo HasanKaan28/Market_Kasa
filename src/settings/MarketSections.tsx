@@ -1,0 +1,570 @@
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useState, type FormEvent, type JSX, type ReactNode } from 'react';
+import { useActor } from '@/app/actor';
+import { useData } from '@/app/appData';
+import { saveDeviceSettings } from '@/app/device';
+import { finishPairing } from '@/app/finishPairing';
+import { reopenWelcome } from '@/app/welcome';
+import { loadLicense } from '@/app/license';
+import { useMarketSettings } from '@/app/marketSettings';
+import { useSession } from '@/app/session';
+import { currentCashSession } from '@/data/cash';
+import { pendingCount } from '@/data/outbox';
+import {
+  IDLE_LOCK_CHOICES,
+  isValidCustomerLimit,
+  isValidIdleLock,
+  saveMarketSettings,
+} from '@/data/settings';
+import { listStaff, setStaffPin } from '@/data/staff';
+import { isValidNewPin } from '@/domain/pin';
+import { formatTRY, parseTRY } from '@/domain/money';
+import { MAX_UNIT_PRICE } from '@/domain/pricing';
+import { formatPriceInput } from '@/pos/format';
+import { Button, SelectField, TextField } from '@/design';
+import { licenseState } from '@/domain/license';
+import { ReceiptSettingsDialog } from '@/pos/ReceiptSettingsDialog';
+import { loadReceiptSettings, saveReceiptSettings } from '@/pos/receiptSettings';
+import { formatPeriod } from '@/reports/reportFormat';
+import { reportRegisters } from '@/reports/summary';
+import { deviceClient, ownerClient } from '@/server/client';
+import { SERVER } from '@/server/config';
+import { createPairingCode, currentPlatform, pairDevice, unpairedSettings } from '@/server/pairing';
+import { useSyncStatus } from '@/app/appData';
+import { DeviceRevokedError, DeviceUnpairedError } from '@/sync/supabaseTransport';
+import { PairDialog, PairingAction } from './PairDialog';
+
+// The day may turn on the hour from midnight to noon (DESIGN §9).
+const CUTOFF_OPTIONS = Array.from({ length: 13 }, (_, hour) => ({
+  value: String(hour * 60),
+  label: `${String(hour).padStart(2, '0')}:00`,
+}));
+
+/** A titled block of the settings screen, named for assistive technology by its heading. */
+export function SettingsSection({
+  id,
+  title,
+  description,
+  action,
+  children,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+  children?: ReactNode;
+}): JSX.Element {
+  return (
+    <section
+      aria-labelledby={id}
+      className="flex flex-col gap-3 rounded-control border border-line bg-surface p-4"
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto">
+          <h2 id={id} className="text-lg font-semibold">
+            {title}
+          </h2>
+          <p className="text-sm text-text-2">{description}</p>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** The settings every register of the market shares: when the business day turns. */
+export function MarketSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const { cutoffMinutes } = useMarketSettings();
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const value = chosen ?? String(cutoffMinutes);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await saveMarketSettings(db, { cutoffMinutes: Number(value) }, new Date(), actor);
+      setChosen(null);
+      onDone('Market ayarı kaydedildi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="market-heading"
+      title="Market"
+      description="Bütün kasalarda aynıdır. Gün dönümünden önceki satışlar bir önceki güne yazılır; yazılmış kayıtlar değişmez."
+    >
+      <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => void save(event)}>
+        <div className="w-40">
+          <SelectField
+            label="Gün dönümü"
+            options={CUTOFF_OPTIONS}
+            value={value}
+            onChange={(event) => setChosen(event.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={saving || value === String(cutoffMinutes)}>
+          Market ayarını kaydet
+        </Button>
+      </form>
+    </SettingsSection>
+  );
+}
+
+/**
+ * "PIN sor", the same on every register: whether anyone types a PIN. Turning it on, the person
+ * doing it gives themselves a PIN in the same step when theirs was made up by the app, so they
+ * are not locked out; the others without one are named, for the owner to give them one.
+ */
+export function PinSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const session = useSession();
+  const { requirePin } = useMarketSettings();
+  const people = useLiveQuery(() => listStaff(db, { active: true }), [db]);
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const [pin, setPin] = useState('');
+  const [pinAgain, setPinAgain] = useState('');
+  const [errors, setErrors] = useState<{ pin?: string; pinAgain?: string }>({});
+  const [failure, setFailure] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const value = chosen ?? requirePin;
+  const turningOn = value && !requirePin;
+  // The person at the register, as the session has them: known before the staff list loads.
+  const me = session.staff;
+  const myPinNeeded = turningOn && me?.pinSet === false;
+  const withoutPin = (people ?? []).filter(
+    (person) => person.pinSet === false && person.id !== me?.id,
+  );
+
+  function pinProblems(): boolean {
+    const found: typeof errors = {};
+    if (me && !isValidNewPin(pin, me.role)) {
+      found.pin = isPrivilegedRole(me.role)
+        ? 'Sahip ve yönetici PIN’i 6 rakamdır.'
+        : 'PIN 4–6 rakamdır.';
+    } else if (pin !== pinAgain) {
+      found.pinAgain = 'PIN’ler aynı değil.';
+    }
+    setErrors(found);
+    return Object.keys(found).length > 0;
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || (myPinNeeded && pinProblems())) {
+      return;
+    }
+    setSaving(true);
+    setFailure(undefined);
+    try {
+      if (turningOn && me) {
+        // The PIN first, then the day starts again from now, then the setting: whoever turns it
+        // on stays at the register and can sign in again.
+        const updated = myPinNeeded ? await setStaffPin(db, me.id, pin, new Date(), actor) : me;
+        session.signIn(updated);
+      }
+      await saveMarketSettings(db, { requirePin: value }, new Date(), actor);
+      setChosen(null);
+      setPin('');
+      setPinAgain('');
+      setErrors({});
+      onDone(value ? 'PIN sor açıldı.' : 'PIN sor kapatıldı.');
+    } catch {
+      setFailure('Kaydedilemedi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="pin-heading"
+      title="PIN sor"
+      description="Açıkken kasaya girişte ve yetki gereken işlemlerde PIN sorulur. Kapalıyken kimse PIN girmez; kasadaki kişi üstteki “Kişi değiştir” ile seçilir."
+    >
+      <form noValidate className="flex flex-col gap-3" onSubmit={(event) => void save(event)}>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={value}
+            onChange={(event) => {
+              setChosen(event.target.checked);
+              setErrors({});
+            }}
+            className="size-5 accent-accent"
+          />
+          PIN sor
+        </label>
+        {myPinNeeded ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm">Önce kendinize bir PIN belirleyin, yoksa kasaya giremezsiniz.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField
+                label="PIN’iniz"
+                hint={me && isPrivilegedRole(me.role) ? '6 rakam.' : '4–6 rakam.'}
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                maxLength={6}
+                value={pin}
+                error={errors.pin}
+                onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
+              />
+              <TextField
+                label="PIN tekrar"
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                maxLength={6}
+                value={pinAgain}
+                error={errors.pinAgain}
+                onChange={(event) => setPinAgain(event.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+          </div>
+        ) : null}
+        {value && withoutPin.length > 0 ? (
+          <p className="text-sm text-text-2">
+            {`PIN’i olmayanlar: ${withoutPin.map((person) => person.name).join(', ')}. Giriş yapabilmeleri için Personel’den PIN verin.`}
+          </p>
+        ) : null}
+        {failure ? (
+          <p role="alert" className="font-medium text-danger">
+            {failure}
+          </p>
+        ) : null}
+        <div>
+          <Button type="submit" disabled={saving || value === requirePin}>
+            PIN ayarını kaydet
+          </Button>
+        </div>
+      </form>
+    </SettingsSection>
+  );
+}
+
+const isPrivilegedRole = (role: string) => role === 'owner' || role === 'manager';
+
+const IDLE_LOCK_OPTIONS = IDLE_LOCK_CHOICES.map((minutes) => ({
+  value: String(minutes),
+  label: minutes === 0 ? 'Kapalı' : `${minutes} dk`,
+}));
+
+/**
+ * How long an owner's or a manager's session stays open with nobody at the register, the same on
+ * every register; a cashier's never locks by itself.
+ */
+export function LockSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const { idleLockMinutes } = useMarketSettings();
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const value = chosen ?? String(idleLockMinutes);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const minutes = Number(value);
+    if (!isValidIdleLock(minutes)) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveMarketSettings(db, { idleLockMinutes: minutes }, new Date(), actor);
+      setChosen(null);
+      onDone('Otomatik kilit kaydedildi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="lock-heading"
+      title="Otomatik kilit"
+      description="Sahip ya da yönetici girişliyken kasaya bu süre dokunulmazsa kasa kilitlenir, PIN sorulur. Kapalıyken PIN 24 saatte bir sorulur. Kasiyer girişi kendiliğinden kilitlenmez."
+    >
+      <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => void save(event)}>
+        <div className="w-56">
+          <SelectField
+            label="Hareketsiz kalınca kilitle"
+            options={IDLE_LOCK_OPTIONS}
+            value={value}
+            onChange={(event) => setChosen(event.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={saving || value === String(idleLockMinutes)}>
+          Kilit ayarını kaydet
+        </Button>
+      </form>
+    </SettingsSection>
+  );
+}
+
+/**
+ * The credit a new customer gets when a cashier, or anyone else who may not approve going over a
+ * limit, adds them: never none, so unlimited credit is always a manager's or the owner's call.
+ */
+export function CreditSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const { newCustomerLimit } = useMarketSettings();
+  const [typed, setTyped] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const value = typed ?? formatPriceInput(newCustomerLimit);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    let amount: number;
+    try {
+      amount = parseTRY(value);
+    } catch {
+      setError(value.trim() === '' ? 'Bir tutar girin.' : 'Geçerli bir tutar girin.');
+      return;
+    }
+    if (!isValidCustomerLimit(amount)) {
+      setError(
+        amount <= 0
+          ? 'Limit sıfırdan büyük olmalı.'
+          : `Limit en fazla ${formatTRY(MAX_UNIT_PRICE)} olabilir.`,
+      );
+      return;
+    }
+    setError(undefined);
+    setSaving(true);
+    try {
+      await saveMarketSettings(db, { newCustomerLimit: amount }, new Date(), actor);
+      setTyped(null);
+      onDone('Veresiye ayarı kaydedildi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="credit-heading"
+      title="Veresiye"
+      description="Kasiyerin açtığı yeni müşteriye bu limit verilir. Limitsiz ya da daha yüksek limit için yetkili onayı gerekir."
+    >
+      <form
+        noValidate
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(event) => void save(event)}
+      >
+        <div className="w-56">
+          <TextField
+            label="Yeni müşteri veresiye limiti"
+            inputMode="decimal"
+            autoComplete="off"
+            value={value}
+            error={error}
+            onChange={(event) => setTyped(event.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={saving || typed === null}>
+          Limiti kaydet
+        </Button>
+      </form>
+    </SettingsSection>
+  );
+}
+
+/** This device's own names and register code; the app reads them when it starts. */
+export function RegisterSection(): JSX.Element {
+  const { db, settings, runner } = useData();
+  const status = useSyncStatus(runner);
+  const [marketName, setMarketName] = useState(settings.marketName);
+  const [deviceName, setDeviceName] = useState(settings.deviceName);
+  const [deviceCode, setDeviceCode] = useState(settings.deviceCode);
+  const [message, setMessage] = useState<{ text: string; error: boolean }>();
+  // A code with sales on it, which the person has been warned about once.
+  const [warnedCode, setWarnedCode] = useState<string>();
+  const [pairing, setPairing] = useState(false);
+  const queued = useLiveQuery(() => pendingCount(db), [db]) ?? 0;
+  // A paired register's code is the server's: changing it here would split its receipts.
+  const paired = settings.paired === true;
+  const server = SERVER;
+  const lost =
+    status.error === new DeviceUnpairedError().message ||
+    status.error === new DeviceRevokedError().message;
+
+  async function repair() {
+    if (server) {
+      await deviceClient(server).auth.signOut({ scope: 'local' });
+    }
+    if (saveDeviceSettings(unpairedSettings(settings))) {
+      window.location.reload();
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = deviceCode.trim().toUpperCase();
+    if (code !== settings.deviceCode) {
+      // The drawer and the Z belong to the code: a new code would leave the open drawer behind.
+      if (await currentCashSession(db, settings.deviceCode)) {
+        setMessage({
+          text: 'Kasa açık: önce gün sonunu (Z) alın, sonra kodu değiştirin.',
+          error: true,
+        });
+        return;
+      }
+      // It may be this register's own old code, or another register's: only the person knows.
+      if (code !== warnedCode && (await reportRegisters(db)).includes(code)) {
+        setWarnedCode(code);
+        setMessage({
+          text: `${code} koduyla daha önce satış yapılmış. Bu kod başka bir kasanınsa fiş numaraları karışır; yine de kullanmak için yeniden kaydedin.`,
+          error: true,
+        });
+        return;
+      }
+    }
+    const saved = saveDeviceSettings({ ...settings, marketName, deviceName, deviceCode });
+    setMessage(
+      saved
+        ? { text: 'Kaydedildi. Uygulama yeniden açıldığında geçerli olur.', error: false }
+        : {
+            text: 'Kaydedilemedi: adlar 1–60 karakter, kasa kodu bir harf ve en çok üç harf ya da rakam olmalı (K1, K2).',
+            error: true,
+          },
+    );
+  }
+
+  return (
+    <SettingsSection
+      id="register-heading"
+      title="Bu kasa"
+      description="Fişte ve raporlarda görünen adlar ile fiş numarasının başındaki kasa kodu."
+      action={
+        <PairingAction
+          config={SERVER}
+          paired={paired}
+          lost={lost}
+          onOpen={() => setPairing(true)}
+          onRepair={() => void repair()}
+          onWelcome={() => {
+            reopenWelcome(window.localStorage);
+            window.location.reload();
+          }}
+        />
+      }
+    >
+      {pairing && server ? (
+        <PairDialog
+          current={settings}
+          pendingCount={queued}
+          createCode={(input) => createPairingCode({ owner: ownerClient(server), ...input })}
+          claim={(input) =>
+            pairDevice({ device: deviceClient(server), platform: currentPlatform(), ...input })
+          }
+          onPaired={(next) => {
+            if (!finishPairing(next)) {
+              return false;
+            }
+            window.location.reload();
+            return true;
+          }}
+          onClose={() => setPairing(false)}
+        />
+      ) : null}
+      <form className="flex flex-col gap-3" onSubmit={(event) => void save(event)}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <TextField
+            label="Market adı"
+            value={marketName}
+            onChange={(event) => setMarketName(event.target.value)}
+          />
+          <TextField
+            label="Kasa adı"
+            value={deviceName}
+            onChange={(event) => setDeviceName(event.target.value)}
+          />
+          <TextField
+            label="Kasa kodu"
+            autoComplete="off"
+            maxLength={4}
+            readOnly={paired}
+            value={deviceCode}
+            onChange={(event) => setDeviceCode(event.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit">Kasayı kaydet</Button>
+          {message ? (
+            <p role="status" className={message.error ? 'text-danger' : 'text-text-2'}>
+              {message.text}
+            </p>
+          ) : null}
+          {message && !message.error ? (
+            <Button variant="ghost" onClick={() => window.location.reload()}>
+              Şimdi yeniden aç
+            </Button>
+          ) : null}
+        </div>
+      </form>
+    </SettingsSection>
+  );
+}
+
+/** The receipt's printing and wording, the same dialog the register opens. */
+export function ReceiptSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { settings } = useData();
+  const [open, setOpen] = useState(false);
+  return (
+    <SettingsSection
+      id="receipt-heading"
+      title="Fiş"
+      description="Fiş yazdırma, kâğıt genişliği, üst ve alt yazılar."
+      action={<Button onClick={() => setOpen(true)}>Fiş ayarları</Button>}
+    >
+      {open ? (
+        <ReceiptSettingsDialog
+          open
+          settings={loadReceiptSettings()}
+          marketName={settings.marketName}
+          onClose={() => setOpen(false)}
+          onSave={(next) => {
+            saveReceiptSettings(next);
+            setOpen(false);
+            onDone('Fiş ayarları kaydedildi.');
+          }}
+        />
+      ) : null}
+    </SettingsSection>
+  );
+}
+
+/** The licence's last day as last heard from the server, and where it stands. */
+export function LicenseSection(): JSX.Element {
+  const { db } = useData();
+  const expiresAt = useLiveQuery(() => loadLicense(db), [db]);
+  const { cutoffMinutes } = useMarketSettings();
+  const state =
+    expiresAt === undefined ? null : licenseState(expiresAt, new Date(), { cutoffMinutes });
+  const text =
+    expiresAt === undefined
+      ? null
+      : expiresAt === null || state?.kind === 'unknown'
+        ? 'Bilinmiyor: lisans tarihi sunucu bağlantısıyla gelir.'
+        : `Son gün ${formatPeriod(expiresAt, expiresAt)}${
+            state?.kind === 'readOnly' ? ' · süresi doldu, satış kapalı' : ''
+          }`;
+  return (
+    <SettingsSection
+      id="license-heading"
+      title="Lisans"
+      description="Bitişe 7 gün kala uyarı çıkar; bitişten sonra 3 gün daha satış yapılır, sonra satış kapanır."
+    >
+      {text ? <p>{text}</p> : null}
+    </SettingsSection>
+  );
+}

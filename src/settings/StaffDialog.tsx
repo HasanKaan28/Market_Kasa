@@ -1,0 +1,413 @@
+import { useState, type FormEvent, type JSX } from 'react';
+import { useActor } from '@/app/actor';
+import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
+import { LastOwnerError } from '@/data/errors';
+import {
+  archiveStaff,
+  createStaff,
+  resetStaffPin,
+  restoreStaff,
+  setStaffPin,
+  updateStaff,
+} from '@/data/staff';
+import type { StaffRecord } from '@/data/types';
+import { Button, Dialog, SelectField, TextField } from '@/design';
+import {
+  can,
+  PERMISSION_LABELS,
+  PERMISSIONS,
+  ROLE_LABELS,
+  ROLE_PERMISSIONS,
+  ROLES,
+  type Permission,
+  type Role,
+} from '@/domain/permissions';
+import { isValidNewPin, isValidPin } from '@/domain/pin';
+
+/** Owners and managers open everything: a PIN set for them now is six digits. */
+const LONG_PIN_HINT = 'Sahip ve yönetici için 6 rakam.';
+const PROMOTION_PIN_HINT = 'Yönetici ve sahip için 6 rakamlı yeni PIN gerekir.';
+/** While the market asks for no PIN, nobody has to type one. */
+const OPTIONAL_PIN_HINT = 'İsteğe bağlı. PIN sor açılırsa gerekir.';
+
+const opensEverything = (role: Role) => role === 'owner' || role === 'manager';
+
+export type StaffDialogProps = {
+  open: boolean;
+  /** The person to change; absent to add one. */
+  person?: StaffRecord;
+  /** No active owner yet: the person added is the owner. */
+  first?: boolean;
+  onClose(): void;
+  onDone(message: string, created?: StaffRecord): void;
+};
+
+type Overrides = Partial<Record<Permission, boolean>>;
+
+const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }));
+
+/**
+ * Adds a person, or changes one: name, role, own permissions, PIN, and whether they still work here.
+ * While the market asks for no PIN, adding a person or making them a manager or an owner needs
+ * none: left blank, a hidden one is kept, for the owner to replace before the PIN is turned on.
+ */
+export function StaffDialog({
+  open,
+  person,
+  first = false,
+  onClose,
+  onDone,
+}: StaffDialogProps): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const { requirePin } = useMarketSettings();
+  const [name, setName] = useState(person?.name ?? '');
+  const [role, setRole] = useState<Role>(person?.role ?? (first ? 'owner' : 'cashier'));
+  const [overrides, setOverrides] = useState<Overrides>(person?.permissions ?? {});
+  const [pin, setPin] = useState('');
+  const [pinAgain, setPinAgain] = useState('');
+  const [changingPin, setChangingPin] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; pin?: string; pinAgain?: string }>({});
+  const [failure, setFailure] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  // Made an owner or a manager: the PIN they had may be short, so a new six-digit one is set in
+  // the same save. (A PIN is kept only as a hash: its length cannot be read back.)
+  const promoting = person !== undefined && role !== person.role && opensEverything(role);
+
+  async function run(save: () => Promise<void>) {
+    if (saving) {
+      return;
+    }
+    setSaving(true);
+    setFailure(undefined);
+    try {
+      await save();
+    } catch (error) {
+      setFailure(
+        error instanceof LastOwnerError
+          ? 'Son sahip kalmalı: rolü değiştirilemez, pasife alınamaz.'
+          : 'Kaydedilemedi.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Nothing typed in either PIN field, where a PIN may be left out.
+  const noPin = !requirePin && pin === '' && pinAgain === '';
+
+  /**
+   * Checks the PIN typed for a person of `pinRole`; true when something is wrong. With `optional`,
+   * no PIN at all is fine.
+   */
+  function pinProblems(pinRole: Role, optional = false): boolean {
+    const found: typeof errors = {};
+    if (optional && noPin) {
+      // Left out: a hidden one is kept.
+    } else if (!isValidPin(pin)) {
+      found.pin = opensEverything(pinRole)
+        ? 'Sahip ve yönetici PIN’i 6 rakamdır.'
+        : 'PIN 4–6 rakamdır.';
+    } else if (!isValidNewPin(pin, pinRole)) {
+      found.pin = 'Sahip ve yönetici PIN’i 6 rakamdır.';
+    } else if (pin !== pinAgain) {
+      found.pinAgain = 'PIN’ler aynı değil.';
+    }
+    if (!person && name.trim() === '') {
+      found.name = 'Ad gerekli.';
+    }
+    setErrors(found);
+    return Object.keys(found).length > 0;
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!person) {
+      if (pinProblems(role, true)) {
+        return;
+      }
+      void run(async () => {
+        const created = await createStaff(
+          db,
+          {
+            name,
+            role,
+            ...(noPin ? {} : { pin }),
+            permissions: overridesFor(role, overrides),
+          },
+          new Date(),
+          actor,
+        );
+        onDone(`${created.name} eklendi.`, created);
+      });
+      return;
+    }
+    if (name.trim() === '') {
+      setErrors({ name: 'Ad gerekli.' });
+      return;
+    }
+    if (promoting && pinProblems(role, true)) {
+      return;
+    }
+    void run(async () => {
+      // The new PIN first: a promotion never goes through with the old, possibly short, PIN.
+      // Without one typed, the old PIN is replaced by a hidden one.
+      if (promoting && noPin) {
+        await resetStaffPin(db, person.id, new Date(), actor);
+      } else if (promoting) {
+        await setStaffPin(db, person.id, pin, new Date(), actor);
+      }
+      await updateStaff(
+        db,
+        person.id,
+        { name, role, permissions: overridesFor(role, overrides) },
+        new Date(),
+        actor,
+      );
+      onDone(`${name.trim()} kaydedildi.`);
+    });
+  }
+
+  function savePin() {
+    // The stricter of the role saved and the role being chosen, so a PIN short for either is not
+    // set.
+    if (!person || pinProblems(opensEverything(person.role) ? person.role : role)) {
+      return;
+    }
+    void run(async () => {
+      await setStaffPin(db, person.id, pin, new Date(), actor);
+      onDone(`PIN değiştirildi · ${person.name}`);
+    });
+  }
+
+  function toggleArchive() {
+    if (!person) {
+      return;
+    }
+    void run(async () => {
+      if (person.archivedAt) {
+        await restoreStaff(db, person.id, new Date(), actor);
+        onDone(`${person.name} geri alındı.`);
+      } else {
+        await archiveStaff(db, person.id, new Date(), actor);
+        onDone(`${person.name} pasife alındı.`);
+      }
+    });
+  }
+
+  const draft = { role, permissions: overrides };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
+      title={person ? person.name : 'Yeni personel'}
+      size="lg"
+    >
+      {person && changingPin && !promoting ? (
+        // A form of its own, so Enter in a PIN field saves the PIN and nothing else.
+        <form
+          noValidate
+          aria-label="PIN değiştir"
+          className="flex flex-col gap-3 rounded-control border border-line p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            savePin();
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PinFields
+              label="Yeni PIN"
+              hint={
+                opensEverything(person.role) || opensEverything(role) ? LONG_PIN_HINT : undefined
+              }
+              pin={pin}
+              pinAgain={pinAgain}
+              errors={errors}
+              onPin={setPin}
+              onPinAgain={setPinAgain}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>
+              PIN’i kaydet
+            </Button>
+            <Button variant="ghost" onClick={() => setChangingPin(false)}>
+              Vazgeç
+            </Button>
+          </div>
+        </form>
+      ) : null}
+      <form noValidate className="flex flex-col gap-4" onSubmit={submit}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextField
+            label="Ad"
+            autoComplete="off"
+            autoFocus={!person}
+            value={name}
+            error={errors.name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <SelectField
+            label="Rol"
+            options={ROLE_OPTIONS}
+            value={role}
+            disabled={first && !person}
+            hint={first && !person ? 'İlk kişi sahiptir.' : undefined}
+            onChange={(event) => setRole(event.target.value as Role)}
+          />
+        </div>
+        {promoting ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PinFields
+              label="Yeni PIN"
+              hint={requirePin ? PROMOTION_PIN_HINT : OPTIONAL_PIN_HINT}
+              pin={pin}
+              pinAgain={pinAgain}
+              errors={errors}
+              onPin={setPin}
+              onPinAgain={setPinAgain}
+            />
+          </div>
+        ) : null}
+        {!person ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PinFields
+              label="PIN"
+              hint={
+                !requirePin ? OPTIONAL_PIN_HINT : opensEverything(role) ? LONG_PIN_HINT : undefined
+              }
+              pin={pin}
+              pinAgain={pinAgain}
+              errors={errors}
+              onPin={setPin}
+              onPinAgain={setPinAgain}
+            />
+          </div>
+        ) : null}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium">İzinler</legend>
+          {role === 'owner' ? (
+            <p className="text-sm text-text-2">Sahip her şeyi yapabilir.</p>
+          ) : null}
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            {/* Staff, devices, settings and exports are the owners' alone, never a person's own. */}
+            {PERMISSIONS.filter((permission) => permission !== 'admin' || role === 'owner').map(
+              (permission) => {
+                const changed =
+                  overrides[permission] !== undefined &&
+                  overrides[permission] !== ROLE_PERMISSIONS[role].includes(permission);
+                return (
+                  <label
+                    key={permission}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 has-disabled:cursor-default has-disabled:text-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-5 accent-accent"
+                      disabled={role === 'owner'}
+                      checked={can(draft, permission)}
+                      onChange={(event) =>
+                        setOverrides((current) => ({
+                          ...current,
+                          [permission]: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span>
+                      {PERMISSION_LABELS[permission]}
+                      {changed && role !== 'owner' ? (
+                        <span className="ml-2 text-sm text-accent">kişiye özel</span>
+                      ) : null}
+                    </span>
+                  </label>
+                );
+              },
+            )}
+          </div>
+        </fieldset>
+        {failure ? (
+          <p role="alert" className="font-medium text-danger">
+            {failure}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {person && !changingPin ? (
+            <Button disabled={promoting} onClick={() => setChangingPin(true)}>
+              {person.pinSet === false ? 'PIN ver' : 'PIN’i değiştir'}
+            </Button>
+          ) : null}
+          {person ? (
+            <Button variant={person.archivedAt ? 'secondary' : 'danger'} onClick={toggleArchive}>
+              {person.archivedAt ? 'Geri al' : 'Pasife al'}
+            </Button>
+          ) : null}
+          <Button type="submit" variant="primary" className="ml-auto" disabled={saving}>
+            Kaydet
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** A PIN typed twice, digits only. */
+function PinFields({
+  label,
+  hint,
+  pin,
+  pinAgain,
+  errors,
+  onPin,
+  onPinAgain,
+}: {
+  label: string;
+  hint?: string;
+  pin: string;
+  pinAgain: string;
+  errors: { pin?: string; pinAgain?: string };
+  onPin(pin: string): void;
+  onPinAgain(pin: string): void;
+}): JSX.Element {
+  return (
+    <>
+      <TextField
+        label={label}
+        hint={hint}
+        type="password"
+        inputMode="numeric"
+        autoComplete="new-password"
+        maxLength={6}
+        value={pin}
+        error={errors.pin}
+        onChange={(event) => onPin(event.target.value.replace(/\D/g, ''))}
+      />
+      <TextField
+        label="PIN tekrar"
+        type="password"
+        inputMode="numeric"
+        autoComplete="new-password"
+        maxLength={6}
+        value={pinAgain}
+        error={errors.pinAgain}
+        onChange={(event) => onPinAgain(event.target.value.replace(/\D/g, ''))}
+      />
+    </>
+  );
+}
+
+/** Only what differs from the role's defaults is kept as the person's own. */
+function overridesFor(role: Role, overrides: Overrides): Overrides | undefined {
+  if (role === 'owner') {
+    return undefined;
+  }
+  const kept = Object.fromEntries(
+    PERMISSIONS.filter(
+      (permission) =>
+        overrides[permission] !== undefined &&
+        overrides[permission] !== ROLE_PERMISSIONS[role].includes(permission),
+    ).map((permission) => [permission, overrides[permission]]),
+  );
+  return Object.keys(kept).length > 0 ? kept : undefined;
+}

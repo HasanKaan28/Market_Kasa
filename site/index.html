@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Market Kasa · Bakkal ve market için kasa programı</title>
+    <meta
+      name="description"
+      content="İnternet olmasa da satış yapan, veresiyeyi ve stoğu tutan, bilgisayar ve telefonla aynı marketi gösteren kasa programı. Windows, Android ve tarayıcı."
+    />
+    <meta name="theme-color" content="#F5F6F8" />
+    <link rel="icon" href="img/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
+    <link
+      rel="preload"
+      href="fonts/bricolage-grotesque-latin-wdth-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/instrument-sans-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script src="config.js" defer></script>
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#icerik">İçeriğe geç</a>
+    <header class="top">
+      <div class="wrap top__row">
+        <a class="brand" href="./" aria-label="Market Kasa ana sayfa">
+          <img class="brand__mark" src="img/logo.svg" width="32" height="32" alt="" />
+          <span>Market Kasa</span>
+        </a>
+        <nav aria-label="Sayfa">
+          <a href="#ozellikler">Özellikler</a>
+          <a class="nav__more" href="#telefon">Telefonla</a>
+          <a href="#kurulum">Kurulum</a>
+          <a class="nav__more" href="#sss">Sorular</a>
+          <!-- Without a number in config.js this stays a jump to the setup-code block. -->
+          <a class="nav__wa" href="#kod" data-whatsapp>
+            <!-- Tabler Icons (MIT): brand-whatsapp. -->
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9" />
+              <path
+                d="M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1"
+              />
+            </svg>
+            İletişim
+          </a>
+          <a class="btn btn--small" href="#indir">İndir</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="icerik">
+      <section class="hero">
+        <div class="wrap wrap--wide hero__grid">
+          <div class="hero__copy">
+            <p class="eyebrow">Sürüm 2.0 · Kurşunlu Market'te kullanılıyor</p>
+            <h1>İnternet gitse de kasa <em>durmaz.</em></h1>
+            <p class="lead">
+              Barkodu okut, sat, veresiyeyi yaz. Market Kasa satışı önce cihaza kaydeder, internet
+              gelince diğer kasalara gönderir. Bilgisayar, telefon ve tarayıcı aynı marketi görür.
+            </p>
+            <div class="cta">
+              <a
+                class="btn btn--primary"
+                href="https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa-Setup.exe"
+              >
+                Windows için indir
+              </a>
+              <a
+                class="btn btn--line"
+                href="https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa.apk"
+              >
+                Android için indir
+              </a>
+              <a class="link" href="app/">Tarayıcıda aç <span aria-hidden="true">→</span></a>
+            </div>
+          </div>
+
+          <figure class="hero__shot" data-tilt>
+            <div class="window">
+              <div class="window__bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <img
+                src="img/kasa.png"
+                width="1440"
+                height="900"
+                alt="Kasa ekranı: solda menü ve hızlı ürünler, sağda sepet ve toplam ₺237,40."
+              />
+            </div>
+            <!-- The page's anchor: a thermal receipt, the one thing every shop knows. It prints in,
+                 then its lines arrive one by one. -->
+            <div class="receipt" aria-hidden="true">
+              <p class="receipt__head">KURŞUNLU MARKET<br />K1-20261109-0042</p>
+              <dl>
+                <div>
+                  <dt>Satış</dt>
+                  <dd>✓</dd>
+                </div>
+                <div>
+                  <dt>Veresiye</dt>
+                  <dd>✓</dd>
+                </div>
+                <div>
+                  <dt>Stok sayımı</dt>
+                  <dd>✓</dd>
+                </div>
+                <div>
+                  <dt>Gün sonu (Z)</dt>
+                  <dd>✓</dd>
+                </div>
+                <div>
+                  <dt>İnternetsiz</dt>
+                  <dd>✓</dd>
+                </div>
+              </dl>
+              <p class="receipt__total"><span>TOPLAM</span><span>₺237,40</span></p>
+              <p class="receipt__foot">Teşekkür ederiz</p>
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <section id="ozellikler" class="section">
+        <div class="wrap">
+          <h2>Bir markette her gün olan her şey</h2>
+          <p class="section-lead">
+            Sade ekranlar, büyük düğmeler, klavye kısayolları. Kasiyer ilk gün öğrenir.
+          </p>
+          <ul class="bento">
+            <li class="tile tile--satis reveal">
+              <div class="tile__text">
+                <h3>Hızlı satış</h3>
+                <p>
+                  USB okuyucu ya da telefon kamerasıyla barkod, hızlı ürün düğmeleri, F2 nakit, F4
+                  kart. Bölünmüş ödeme ve indirim tek dokunuşta.
+                </p>
+              </div>
+              <!-- The register's own shortcuts, as its buttons show them. -->
+              <ul class="keys" aria-label="Kasadaki kısayollar">
+                <li><kbd>F2</kbd> Nakit</li>
+                <li><kbd>F4</kbd> Kart</li>
+                <li><kbd>F8</kbd> Beklet</li>
+                <li><kbd>F9</kbd> Son fişler</li>
+                <li><kbd>F10</kbd> Kasa</li>
+                <li><kbd>10*</kbd> 10 adet</li>
+              </ul>
+            </li>
+            <li class="tile tile--accent tile--veresiye reveal">
+              <h3>Veresiye defteri</h3>
+              <p>
+                Müşteri limiti, borç yaşı, tahsilat ve ekstre. Borçlulara WhatsApp'tan hatırlatma.
+              </p>
+            </li>
+            <li class="tile tile--stok reveal">
+              <h3>Stok ve sayım</h3>
+              <p>
+                Raf sayımında fark kaydı, kritik stok listesi. Stok her hareketten hesaplanır,
+                kaybolmaz.
+              </p>
+            </li>
+            <li class="tile tile--tedarik reveal">
+              <div class="tile__text">
+                <h3>Tedarikçi ve mal kabul</h3>
+                <p>
+                  Gelen mal faturasıyla girilir, yeni alış ve satış fiyatları orada güncellenir.
+                  Tedarikçiye borç, ödeme ve ekstre aynı yerde.
+                </p>
+              </div>
+              <ol class="flow" aria-label="Mal kabulün yolu">
+                <li>Fatura</li>
+                <li>Stok</li>
+                <li>Fiyat</li>
+                <li>Borç</li>
+              </ol>
+            </li>
+            <li class="tile tile--personel reveal">
+              <h3>Personel ve onay</h3>
+              <p>
+                Satış, kasada kim çalışıyorsa onun adına yazılır. İptal, iade ve indirim yetkili
+                onayı ister; her değişiklik iz kaydına düşer.
+              </p>
+            </li>
+            <li class="tile tile--aktar reveal">
+              <h3>İçe aktarma</h3>
+              <p>
+                Ürün listesini Excel ya da CSV'den önizleyerek alın. Eski programın yedeğinden
+                ürünler ve veresiye borçları gelir.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section section--raised shots" aria-labelledby="shots-title">
+        <div class="wrap">
+          <h2 id="shots-title">Ekranlar</h2>
+          <div class="shots__track">
+            <figure class="shot reveal">
+              <img
+                src="img/urunler.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Ürünler ekranı: kategorilere göre ürün listesi, fiyat ve stok."
+              />
+              <figcaption>Ürünler: fiyat, stok, kategori; toplu fiyat güncelleme.</figcaption>
+            </figure>
+            <figure class="shot reveal">
+              <img
+                src="img/veresiye.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Müşteriler ekranı: bakiye, borç yaşı ve limit sütunları."
+              />
+              <figcaption>Veresiye: kim ne kadar borçlu, kaç gündür.</figcaption>
+            </figure>
+            <figure class="shot reveal">
+              <img
+                src="img/raporlar.png"
+                width="1440"
+                height="900"
+                loading="lazy"
+                alt="Raporlar ekranı: bu ayın net satışı, işlem sayısı ve ödeme dağılımı."
+              />
+              <figcaption>Raporlar: dönem ve kasa seçin, CSV indirin ya da yazdırın.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="dahasi" class="section" aria-labelledby="more-title">
+        <div class="wrap">
+          <h2 id="more-title">Kasada olan diğer her şey</h2>
+          <!-- Icons: Lucide (ISC), the app's own icon set. -->
+          <ul class="more">
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 3v18" />
+                  <path d="m19 8 3 8a5 5 0 0 1-6 0zV7" />
+                  <path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1" />
+                  <path d="m5 8 3 8a5 5 0 0 1-6 0zV7" />
+                  <path d="M7 21h10" />
+                </svg>
+              </span>
+              <div>
+                <h3>Terazi barkodu</h3>
+                <p>
+                  Terazinin bastığı barkod okunur; içindeki ağırlık ya da tutar sepete doğru geçer.
+                </p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+                  />
+                  <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+                </svg>
+              </span>
+              <div>
+                <h3>Raf etiketi</h3>
+                <p>Ürün adı, fiyatı ve barkoduyla A4 etiket kâğıdına, sayfada 3 × 8.</p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M13 16H8" />
+                  <path d="M14 8H8" />
+                  <path d="M16 12H8" />
+                  <path
+                    d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"
+                  />
+                </svg>
+              </span>
+              <div>
+                <h3>e-Arşiv fatura isteği</h3>
+                <p>
+                  Fişten fatura istenir ve sıraya alınır; sağlayıcı bağlantısı gelene kadar
+                  “beklemede” görünür.
+                </p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M16 14v2.2l1.6 1" />
+                  <path d="M16 2v3" />
+                  <path d="M21 7.338V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h2.338" />
+                  <path d="M3 9h5.859" />
+                  <path d="M8 2v3" />
+                  <circle cx="16" cy="16" r="6" />
+                </svg>
+              </span>
+              <div>
+                <h3>Son kullanma tarihi</h3>
+                <p>30 gün içinde tarihi dolan ürünler Stok ekranında listelenir.</p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" />
+                  <path d="M10 19v-3.96 3.15" />
+                  <path d="M7 19h5" />
+                  <rect width="6" height="10" x="16" y="12" rx="2" />
+                </svg>
+              </span>
+              <div>
+                <h3>Müşteri ekranı</h3>
+                <p>İkinci ekranda müşteri sepeti ve toplamı kasayla birlikte görür.</p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+                  <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+                  <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+                  <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+                  <path d="M8 7v10" />
+                  <path d="M12 7v10" />
+                  <path d="M17 7v10" />
+                </svg>
+              </span>
+              <div>
+                <h3>Kamerayla barkod</h3>
+                <p>Okuyucu yoksa telefonun ya da tabletin kamerası barkodu okur.</p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <ellipse cx="12" cy="5" rx="9" ry="3" />
+                  <path d="M3 12a9 3 0 0 0 5 2.69" />
+                  <path d="M21 9.3V5" />
+                  <path d="M3 5v14a9 3 0 0 0 6.47 2.88" />
+                  <path d="M12 12v4h4" />
+                  <path
+                    d="M13 20a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L12 16"
+                  />
+                </svg>
+              </span>
+              <div>
+                <h3>Yedek</h3>
+                <p>Marketin bütün verisi tek dosyada: ürünler, satışlar, veresiye, tedarikçiler.</p>
+              </div>
+            </li>
+            <li class="more__item reveal">
+              <span class="more__icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                  <path d="M8 16H3v5" />
+                </svg>
+              </span>
+              <div>
+                <h3>Güncelleme</h3>
+                <p>
+                  Windows'ta Ayarlar → Güncelleme'den tek tuşla; tarayıcı sürümü kendini günceller.
+                </p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="telefon" class="section section--raised" aria-labelledby="phone-title">
+        <div class="wrap phone">
+          <div class="phone__copy">
+            <h2 id="phone-title">Telefon ve bilgisayar aynı marketi görür</h2>
+            <p class="section-lead">
+              Bir kasada yapılan satış, stok ve veresiye diğerlerinde de görünür.
+            </p>
+            <ul class="facts">
+              <li class="reveal">
+                <span class="facts__icon" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 20h.01" />
+                    <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+                    <path d="M5 12.859a10 10 0 0 1 5.17-2.69" />
+                    <path d="M19 12.859a10 10 0 0 0-2.007-1.523" />
+                    <path d="M2 8.82a15 15 0 0 1 4.177-2.643" />
+                    <path d="M22 8.82a15 15 0 0 0-11.288-3.764" />
+                    <path d="m2 2 20 20" />
+                  </svg>
+                </span>
+                <p>
+                  <b>İnternet kesilirse satış sürer.</b> Her işlem önce cihaza yazılır; kaç işlemin
+                  beklediği ekranın sağ üstünde görünür.
+                </p>
+              </li>
+              <li class="reveal">
+                <span class="facts__icon" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                    <path d="M8 16H3v5" />
+                  </svg>
+                </span>
+                <p>
+                  <b>İnternet gelince kendiliğinden eşitlenir.</b> Bekleyenler gönderilir, diğer
+                  kasaların işlemleri iner.
+                </p>
+              </li>
+              <li class="reveal">
+                <span class="facts__icon" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"
+                    />
+                    <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+                  </svg>
+                </span>
+                <p>
+                  <b>Şifre telefonda ya da kasada saklanmaz.</b> Kaybolan bir cihazı market sahibi
+                  kapatabilir.
+                </p>
+              </li>
+            </ul>
+          </div>
+          <figure class="phone__shot reveal">
+            <div class="device">
+              <img
+                src="img/telefon.png"
+                width="390"
+                height="844"
+                loading="lazy"
+                alt="Telefonda kasa ekranı: hızlı ürünler, ürün grupları ve alttaki menü."
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <section id="kurulum" class="section" aria-labelledby="setup-title">
+        <div class="wrap">
+          <h2 id="setup-title">Dört adımda kurulum</h2>
+          <ol class="steps" data-steps>
+            <li>
+              <h3>Programı açın</h3>
+              <p>
+                Kasa bilgisayarına Windows kurulumunu, telefona Android uygulamasını indirin ya da
+                Market Kasa'yı tarayıcıda açın.
+              </p>
+            </li>
+            <li>
+              <h3>Kurulum kodunu girin</h3>
+              <p>
+                “Market kur” ile size verdiğimiz kurulum kodunu, market adını ve kendi e-postanızı
+                girin. Kod tek kullanımlıktır.
+              </p>
+            </li>
+            <li>
+              <h3>Marketi hazırlayın</h3>
+              <p>
+                Ürünleri ekleyin ya da Excel'den içe aktarın, personeli ekleyin, fişinizi ayarlayın.
+              </p>
+            </li>
+            <li>
+              <h3>Kasaları ekleyin</h3>
+              <p>
+                Diğer bilgisayarda ya da telefonda aynı e-posta ve şifreyle “Markete giriş yap”: o
+                cihaz marketin yeni kasası olur (K2, K3…).
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- The setup code comes from us: a WhatsApp chat with the message written in, once config.js
+           has a number. Until then the line under the button says to get in touch. -->
+      <section id="kod" class="section section--code" aria-labelledby="code-title">
+        <div class="wrap">
+          <div class="code reveal">
+            <div class="code__copy">
+              <h2 id="code-title">Kurulum kodu için yazın</h2>
+              <p class="code__lead">
+                Yeni bir market, bizim verdiğimiz tek kullanımlık bir kurulum koduyla açılır.
+                WhatsApp'tan yazın, marketinize özel kodu gönderelim.
+              </p>
+            </div>
+            <div class="code__act">
+              <a class="btn btn--invert btn--wa" data-whatsapp hidden href="#kod">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9" />
+                  <path
+                    d="M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1"
+                  />
+                </svg>
+                WhatsApp'tan kod isteyin
+              </a>
+              <p class="code__number" data-whatsapp-number hidden></p>
+              <p class="code__number" data-contact-fallback>
+                Kurulum kodu için bizimle iletişime geçin.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="indir" class="section section--raised">
+        <div class="wrap">
+          <div class="download__head">
+            <h2>İndirin</h2>
+            <p>Ücretsiz deneme · Kurulum 2 dakika · Türkçe</p>
+          </div>
+          <div class="platforms">
+            <article class="platform reveal">
+              <h3>Windows</h3>
+              <div class="platform__body">
+                <p>Kasa bilgisayarı için. Yazıcıya doğrudan fiş basar.</p>
+                <p class="fine">
+                  “Bilgisayarınız korundu” uyarısında <b>Ek bilgi → Yine de çalıştır</b>. Yeni
+                  sürümler Ayarlar → Güncelleme'den tek tuşla gelir.
+                </p>
+              </div>
+              <a
+                class="btn btn--primary"
+                href="https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa-Setup.exe"
+                >Kurulumu indir (.exe)</a
+              >
+            </article>
+            <article class="platform reveal">
+              <h3>Android</h3>
+              <div class="platform__body">
+                <p>Reyonda sayım, kasada ikinci ekran ya da cepte rapor.</p>
+                <p class="fine">
+                  Telefon sorarsa bu kaynaktan yüklemeye izin verin. Yeni sürüm eskisinin üstüne
+                  kurulur, veriler kalır.
+                </p>
+              </div>
+              <a
+                class="btn btn--primary"
+                href="https://github.com/HasanKaan28/Market_Kasa/releases/latest/download/Market-Kasa.apk"
+                >Uygulamayı indir (.apk)</a
+              >
+            </article>
+            <article class="platform reveal">
+              <h3>Tarayıcı</h3>
+              <div class="platform__body">
+                <p>iPhone, iPad ya da herhangi bir bilgisayar. Kurulum yok.</p>
+                <p class="fine">
+                  Chrome'da “Yükle”, Safari'de “Ana Ekrana Ekle” ile uygulama gibi açılır ve
+                  internetsiz de çalışır.
+                </p>
+              </div>
+              <a class="btn btn--line" href="app/">Market Kasa'yı aç</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="sss" class="section">
+        <div class="wrap faq">
+          <h2>Sorular</h2>
+          <div class="faq__list">
+            <details>
+              <summary>Kurulum kodunu nereden alırım?</summary>
+              <p>
+                Kodu biz veriyoruz. <a href="#kod" data-whatsapp>WhatsApp'tan yazın</a>, marketinize
+                özel tek kullanımlık kodu gönderelim; “Market kur” derken bu kodu girersiniz.
+              </p>
+            </details>
+            <details>
+              <summary>İnternet kesilirse ne olur?</summary>
+              <p>
+                Satış, iade, veresiye ve stok çalışmaya devam eder. Her işlem önce cihaza yazılır;
+                ekranın sağ üstünde kaç işlemin beklediği görünür. İnternet gelince hepsi
+                gönderilir, diğer kasaların işlemleri de iner.
+              </p>
+            </details>
+            <details>
+              <summary>Verilerim nerede duruyor?</summary>
+              <p>
+                Her cihazda bir kopyası, bir de marketin sunucusunda. Her market yalnız kendi
+                verisini görür; sunucu her isteği kimin yaptığını denetler.
+              </p>
+            </details>
+            <details>
+              <summary>Fatura kesebilir miyim?</summary>
+              <p>
+                Fişten e-Arşiv faturası istenebilir ve sıraya alınır. Fatura sağlayıcısı bağlantısı
+                yakında; o zamana kadar istekler “beklemede” görünür.
+              </p>
+            </details>
+            <details>
+              <summary>Eski programdan geçiş nasıl olur?</summary>
+              <p>
+                Eski programda Ayarlar → Yedek İndir (JSON). Market Kasa'da Ürünler → İçe aktar ve
+                Müşteriler → v1'den aktar ile ürünler, stok ve veresiye borçları gelir.
+              </p>
+            </details>
+            <details>
+              <summary>Güncelleme nasıl yapılır?</summary>
+              <p>
+                Windows'ta Ayarlar → Güncelleme'de “Güncelle” düğmesi çıkar; basınca indirilir ve
+                kurulur. Android'de aynı yerde yeni sürümün indirme bağlantısı görünür. Tarayıcı
+                sürümü kendini günceller.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot__row">
+        <span>Market Kasa 2.0</span>
+        <span class="foot__links">
+          <a href="#kod" data-whatsapp>WhatsApp'tan yazın</a>
+          <a href="https://github.com/HasanKaan28/Market_Kasa/releases">Tüm sürümler</a>
+        </span>
+      </div>
+    </footer>
+
+    <!-- Phones only: a round WhatsApp button that steps aside while the hero, the code block, the
+         downloads or the footer is on screen (they carry their own way to write). -->
+    <a
+      class="wa-float is-away"
+      data-whatsapp
+      data-wa-float
+      hidden
+      href="#kod"
+      aria-label="WhatsApp'tan yazın"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9" />
+        <path
+          d="M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1"
+        />
+      </svg>
+    </a>
+  </body>
+</html>

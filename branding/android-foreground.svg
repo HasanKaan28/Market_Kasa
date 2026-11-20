@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <g transform="translate(102.4 102.4) scale(0.6)">
+<!-- The register's slot -->
+  <rect x="92" y="108" width="328" height="52" rx="26" fill="#0F1B4D"/>
+  <!-- The receipt, torn at the bottom -->
+  <path fill="#FFFFFF" d="M138 134h236v258l-19.7 16-19.6-16-19.7 16-19.7-16-19.6 16-19.7-16-19.7 16-19.6-16-19.7 16-19.7-16-19.6 16L138 392z"/>
+  <!-- The slot's lip over the paper -->
+  <rect x="92" y="108" width="328" height="34" rx="17" fill="#0F1B4D"/>
+  <!-- Lines on the receipt; the last, darker one is the total -->
+  <rect x="174" y="190" width="164" height="22" rx="11" fill="#C7D3F7"/>
+  <rect x="174" y="236" width="118" height="22" rx="11" fill="#C7D3F7"/>
+  <rect x="174" y="300" width="164" height="34" rx="17" fill="#2350D8"/>
+  </g>
+</svg>

@@ -1,0 +1,52 @@
+const HEX = Array.from({ length: 256 }, (_, value) => value.toString(16).padStart(2, '0'));
+
+/**
+ * Time-ordered UUID v7: 48-bit Unix milliseconds, version 7, variant 10 and 74 random bits,
+ * so ids created later sort after earlier ones.
+ */
+export function newId(
+  now: number = Date.now(),
+  random: Uint8Array = crypto.getRandomValues(new Uint8Array(10)),
+): string {
+  const bytes = new Uint8Array(16);
+  let time = now;
+  for (let index = 5; index >= 0; index -= 1) {
+    bytes[index] = time % 256;
+    time = Math.floor(time / 256);
+  }
+  bytes[6] = 0x70 | ((random[0] ?? 0) & 0x0f);
+  bytes[7] = random[1] ?? 0;
+  bytes[8] = 0x80 | ((random[2] ?? 0) & 0x3f);
+  for (let index = 0; index < 7; index += 1) {
+    bytes[9 + index] = random[3 + index] ?? 0;
+  }
+  const hex = Array.from(bytes, (byte) => HEX[byte]).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+const FNV_PRIME = 0x100000001b3n;
+const MASK_64 = 0xffffffffffffffffn;
+
+function fnv1a64(text: string, seed: bigint): bigint {
+  let hash = seed;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= BigInt(text.charCodeAt(index));
+    hash = (hash * FNV_PRIME) & MASK_64;
+  }
+  return hash;
+}
+
+/**
+ * A UUID v8 computed from its parts, the same on every device. Records that two devices may
+ * create for the same fact (a sale's void) use it, so the second copy is a duplicate the sync
+ * drops instead of a second fact. Synchronous on purpose: it runs inside Dexie transactions.
+ */
+export function deriveId(...parts: string[]): string {
+  const text = parts.join('\u0000');
+  const hex =
+    fnv1a64(text, 0xcbf29ce484222325n).toString(16).padStart(16, '0') +
+    fnv1a64(text, 0x84222325cbf29ce4n).toString(16).padStart(16, '0');
+  const variant = ((parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16);
+  const v8 = `${hex.slice(0, 12)}8${hex.slice(13, 16)}${variant}${hex.slice(17)}`;
+  return `${v8.slice(0, 8)}-${v8.slice(8, 12)}-${v8.slice(12, 16)}-${v8.slice(16, 20)}-${v8.slice(20)}`;
+}

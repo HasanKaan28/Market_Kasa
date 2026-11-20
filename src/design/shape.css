@@ -1,0 +1,99 @@
+/*
+ * Market Kasa's shape, type, spacing, elevation and motion; the colours stay in tokens.css. The
+ * anchor is the receipt slip: the cart being rung up reads as a paper slip on a plate, with a
+ * coloured edge on its start side, beside display-face titles.
+ */
+@theme {
+  /* Type: display for titles, text for everything else (fonts.css). */
+  --font-sans: 'Instrument Sans', 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, sans-serif;
+  /* Receipts, barcodes and amounts in the cart print in a monospaced face. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.35;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.4;
+  --text-label: 1.0625rem;
+  --text-label--line-height: 1.3;
+
+  /* Shape: plates for cards and sheets, softer controls, pills for chips and status. */
+  --radius-control: 10px;
+  --radius-plate: 12px;
+  --radius-sheet: 20px;
+  --radius-chip: 9999px;
+
+  /* The least a finger needs on a primary control or a tab in the menu. */
+  --spacing-touch: 3rem;
+
+  --ease-plate: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-sheet-up: sheet-up 220ms var(--ease-plate);
+  --animate-pop-in: pop-in 160ms var(--ease-plate);
+  --animate-toast-in: toast-in 160ms var(--ease-plate);
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
+
+/* A slip: a flat plate with a 4 px edge on its start side, like a till receipt on the counter. */
+@utility slip {
+  border-radius: var(--radius-plate);
+  border: 1px solid var(--color-line);
+  border-inline-start: 4px solid var(--slip-edge, var(--color-line-strong));
+  background-color: var(--color-surface);
+}
+@utility edge-accent {
+  --slip-edge: var(--color-accent);
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  /* Phones that draw over the system bars (viewport-fit=cover) keep content clear of them. */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+@layer components {
+  /* Toasts sit above the phone's menu bar (--bottom-bar-h, set by useBottomBar). */
+  .toast-region {
+    bottom: calc(var(--bottom-bar-h, 0px) + env(safe-area-inset-bottom) + 12px);
+  }
+  /* Over a dialog or sheet they move to the top, clear of its buttons. */
+  body:has([role='dialog']) .toast-region {
+    top: calc(env(safe-area-inset-top) + 12px);
+    bottom: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

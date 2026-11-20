@@ -1,0 +1,225 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTestDb } from '@/test/db';
+import { createCustomer, customerBalance } from './customers';
+import type { MarketDb } from './db';
+import { CreditLimitError, RecordNotFoundError, PaymentMismatchError } from './errors';
+import { pendingCount, pendingOps } from './outbox';
+import { createProduct, deleteProduct } from './products';
+import { findSaleByReceiptNo, recentSales, recordSale } from './sales';
+import { stockOf } from './stock';
+
+let db: MarketDb;
+let ids: { ekmek: string; ayran: string; peynir: string; cay: string };
+const setupAt = new Date('2026-10-28T06:00:00Z');
+
+beforeEach(async () => {
+  db = makeTestDb();
+  const make = async (name: string, sellPrice: number) =>
+    (await createProduct(db, { name, sellPrice, vatRate: 1 }, setupAt)).id;
+  ids = {
+    ekmek: await make('Ekmek', 1500),
+    ayran: await make('Ayran', 2250),
+    peynir: await make('Beyaz Peynir', 18990),
+    cay: await make('Siyah Çay', 27900),
+  };
+});
+afterEach(async () => {
+  await db.delete();
+});
+
+const cartLines = () => [
+  { productId: ids.ekmek, qtyMilli: 2000 },
+  { productId: ids.ayran, qtyMilli: 3000 },
+  { productId: ids.peynir, qtyMilli: 1000 },
+  { productId: ids.cay, qtyMilli: 1000 },
+];
+const cashSale = (at: string) => ({
+  deviceCode: 'K1',
+  at: new Date(at),
+  lines: cartLines(),
+  payments: [{ method: 'cash' as const, amount: 56640 }],
+});
+
+describe('recordSale', () => {
+  it('records a cash sale with totals, change and stock movements', async () => {
+    const sale = await recordSale(db, { ...cashSale('2026-10-28T09:00:00Z'), cashGiven: 60000 });
+    expect(sale).toMatchObject({
+      receiptNo: 'K1-20261028-0001',
+      total: 56640,
+      vatTotal: 561,
+      change: 3360,
+    });
+    expect(await stockOf(db, ids.ekmek)).toBe(-2000);
+    expect(await stockOf(db, ids.ayran)).toBe(-3000);
+    expect(await findSaleByReceiptNo(db, 'K1-20261028-0001')).toMatchObject({ id: sale.id });
+  });
+
+  it("writes each line's unit into the sale", async () => {
+    const cheese = await createProduct(
+      db,
+      { name: 'Peynir', unit: 'kg', sellPrice: 32000, vatRate: 1 },
+      setupAt,
+    );
+    const bread = await createProduct(db, { name: 'Ekmek', sellPrice: 1500, vatRate: 1 }, setupAt);
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at: setupAt,
+      lines: [
+        { productId: cheese.id, qtyMilli: 1250 },
+        { productId: bread.id, qtyMilli: 2000 },
+      ],
+      payments: [{ method: 'cash', amount: 43000 }],
+    });
+    expect(sale.lines.map((line) => line.unit)).toEqual(['kg', 'piece']);
+  });
+
+  it('keeps no change on a card sale', async () => {
+    const sale = await recordSale(db, {
+      deviceCode: 'K1',
+      at: new Date('2026-10-29T09:00:00Z'),
+      lines: [{ productId: ids.ekmek, qtyMilli: 1000 }],
+      payments: [{ method: 'card', amount: 1500 }],
+      cashGiven: 5000,
+    });
+    expect(sale.change).toBe(0);
+    expect(sale.cashGiven).toBeUndefined();
+  });
+
+  it('queues every sale record as an insert', async () => {
+    const before = await pendingCount(db);
+    await recordSale(db, cashSale('2026-10-28T09:00:00Z'));
+    const ops = (await pendingOps(db)).slice(before);
+    expect(ops.map((op) => [op.kind, op.table])).toEqual([
+      ['insert', 'stockMovements'],
+      ['insert', 'stockMovements'],
+      ['insert', 'stockMovements'],
+      ['insert', 'stockMovements'],
+      ['insert', 'sales'],
+    ]);
+  });
+
+  it('numbers receipts per device and business day', async () => {
+    const no = async (at: string) => (await recordSale(db, cashSale(at))).receiptNo;
+    expect(await no('2026-10-28T09:00:00Z')).toBe('K1-20261028-0001');
+    expect(await no('2026-10-28T10:00:00Z')).toBe('K1-20261028-0002');
+    expect(await no('2026-10-28T21:30:00Z')).toBe('K1-20261029-0001');
+    expect(await no('2026-10-28T20:00:00Z')).toBe('K1-20261028-0003');
+  });
+
+  it('writes the credit part of a split payment to the ledger', async () => {
+    const c = await createCustomer(db, { name: 'Ahmet' }, setupAt);
+    await recordSale(db, {
+      ...cashSale('2026-10-28T09:00:00Z'),
+      customerId: c.id,
+      payments: [
+        { method: 'cash', amount: 20000 },
+        { method: 'credit', amount: 36640 },
+      ],
+    });
+    expect(await customerBalance(db, c.id)).toBe(36640);
+  });
+
+  it('enforces the credit limit unless allowed', async () => {
+    const c = await createCustomer(db, { name: 'Ahmet', creditLimit: 30000 }, setupAt);
+    const credit = {
+      ...cashSale('2026-10-28T09:00:00Z'),
+      customerId: c.id,
+      payments: [{ method: 'credit' as const, amount: 56640 }],
+    };
+    await expect(recordSale(db, credit)).rejects.toBeInstanceOf(CreditLimitError);
+    await recordSale(db, { ...credit, allowOverLimit: true });
+    expect(await customerBalance(db, c.id)).toBe(56640);
+  });
+
+  it('dates a credit sale by the cutoff', async () => {
+    const c = await createCustomer(db, { name: 'Ahmet' }, setupAt);
+    // 02:30 in Istanbul on the 29th, with the day turning at 04:00.
+    await recordSale(db, {
+      ...cashSale('2026-10-28T23:30:00Z'),
+      cutoffMinutes: 240,
+      payments: [{ method: 'credit', amount: 56640 }],
+      customerId: c.id,
+    });
+    expect(await db.ledger.toArray()).toMatchObject([{ businessDate: '2026-10-28' }]);
+  });
+
+  it('requires an active customer for credit', async () => {
+    const credit = {
+      ...cashSale('2026-10-28T09:00:00Z'),
+      payments: [{ method: 'credit' as const, amount: 56640 }],
+    };
+    await expect(recordSale(db, credit)).rejects.toBeInstanceOf(RecordNotFoundError);
+  });
+
+  it('rejects payments that do not add up', async () => {
+    await expect(
+      recordSale(db, {
+        ...cashSale('2026-10-28T09:00:00Z'),
+        payments: [{ method: 'cash', amount: 50000 }],
+      }),
+    ).rejects.toBeInstanceOf(PaymentMismatchError);
+    await expect(
+      recordSale(db, { ...cashSale('2026-10-28T09:00:00Z'), cashGiven: 50000 }),
+    ).rejects.toBeInstanceOf(PaymentMismatchError);
+  });
+
+  it('rejects fractional payment amounts', async () =>
+    expect(
+      recordSale(db, {
+        ...cashSale('2026-10-28T09:00:00Z'),
+        payments: [
+          { method: 'cash', amount: 56639.5 },
+          { method: 'card', amount: 0.5 },
+        ],
+      }),
+    ).rejects.toThrow(RangeError));
+
+  it('rejects an unknown product without writing anything', async () => {
+    const before = await pendingCount(db);
+    const sale = cashSale('2026-10-28T09:00:00Z');
+    const lines = [...sale.lines, { productId: 'missing', qtyMilli: 1000 }];
+    await expect(recordSale(db, { ...sale, lines })).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect(await pendingCount(db)).toBe(before);
+    expect(await stockOf(db, ids.ekmek)).toBe(0);
+  });
+
+  it('sells a product deleted after it entered the cart', async () => {
+    // DESIGN §7: one device deletes a product while another sells it; the sale is valid.
+    await deleteProduct(db, ids.cay, setupAt);
+    const sale = await recordSale(db, cashSale('2026-10-28T09:00:00Z'));
+    expect(sale.lines.map((line) => line.name)).toContain('Siyah Çay');
+    expect(await stockOf(db, ids.cay)).toBe(-1000);
+  });
+
+  it('rolls back every write when the sale itself cannot be stored', async () => {
+    await recordSale(db, cashSale('2026-10-27T09:00:00Z'));
+    const before = await pendingCount(db);
+    // The sale is the transaction's last write; make storing it fail.
+    db.sales.hook('creating', () => {
+      throw new Error('disk full');
+    });
+    await expect(recordSale(db, cashSale('2026-10-28T09:00:00Z'))).rejects.toThrow('disk full');
+    expect(await pendingCount(db)).toBe(before);
+    expect(await stockOf(db, ids.ekmek)).toBe(-2000);
+  });
+
+  it('records a sale only once when the same id is submitted again', async () => {
+    const id = '01a181bc-da80-7001-8203-040506070809';
+    const first = await recordSale(db, { ...cashSale('2026-10-28T09:00:00Z'), id });
+    const before = await pendingCount(db);
+    const again = await recordSale(db, { ...cashSale('2026-10-28T09:00:01Z'), id });
+    expect(again).toEqual(first);
+    expect(await db.sales.count()).toBe(1);
+    expect(await stockOf(db, ids.ekmek)).toBe(-2000);
+    expect(await pendingCount(db)).toBe(before);
+  });
+
+  it('lists recent sales newest first', async () => {
+    await recordSale(db, cashSale('2026-10-28T09:00:00Z'));
+    await recordSale(db, cashSale('2026-10-28T10:00:00Z'));
+    expect((await recentSales(db)).map((s) => s.receiptNo)).toEqual([
+      'K1-20261028-0002',
+      'K1-20261028-0001',
+    ]);
+  });
+});
