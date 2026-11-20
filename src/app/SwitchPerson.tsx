@@ -21,10 +21,11 @@ export function SwitchPerson(): JSX.Element {
     <>
       <Button
         variant="ghost"
-        icon={<Users aria-hidden="true" size={18} />}
+        className="max-md:size-11 max-md:min-h-0 max-md:px-0"
+        icon={<Users aria-hidden="true" size={18} strokeWidth={1.75} />}
         onClick={() => setOpen(true)}
       >
-        Kişi değiştir
+        <span className="max-md:sr-only">Kişi değiştir</span>
       </Button>
       <Dialog
         open={open}

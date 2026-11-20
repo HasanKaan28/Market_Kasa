@@ -21,7 +21,8 @@ export function TextField({
   const errorId = error ? `${inputId}-error` : undefined;
   const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
   const inputClasses = [
-    'min-h-11 rounded-control border bg-surface px-3 text-base text-text placeholder:text-muted',
+    'min-h-touch rounded-control border bg-surface px-3.5 text-base text-text placeholder:text-muted',
+    'transition-[border-color] duration-150',
     error ? 'border-danger' : 'border-line-strong',
     className,
   ]
@@ -30,7 +31,7 @@ export function TextField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium text-text">
+      <label htmlFor={inputId} className="text-sm font-semibold text-text">
         {label}
       </label>
       <input
@@ -41,7 +42,7 @@ export function TextField({
         {...rest}
       />
       {hint ? (
-        <p id={hintId} className="text-sm text-muted">
+        <p id={hintId} className="text-meta text-muted">
           {hint}
         </p>
       ) : null}

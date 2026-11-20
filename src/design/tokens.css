@@ -1,4 +1,7 @@
-/* Direction K12 "sade ve profesyonel" (docs/v2/DESIGN.md §13). */
+/*
+ * Direction K12 "sade ve profesyonel" (docs/v2/DESIGN.md §13): the colours. Shape, type, spacing
+ * and motion live in shape.css.
+ */
 @theme {
   --color-bg: #f5f6f8;
   --color-surface: #ffffff;
@@ -16,12 +19,6 @@
   /* Uyarı (§13): 5.8:1 on its background. */
   --color-warning: #8a5300;
   --color-warning-bg: #fdf3e1;
-
-  --radius-control: 8px;
-  --radius-chip: 6px;
-
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
 @layer base {

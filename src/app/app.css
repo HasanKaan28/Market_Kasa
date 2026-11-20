@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '../design/tokens.css';
+@import '../design/shape.css';
 
 /*
  * Printing a receipt (see src/pos/printReceipt.tsx): #print-root is laid out off-screen so the

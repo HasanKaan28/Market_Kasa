@@ -3,7 +3,7 @@ import { Kbd } from './Kbd';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  /** `icon`: a square 44 px button for an icon with an aria-label. */
+  /** `md` is a 48 px touch target; `lg` the screen's main action; `icon` a 44 px square. */
   size?: 'md' | 'lg' | 'icon';
   kbd?: string;
   icon?: ReactNode;
@@ -17,8 +17,8 @@ const VARIANT_CLASSES: Record<NonNullable<ButtonProps['variant']>, string> = {
 };
 
 const SIZE_CLASSES: Record<NonNullable<ButtonProps['size']>, string> = {
-  md: 'min-h-11 px-3.5 text-[15px]',
-  lg: 'min-h-14 px-5 text-[17px]',
+  md: 'min-h-touch px-4 text-body',
+  lg: 'min-h-14 px-5 font-display text-label tracking-[-0.01em]',
   icon: 'size-11 shrink-0',
 };
 
@@ -33,8 +33,9 @@ export function Button({
   ...rest
 }: ButtonProps): JSX.Element {
   const classes = [
-    'inline-flex items-center justify-center gap-2 rounded-control border font-semibold transition-colors',
-    'disabled:cursor-not-allowed disabled:opacity-50',
+    'inline-flex items-center justify-center gap-2 rounded-control border font-semibold select-none',
+    'transition-[background-color,border-color,color,transform] duration-150 ease-plate active:scale-[0.97]',
+    'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
     VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],
     className,
