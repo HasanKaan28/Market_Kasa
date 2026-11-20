@@ -1,14 +1,18 @@
 name: v2 backup
 
 # Every night a full copy of the market data (the `app` schema: markets, registers and every
-# synced record) is taken from Supabase, encrypted on the runner and kept as an artifact for
-# 90 days. The free Supabase plan keeps no backups of its own. The repository is public, so
-# nothing leaves the runner unencrypted. Restore steps: docs/v2/BACKUP.md.
+# synced record) is taken from Supabase, encrypted on the runner with `age` to a PUBLIC key and
+# kept as an artifact for 30 days. The free Supabase plan keeps no backups of its own. The
+# repository is public, so artifacts can be downloaded by anyone, but only the owner's private
+# key (kept offline, never in GitHub) opens them. Restore steps: docs/v2/BACKUP.md.
 #
-# Secrets (Settings -> Secrets and variables -> Actions):
+# Setup (Settings -> Secrets and variables -> Actions): one secret only.
 #   SUPABASE_DB_URL     the "Session pooler" connection string from Supabase -> Connect
 #                       (the direct db.<ref>.supabase.co host is IPv6 only; runners have none)
-#   BACKUP_PASSPHRASE   at least 16 characters; without it the backups cannot be opened
+# The public recipient lives in the repository: docs/v2/backup-recipient.txt.
+#
+# The Supabase server runs Postgres 17 (pg_dump must be the same major or newer). The runner
+# image only ships an older client, so the Postgres 17 client comes from the PGDG repository.
 
 on:
   schedule:
@@ -27,63 +31,126 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
     steps:
-      - name: Check the secrets
-        run: |
-          if [ -z "$DB_URL" ] || [ -z "$PASSPHRASE" ]; then
-            echo "::error::Set the repository secrets SUPABASE_DB_URL and BACKUP_PASSPHRASE."
-            exit 1
-          fi
-          if [ "${#PASSPHRASE}" -lt 16 ]; then
-            echo "::error::BACKUP_PASSPHRASE must be at least 16 characters."
-            exit 1
-          fi
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          sparse-checkout: docs/v2/backup-recipient.txt
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
-      - name: Install the Postgres 17 client
+      - name: Read the public recipient
+        id: recipient
         run: |
+          set -euo pipefail
+          file=docs/v2/backup-recipient.txt
+          recipient="$(grep -v -E '^[[:space:]]*(#|$)' "$file" | head -n 1 | tr -d '[:space:]' || true)"
+          if ! printf '%s' "$recipient" | grep -qE '^age1[a-z0-9]{58}$'; then
+            echo "::error file=$file::$file holds no valid age public key (a line starting with age1). Generate a key pair with 'age-keygen' and put the public key in that file. See docs/v2/BACKUP.md."
+            exit 1
+          fi
+          echo "value=$recipient" >> "$GITHUB_OUTPUT"
+
+      - name: Install age and the Postgres 17 client
+        run: |
+          set -euo pipefail
+          # PGDG signing key, from postgresql.org; its fingerprint is checked before it is trusted.
+          expected=B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
           sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          curl -fsSL -o "$RUNNER_TEMP/pgdg.asc" https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          actual="$(gpg --show-keys --with-colons "$RUNNER_TEMP/pgdg.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::The PGDG signing key has fingerprint $actual, expected $expected."
+            exit 1
+          fi
+          sudo cp "$RUNNER_TEMP/pgdg.asc" /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17
+          sudo apt-get install -y -qq age postgresql-client-17
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
-      - name: Dump, check and encrypt
-        id: dump
+      - name: Dump
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
+          if [ -z "$DB_URL" ]; then
+            echo "::error::Set the repository secret SUPABASE_DB_URL."
+            exit 1
+          fi
           stamp="$(TZ=Europe/Istanbul date +%F)"
           dir="market-kasa-$stamp"
           mkdir "$dir"
+          # The connection goes to libpq through a private service file, so the URL (and the
+          # password in it) never appears on a command line.
+          umask 077
+          export PGSERVICEFILE="$RUNNER_TEMP/pg_service.conf"
+          trap 'rm -f "$PGSERVICEFILE"' EXIT
+          python3 - <<'PY'
+          import os
+          from urllib.parse import unquote, urlparse
+
+          url = urlparse(os.environ["DB_URL"])
+          if url.scheme not in ("postgres", "postgresql") or not url.hostname:
+              raise SystemExit("SUPABASE_DB_URL is not a postgres:// connection string.")
+          lines = [
+              "[backup]",
+              f"host={url.hostname}",
+              f"port={url.port or 5432}",
+              f"dbname={unquote(url.path.lstrip('/')) or 'postgres'}",
+              f"user={unquote(url.username or '')}",
+              f"password={unquote(url.password or '')}",
+              "sslmode=require",
+          ]
+          with open(os.environ["PGSERVICEFILE"], "w", encoding="utf-8") as f:
+              f.write("\n".join(lines) + "\n")
+          PY
+          export PGSERVICE=backup
           # The market data, schema and all. Privileges stay in: a restore without them would
           # leave the server's functions callable by anyone (they are revoked from anon).
-          pg_dump "$DB_URL" --schema=app --no-owner --format=custom --file="$dir/app.dump"
+          pg_dump --schema=app --no-owner --format=custom --file="$dir/app.dump"
           # The accounts the markets and registers belong to (app.memberships and app.devices
           # point at them), for a restore into a new project. -t ignores -n, hence two dumps.
-          pg_dump "$DB_URL" --data-only --table=auth.users --table=auth.identities --format=custom --file="$dir/auth.dump"
-          pg_restore --list "$dir/app.dump" > /dev/null
-          pg_restore --list "$dir/auth.dump" > /dev/null
+          pg_dump --data-only --table=auth.users --table=auth.identities --format=custom --file="$dir/auth.dump"
           # What the copy holds, as counts only: nothing of the data reaches the log.
-          psql "$DB_URL" -At -c "select 'markets', count(*) from app.markets union all select 'devices', count(*) from app.devices union all select 'records', count(*) from app.rows" \
+          psql -At -c "select 'markets', count(*) from app.markets union all select 'devices', count(*) from app.devices union all select 'records', count(*) from app.rows" \
             | sed 's/|/: /'
+          echo "stamp=$stamp" >> "$GITHUB_ENV"
+
+      - name: Check the dump
+        run: |
+          set -euo pipefail
+          dir="market-kasa-$stamp"
+          for f in app.dump auth.dump; do
+            test -s "$dir/$f"
+            # A custom-format archive that pg_restore can read and that lists its contents.
+            pg_restore --list "$dir/$f" > "$RUNNER_TEMP/$f.list"
+            test -s "$RUNNER_TEMP/$f.list"
+          done
+          # The app schema must hold its tables, the accounts dump its rows' table.
+          grep -q 'TABLE app rows' "$RUNNER_TEMP/app.dump.list"
+          grep -q 'TABLE DATA auth users' "$RUNNER_TEMP/auth.dump.list"
+
+      - name: Encrypt to the public key
+        env:
+          RECIPIENT: ${{ steps.recipient.outputs.value }}
+        run: |
+          set -euo pipefail
+          dir="market-kasa-$stamp"
           tar -cf "$dir.tar" "$dir"
           rm -rf "$dir"
-          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 --output "$dir.tar.gpg" "$dir.tar" 3<<< "$PASSPHRASE"
+          age -r "$RECIPIENT" -o "$dir.tar.age" "$dir.tar"
           rm -f "$dir.tar"
-          # The encrypted file must open again with the same passphrase before it is kept.
-          gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 3 --decrypt "$dir.tar.gpg" 3<<< "$PASSPHRASE" \
-            | tar -t | grep -qx "$dir/app.dump"
-          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+          # The runner cannot decrypt (it has no private key); check it is an age file of a sane size.
+          test "$(head -c 21 "$dir.tar.age")" = "age-encryption.org/v1"
+          test "$(stat -c %s "$dir.tar.age")" -gt 1024
 
-      - name: Keep the encrypted copy for 90 days
-        uses: actions/upload-artifact@v4
+      - name: Keep the encrypted copy for 30 days
+        # actions/upload-artifact v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: market-kasa-backup-${{ steps.dump.outputs.stamp }}
-          path: market-kasa-${{ steps.dump.outputs.stamp }}.tar.gpg
-          retention-days: 90
+          name: market-kasa-backup-${{ env.stamp }}
+          path: market-kasa-${{ env.stamp }}.tar.age
+          retention-days: 30
           if-no-files-found: error

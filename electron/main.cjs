@@ -7,6 +7,7 @@ const {
   net,
   protocol,
   screen,
+  session,
   shell,
 } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -17,6 +18,7 @@ const {
   CONTENT_SECURITY_POLICY,
   devToolsAllowed,
   isExternalUrl,
+  isPermissionAllowed,
   resolveAppFile,
 } = require('./security.cjs');
 const { displayBounds, isDisplayUrl } = require('./display.cjs');
@@ -165,6 +167,21 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     protocol.handle('app', serveApp);
+    // Both windows share the default session. Only the scanner's camera is ever granted.
+    session.defaultSession.setPermissionRequestHandler(
+      (_contents, permission, callback, details) => {
+        callback(isPermissionAllowed(permission, details.requestingUrl, details.mediaTypes));
+      },
+    );
+    session.defaultSession.setPermissionCheckHandler(
+      (_contents, permission, requestingOrigin, details) => {
+        return isPermissionAllowed(
+          permission,
+          details.requestingUrl || requestingOrigin,
+          details.mediaType ? [details.mediaType] : undefined,
+        );
+      },
+    );
     wireUpdates({ autoUpdater, ipcMain, getWindow: () => mainWindow, isPackaged: app.isPackaged });
     createWindow();
 

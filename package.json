@@ -39,6 +39,15 @@
     "win": {
       "target": "nsis"
     },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeCliInspectArguments": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -85,7 +94,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^44.3.0",
+    "electron": "^44.11.5",
     "electron-builder": "^26.15.3",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",

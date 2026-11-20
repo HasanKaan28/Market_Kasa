@@ -2,7 +2,13 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import security from './security.cjs';
 
-const { CONTENT_SECURITY_POLICY, devToolsAllowed, isExternalUrl, resolveAppFile } = security;
+const {
+  CONTENT_SECURITY_POLICY,
+  devToolsAllowed,
+  isExternalUrl,
+  isPermissionAllowed,
+  resolveAppFile,
+} = security;
 
 const dist = path.resolve('/opt/market-kasa/dist');
 
@@ -68,5 +74,36 @@ describe('electron security', () => {
       'form-action': "'none'",
       'frame-ancestors': "'none'",
     });
+  });
+
+  it('grants only the camera, without a microphone, to the app itself', () => {
+    const origin = 'app://market';
+    expect(isPermissionAllowed('media', origin, ['video'])).toBe(true);
+    expect(isPermissionAllowed('media', 'app://market/index.html', ['video'])).toBe(true);
+    // The microphone, alone or together with the camera, and an unspecified kind.
+    expect(isPermissionAllowed('media', origin, ['audio'])).toBe(false);
+    expect(isPermissionAllowed('media', origin, ['video', 'audio'])).toBe(false);
+    expect(isPermissionAllowed('media', origin, [])).toBe(false);
+    expect(isPermissionAllowed('media', origin, undefined)).toBe(false);
+    expect(isPermissionAllowed('media', origin, ['unknown'])).toBe(false);
+    // Any other origin, including look-alikes.
+    expect(isPermissionAllowed('media', 'https://evil.example', ['video'])).toBe(false);
+    expect(isPermissionAllowed('media', 'app://market.evil.example', ['video'])).toBe(false);
+    expect(isPermissionAllowed('media', 'file:///C:/x.html', ['video'])).toBe(false);
+    expect(isPermissionAllowed('media', '', ['video'])).toBe(false);
+    expect(isPermissionAllowed('media', 'not a url', ['video'])).toBe(false);
+    // Every other permission.
+    for (const permission of [
+      'geolocation',
+      'notifications',
+      'clipboard-read',
+      'display-capture',
+      'midi',
+      'openExternal',
+      'fullscreen',
+      'mediaKeySystem',
+    ]) {
+      expect(isPermissionAllowed(permission, origin, ['video'])).toBe(false);
+    }
   });
 });

@@ -1,0 +1,8 @@
+# PLACEHOLDER. The nightly backup workflow refuses to run until this file holds a real key.
+#
+# Put the PUBLIC age key here, on one line starting with "age1". Generate the key pair with
+#   age-keygen -o backup-key.txt
+# and copy the "Public key: age1..." value. A public key is safe to commit.
+# NEVER commit backup-key.txt (the private key). Steps: docs/v2/BACKUP.md.
+#
+# Lines starting with # and empty lines are ignored.

@@ -67,10 +67,32 @@ function devToolsAllowed(isPackaged) {
   return !isPackaged;
 }
 
+/**
+ * Whether a page may be granted a permission. Only the barcode scanner's camera (video, never the
+ * microphone) for the app's own origin; everything else is refused. `mediaTypes` is what the
+ * request asks for, for example ['video'].
+ */
+function isPermissionAllowed(permission, requestingUrl, mediaTypes) {
+  if (permission !== 'media') {
+    return false;
+  }
+  if (!Array.isArray(mediaTypes) || mediaTypes.length !== 1 || mediaTypes[0] !== 'video') {
+    return false;
+  }
+  try {
+    // `origin` is the string "null" for a custom scheme outside Electron, so compare the parts.
+    const url = new URL(requestingUrl);
+    return url.protocol === 'app:' && url.host === APP_HOST;
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   APP_HOST,
   CONTENT_SECURITY_POLICY,
   isExternalUrl,
   resolveAppFile,
   devToolsAllowed,
+  isPermissionAllowed,
 };

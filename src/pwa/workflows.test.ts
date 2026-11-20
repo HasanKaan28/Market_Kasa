@@ -104,15 +104,26 @@ describe('workflows', () => {
     expect(triggers(backup)).not.toMatch(/push|pull_request/);
     expect(backup).toContain('contents: read');
     expect(backup).toContain('secrets.SUPABASE_DB_URL');
-    expect(backup).toContain('secrets.BACKUP_PASSPHRASE');
+    // No decryption secret lives in GitHub: the copy is encrypted to a public key from the repo.
+    expect(backup).not.toContain('BACKUP_PASSPHRASE');
+    expect(backup).not.toMatch(/--symmetric|--decrypt|--passphrase/);
+    expect(backup).toContain('docs/v2/backup-recipient.txt');
+    expect(backup).toMatch(/age -r "\$RECIPIENT"/);
+    // The database URL is only in the dump step's environment and never on a command line.
+    expect(backup.match(/secrets\.SUPABASE_DB_URL/g)).toHaveLength(1);
+    expect(backup).not.toMatch(/pg_dump "\$/);
     expect(backup).toMatch(/pg_dump .*--schema=app/);
-    expect(backup).toMatch(/gpg .*--symmetric.*--cipher-algo AES256/);
     expect(backup).toMatch(/pg_dump .*--table=auth\.users/);
+    expect(backup).toContain('pg_restore --list');
     // Nothing unencrypted is left behind for the upload to pick up.
     expect(backup).toContain('rm -rf "$dir"');
     expect(backup).toContain('rm -f "$dir.tar"');
+    // Every action is pinned to a full commit.
+    for (const use of backup.match(/uses: .+/g) ?? []) {
+      expect(use).toMatch(/@[0-9a-f]{40}$/);
+    }
     const upload = backup.slice(backup.indexOf('actions/upload-artifact'));
-    expect(upload).toMatch(/path: .*\.gpg/);
-    expect(upload).toContain('retention-days: 90');
+    expect(upload).toMatch(/path: .*\.age/);
+    expect(upload).toContain('retention-days: 30');
   });
 });
