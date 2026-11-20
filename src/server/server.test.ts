@@ -6,6 +6,7 @@ import { createPairingCode, pairDevice, pairedSettings, unpairedSettings } from 
 import {
   DeviceRevokedError,
   DeviceUnpairedError,
+  MarketSuspendedError,
   supabaseTransport,
 } from '@/sync/supabaseTransport';
 
@@ -312,5 +313,17 @@ describe('supabase transport', () => {
       'Bu kasanın kaydı iptal edildi.',
     );
     expect(new DeviceRevokedError()).toBeInstanceOf(Error);
+  });
+
+  it('tells the register its market is suspended, without asking to pair again', async () => {
+    const suspended = fakeClient({
+      sync_push: { error: { message: 'market_suspended', code: 'P0001' } },
+      sync_pull: { error: { message: 'market_suspended', code: 'P0001' } },
+    });
+    const transport = supabaseTransport(suspended.client);
+    await expect(transport.push({ ops: [] })).rejects.toThrow(MarketSuspendedError);
+    await expect(transport.pull({ since: 0, limit: 1 })).rejects.toThrow(
+      'Market hesabı askıya alındı. Satışlar bu cihazda saklanıyor; yöneticinizle görüşün.',
+    );
   });
 });

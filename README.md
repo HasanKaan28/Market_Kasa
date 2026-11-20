@@ -52,8 +52,11 @@ Copy `.env.example` to `.env.local` and fill in the Supabase project's URL and *
 (never a secret or `service_role` key). The schema is in `supabase/migrations/`; its tests run on
 PGlite with `npm test`.
 
-1. In the Supabase dashboard, turn on anonymous sign-ins. Turn "Confirm email" off unless the
-   project sends email through its own SMTP: the built-in sender only reaches the team.
+1. In the Supabase dashboard, turn on anonymous sign-ins. Anyone holding the publishable key can
+   sign up and open markets, so on a live project set up custom SMTP and turn "Confirm email" on,
+   turn on CAPTCHA (Turnstile or hCaptcha) for sign-ups and anonymous sign-ins, and turn on
+   leaked-password protection. Leave "Confirm email" off only on a project used by the team alone:
+   the built-in sender only reaches the team.
 2. On the first device, the first screen's **Market kur** signs the shop up with its own email
    and opens its market; the device becomes register K1.
 3. On every other device, **Markete giriş yap** with the same email and password: it becomes the

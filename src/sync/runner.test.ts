@@ -4,6 +4,7 @@ import { createProduct } from '@/data/products';
 import { makeTestDb } from '@/test/db';
 import { FakeServer } from './fakeServer';
 import { createSyncRunner } from './runner';
+import { MarketSuspendedError } from './supabaseTransport';
 
 let db: MarketDb;
 let server: FakeServer;
@@ -43,6 +44,22 @@ describe('createSyncRunner', () => {
     server.failNextPush();
     const runner = createSyncRunner({ db, transport: server, isOnline: () => true, now });
     expect(await runner.run()).toEqual({ state: 'error', pendingCount: 1, error: 'network down' });
+  });
+
+  it('keeps the queue and says so calmly while the market is suspended', async () => {
+    const suspended = new MarketSuspendedError();
+    vi.spyOn(server, 'push').mockRejectedValue(suspended);
+    vi.spyOn(server, 'pull').mockRejectedValue(suspended);
+    const runner = createSyncRunner({ db, transport: server, isOnline: () => true, now });
+    expect(await runner.run()).toEqual({
+      state: 'error',
+      pendingCount: 1,
+      error: 'Market hesabı askıya alındı. Satışlar bu cihazda saklanıyor; yöneticinizle görüşün.',
+    });
+
+    vi.restoreAllMocks();
+    expect(await runner.run()).toMatchObject({ state: 'online', pendingCount: 0 });
+    expect(server.rows('products')).toHaveLength(1);
   });
 
   it('never rejects, even when the database is closed', async () => {

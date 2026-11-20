@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createTestServer, type TestServer } from './harness';
 
 type Claimed = { marketId: string; marketName: string; deviceId: string; deviceCode: string };
-type Mine = Claimed & { revoked: boolean };
+type Mine = Claimed & { revoked: boolean; status: string; licenseExpiresAt: string | null };
 
 let server: TestServer;
 
@@ -127,7 +127,19 @@ describe('pairing', () => {
     expect(await server.as(device).rpc('my_device')).toBeNull();
 
     const claimed = await claim(device, await server.as(owner).rpc('create_pairing', ['a']));
-    expect(await server.as(device).rpc<Mine>('my_device')).toEqual({ ...claimed, revoked: false });
+    expect(await server.as(device).rpc<Mine>('my_device')).toEqual({
+      ...claimed,
+      revoked: false,
+      status: 'active',
+      licenseExpiresAt: null,
+    });
+    await server.query(
+      "update app.markets set status = 'suspended', license_expires_at = '2027-01-31T21:00:00Z' where id = 'a'",
+    );
+    const suspended = await server.as(device).rpc<Mine>('my_device');
+    expect(suspended.status).toBe('suspended');
+    expect(Date.parse(suspended.licenseExpiresAt ?? '')).toBe(Date.parse('2027-01-31T21:00:00Z'));
+    await server.query("update app.markets set status = 'active' where id = 'a'");
 
     await server.as(owner).rpc('revoke_device', [claimed.deviceId]);
     expect((await server.as(device).rpc<Mine>('my_device')).revoked).toBe(true);

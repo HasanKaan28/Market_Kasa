@@ -23,9 +23,23 @@ export class DeviceUnpairedError extends Error {
   }
 }
 
+/**
+ * The market was suspended on the server. Nothing is lost: the queue stays on this register and
+ * goes out once the market is active again, and selling goes on meanwhile.
+ */
+export class MarketSuspendedError extends Error {
+  constructor() {
+    super('Market hesabı askıya alındı. Satışlar bu cihazda saklanıyor; yöneticinizle görüşün.');
+    this.name = 'MarketSuspendedError';
+  }
+}
+
 function failure(error: { message: string; code?: string }): Error {
   if (error.message.includes('device_revoked')) {
     return new DeviceRevokedError();
+  }
+  if (error.message.includes('market_suspended')) {
+    return new MarketSuspendedError();
   }
   // No register on the server, or a session that could not be renewed, which leaves the call
   // to the anonymous role that may not run the sync functions at all.
