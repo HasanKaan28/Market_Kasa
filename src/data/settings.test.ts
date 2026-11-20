@@ -16,6 +16,20 @@ afterEach(async () => {
 const at = new Date('2026-10-29T09:00:00Z');
 
 describe('market settings', () => {
+  it('asks no PIN unless the market turns it on', async () => {
+    expect(await loadMarketSettings(db)).toMatchObject({ requirePin: false });
+    // A market saved before the setting existed has no field: still no PIN.
+    await saveMarketSettings(db, { cutoffMinutes: 60 }, at);
+    expect(await loadMarketSettings(db)).toMatchObject({ requirePin: false });
+    await saveMarketSettings(db, { requirePin: true }, at);
+    expect(await loadMarketSettings(db)).toMatchObject({ requirePin: true, cutoffMinutes: 60 });
+    expect(await db.settings.get('market')).toMatchObject({ requirePin: true });
+    await saveMarketSettings(db, { requirePin: false }, at);
+    expect(await loadMarketSettings(db)).toMatchObject({ requirePin: false });
+    const odd = { requirePin: 'yes' } as unknown as Partial<MarketSettings>;
+    await expect(saveMarketSettings(db, odd, at)).rejects.toThrow(RangeError);
+  });
+
   it('never locks an idle owner unless the market says so', async () => {
     expect(await loadMarketSettings(db)).toMatchObject({ idleLockMinutes: 0 });
     for (const minutes of [3, 10, 30, 0] as const) {
@@ -45,6 +59,7 @@ describe('market settings', () => {
       scale,
       newCustomerLimit: 50000,
       idleLockMinutes: 0,
+      requirePin: false,
     });
     await expect(
       saveMarketSettings(db, { scale: { ...scale, prefixes: ['86'] } }, at),

@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react';
+import { loadMarketSettings } from '@/data/settings';
 import { listStaff } from '@/data/staff';
+import type { StaffRecord } from '@/data/types';
 import { can } from '@/domain/permissions';
 import { useData } from './appData';
 import { useMarketSettings } from './marketSettings';
@@ -16,7 +18,7 @@ import { SignInScreen } from './SignInScreen';
 
 const MINUTE_MS = 60_000;
 
-/** Set once the market has had staff on this device: from then on it never opens without a PIN. */
+/** Set once the market has had staff on this device: from then on it never opens with nobody at it. */
 export const HAD_STAFF_KEY = 'hadStaff';
 
 // What counts as someone at the register: a tap, a click, a key (a barcode scanner types too).
@@ -32,6 +34,11 @@ const ACTIVITY = ['pointerdown', 'keydown', 'touchstart', 'wheel'] as const;
  * "Otomatik kilit", after that many minutes without input. A cashier's lasts until they lock the
  * register. `minuteMs` and `privilegedSessionMs` shorten those for tests. Until it knows who is
  * signed in, it shows nothing, so no screen flashes past the sign-in.
+ *
+ * All of that holds while the market asks for PINs ("PIN sor"). Off, which is the default, no PIN
+ * is ever asked: the register opens as the person last at it while they are active, else as the
+ * first active owner, and stays so with no day limit and no idle lock; the person is switched with
+ * one tap. Only a market that has had staff and has none active left stays locked.
  */
 export function SessionProvider({
   children,
@@ -46,12 +53,17 @@ export function SessionProvider({
   const { idleLockMinutes } = useMarketSettings();
   const idleLockMs = idleLockMinutes * minuteMs;
   const view = useLiveQuery(async () => {
-    const [people, marker] = await Promise.all([listStaff(db), db.meta.get(HAD_STAFF_KEY)]);
+    const [people, marker, settings] = await Promise.all([
+      listStaff(db),
+      db.meta.get(HAD_STAFF_KEY),
+      loadMarketSettings(db),
+    ]);
     return {
       people: people.filter((person) => !person.archivedAt),
       // Anyone ever set up, archived or not, counts: the marker only outlives them all.
       hadStaff: people.length > 0 || marker?.value === true,
       marked: marker?.value === true,
+      requirePin: settings.requirePin,
     };
   }, [db]);
   const [stored, setStored] = useState(() => loadSessionStaffId());
@@ -62,33 +74,41 @@ export function SessionProvider({
     saveSessionStaffId(null);
     setStored(null);
   }, []);
+  const signIn = useCallback((person: StaffRecord) => {
+    const signedIn = { staffId: person.id, signedInAt: new Date().toISOString() };
+    saveSessionStaffId(signedIn);
+    setStored(signedIn);
+  }, []);
 
   const session = useMemo<Session | null>(() => {
     if (view === undefined) {
       return null;
     }
     const open = !view.hadStaff;
+    const { requirePin } = view;
     const found = stored ? view.people.find((person) => person.id === stored.staffId) : undefined;
     // An owner's or a manager's PIN typed a day or more before the app started is asked again; a
     // day running out while it is open is seen to by the timer below.
     const expired =
+      requirePin &&
       found !== undefined &&
       stored !== null &&
       isPrivileged(found) &&
       startedAt - Date.parse(stored.signedInAt) >= privilegedSessionMs;
-    const staff = found && !expired ? found : null;
+    const staff = requirePin
+      ? found && !expired
+        ? found
+        : null
+      : (found ?? withoutPin(view.people));
     return {
       staff,
       open,
+      requirePin,
       can: (permission) => open || (staff !== null && can(staff, permission)),
-      signIn: (person) => {
-        const signIn = { staffId: person.id, signedInAt: new Date().toISOString() };
-        saveSessionStaffId(signIn);
-        setStored(signIn);
-      },
+      signIn,
       signOut,
     };
-  }, [view, stored, signOut, privilegedSessionMs, startedAt]);
+  }, [view, stored, signIn, signOut, privilegedSessionMs, startedAt]);
 
   // Remembered on this device once there are staff, so losing them all does not open the app.
   const mark = view !== undefined && view.people.length > 0 && !view.marked;
@@ -109,7 +129,9 @@ export function SessionProvider({
   }, [gone]);
 
   // An owner's or a manager's day can run out with the app open: the PIN is asked then.
-  const watched = session?.staff && isPrivileged(session.staff) ? session.staff.id : null;
+  // Without PINs neither the day nor the idle lock applies.
+  const watched =
+    session?.requirePin && session.staff && isPrivileged(session.staff) ? session.staff.id : null;
   const signedInAt = watched !== null ? stored?.signedInAt : undefined;
   useEffect(() => {
     if (signedInAt === undefined) {
@@ -156,6 +178,15 @@ export function SessionProvider({
       )}
     </SessionContext>
   );
+}
+
+/**
+ * Who the register opens as without PINs when the person last at it is gone: the first active
+ * owner by name, else the first active person (owners archived or demoted on two registers
+ * offline can leave none), else nobody.
+ */
+function withoutPin(people: readonly StaffRecord[]): StaffRecord | null {
+  return people.find((person) => person.role === 'owner') ?? people[0] ?? null;
 }
 
 /** A market that has had staff, with nobody left here to sign in: it waits for the sync. */

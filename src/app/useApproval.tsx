@@ -13,6 +13,10 @@ type Pending = { permission: Permission; target?: ApprovalTarget; done(approved:
  * person signed in may not do. Ask once the amount is known, so the approver sees it in the
  * `summary` and the log keeps it beside the record. The approval is logged before the action
  * goes ahead; render `dialog` beside the screen.
+ *
+ * While the market asks for no PIN, nothing waits: the action goes ahead as the person at the
+ * register, logged as their own approval marked `pinless`. A permission they lack then only hides
+ * screens.
  */
 export function useApproval(): {
   /** Runs `next` at once when allowed, else after an approval; nothing when it is turned down. */
@@ -44,9 +48,36 @@ export function useApproval(): {
     which.done(approved);
   }
 
+  /**
+   * Logs an action the person at the register may not do as done by them without a PIN. False
+   * when it cannot be written down: the action then does not go ahead, as with a PIN.
+   */
+  async function goAheadWithoutPin(
+    permission: Permission,
+    target: ApprovalTarget | undefined,
+  ): Promise<boolean> {
+    const approverId = session.staff?.id;
+    if (approverId === undefined) {
+      return false;
+    }
+    try {
+      await recordApproval(
+        db,
+        { permission, approverId, ...target, pinless: true },
+        new Date(),
+        actor,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function ask(permission: Permission, next: () => void, target?: ApprovalTarget) {
     if (session.can(permission)) {
       next();
+    } else if (!session.requirePin) {
+      void goAheadWithoutPin(permission, target).then((approved) => approved && next());
     } else {
       open({ permission, target, done: (approved) => approved && next() });
     }
@@ -55,6 +86,9 @@ export function useApproval(): {
   function confirm(permission: Permission, target?: ApprovalTarget): Promise<boolean> {
     if (session.can(permission)) {
       return Promise.resolve(true);
+    }
+    if (!session.requirePin) {
+      return goAheadWithoutPin(permission, target);
     }
     return new Promise((resolve) => open({ permission, target, done: resolve }));
   }

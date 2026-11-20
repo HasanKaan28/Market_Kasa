@@ -8,6 +8,11 @@ export type Session = {
   staff: StaffRecord | null;
   /** No staff are set up yet: the app runs as it did before, with every permission. */
   open: boolean;
+  /**
+   * The market asks for PINs ("PIN sor"). Off, nobody types one: the person at the register is
+   * picked with one tap, and an action they may not do goes ahead, logged as done without a PIN.
+   */
+  requirePin: boolean;
   can(permission: Permission): boolean;
   signIn(staff: StaffRecord): void;
   signOut(): void;
@@ -18,6 +23,7 @@ export const SessionContext = createContext<Session | null>(null);
 const OPEN_SESSION: Session = {
   staff: null,
   open: true,
+  requirePin: false,
   can: () => true,
   signIn: () => {},
   signOut: () => {},

@@ -1,8 +1,16 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { useActor } from '@/app/actor';
 import { useData } from '@/app/appData';
+import { useMarketSettings } from '@/app/marketSettings';
 import { LastOwnerError } from '@/data/errors';
-import { archiveStaff, createStaff, restoreStaff, setStaffPin, updateStaff } from '@/data/staff';
+import {
+  archiveStaff,
+  createStaff,
+  resetStaffPin,
+  restoreStaff,
+  setStaffPin,
+  updateStaff,
+} from '@/data/staff';
 import type { StaffRecord } from '@/data/types';
 import { Button, Dialog, SelectField, TextField } from '@/design';
 import {
@@ -20,6 +28,8 @@ import { isValidNewPin, isValidPin } from '@/domain/pin';
 /** Owners and managers open everything: a PIN set for them now is six digits. */
 const LONG_PIN_HINT = 'Sahip ve yönetici için 6 rakam.';
 const PROMOTION_PIN_HINT = 'Yönetici ve sahip için 6 rakamlı yeni PIN gerekir.';
+/** While the market asks for no PIN, nobody has to type one. */
+const OPTIONAL_PIN_HINT = 'İsteğe bağlı. PIN sor açılırsa gerekir.';
 
 const opensEverything = (role: Role) => role === 'owner' || role === 'manager';
 
@@ -37,7 +47,11 @@ type Overrides = Partial<Record<Permission, boolean>>;
 
 const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }));
 
-/** Adds a person, or changes one: name, role, own permissions, PIN, and whether they still work here. */
+/**
+ * Adds a person, or changes one: name, role, own permissions, PIN, and whether they still work here.
+ * While the market asks for no PIN, adding a person or making them a manager or an owner needs
+ * none: left blank, a hidden one is kept, for the owner to replace before the PIN is turned on.
+ */
 export function StaffDialog({
   open,
   person,
@@ -47,6 +61,7 @@ export function StaffDialog({
 }: StaffDialogProps): JSX.Element {
   const { db } = useData();
   const actor = useActor();
+  const { requirePin } = useMarketSettings();
   const [name, setName] = useState(person?.name ?? '');
   const [role, setRole] = useState<Role>(person?.role ?? (first ? 'owner' : 'cashier'));
   const [overrides, setOverrides] = useState<Overrides>(person?.permissions ?? {});
@@ -79,10 +94,18 @@ export function StaffDialog({
     }
   }
 
-  /** Checks the PIN typed for a person of `pinRole`; true when something is wrong. */
-  function pinProblems(pinRole: Role): boolean {
+  // Nothing typed in either PIN field, where a PIN may be left out.
+  const noPin = !requirePin && pin === '' && pinAgain === '';
+
+  /**
+   * Checks the PIN typed for a person of `pinRole`; true when something is wrong. With `optional`,
+   * no PIN at all is fine.
+   */
+  function pinProblems(pinRole: Role, optional = false): boolean {
     const found: typeof errors = {};
-    if (!isValidPin(pin)) {
+    if (optional && noPin) {
+      // Left out: a hidden one is kept.
+    } else if (!isValidPin(pin)) {
       found.pin = opensEverything(pinRole)
         ? 'Sahip ve yönetici PIN’i 6 rakamdır.'
         : 'PIN 4–6 rakamdır.';
@@ -101,13 +124,18 @@ export function StaffDialog({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!person) {
-      if (pinProblems(role)) {
+      if (pinProblems(role, true)) {
         return;
       }
       void run(async () => {
         const created = await createStaff(
           db,
-          { name, role, pin, permissions: overridesFor(role, overrides) },
+          {
+            name,
+            role,
+            ...(noPin ? {} : { pin }),
+            permissions: overridesFor(role, overrides),
+          },
           new Date(),
           actor,
         );
@@ -119,12 +147,15 @@ export function StaffDialog({
       setErrors({ name: 'Ad gerekli.' });
       return;
     }
-    if (promoting && pinProblems(role)) {
+    if (promoting && pinProblems(role, true)) {
       return;
     }
     void run(async () => {
       // The new PIN first: a promotion never goes through with the old, possibly short, PIN.
-      if (promoting) {
+      // Without one typed, the old PIN is replaced by a hidden one.
+      if (promoting && noPin) {
+        await resetStaffPin(db, person.id, new Date(), actor);
+      } else if (promoting) {
         await setStaffPin(db, person.id, pin, new Date(), actor);
       }
       await updateStaff(
@@ -231,7 +262,7 @@ export function StaffDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <PinFields
               label="Yeni PIN"
-              hint={PROMOTION_PIN_HINT}
+              hint={requirePin ? PROMOTION_PIN_HINT : OPTIONAL_PIN_HINT}
               pin={pin}
               pinAgain={pinAgain}
               errors={errors}
@@ -244,7 +275,9 @@ export function StaffDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <PinFields
               label="PIN"
-              hint={opensEverything(role) ? LONG_PIN_HINT : undefined}
+              hint={
+                !requirePin ? OPTIONAL_PIN_HINT : opensEverything(role) ? LONG_PIN_HINT : undefined
+              }
               pin={pin}
               pinAgain={pinAgain}
               errors={errors}
@@ -302,7 +335,7 @@ export function StaffDialog({
         <div className="flex flex-wrap gap-2">
           {person && !changingPin ? (
             <Button disabled={promoting} onClick={() => setChangingPin(true)}>
-              PIN’i değiştir
+              {person.pinSet === false ? 'PIN ver' : 'PIN’i değiştir'}
             </Button>
           ) : null}
           {person ? (

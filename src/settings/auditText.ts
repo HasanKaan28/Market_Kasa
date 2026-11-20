@@ -41,6 +41,9 @@ export function describeAudit(record: AuditRecord, names: AuditNames): string {
           ? `Otomatik kilit ${lockLabel(before.idleLockMinutes)} → ${lockLabel(after.idleLockMinutes)}`
           : null,
         'scale' in after ? 'Terazi ayarı değişti' : null,
+        'requirePin' in after
+          ? `PIN sor ${onOff(before.requirePin)} → ${onOff(after.requirePin)}`
+          : null,
       ].filter((part) => part !== null);
       return parts.length > 0 ? parts.join(', ') : 'Market ayarı değişti';
     }
@@ -57,7 +60,10 @@ export function describeAudit(record: AuditRecord, names: AuditNames): string {
     case 'approval': {
       const label = PERMISSION_LABELS[after.permission as Permission] ?? String(after.permission);
       const summary = typeof after.summary === 'string' ? ` · ${after.summary}` : '';
-      return `${label} onayı${summary} · onaylayan ${names.staff(String(after.approverId))}`;
+      const who = names.staff(String(after.approverId));
+      return after.pinless === true
+        ? `${label} (PIN sorulmadı)${summary} · yapan ${who}`
+        : `${label} onayı${summary} · onaylayan ${who}`;
     }
     case 'purchase.reverse': {
       const invoice =
@@ -92,6 +98,11 @@ function price(amount: unknown): string {
 
 function lockLabel(minutes: unknown): string {
   return minutes === 0 ? 'Kapalı' : typeof minutes === 'number' ? `${minutes} dk` : '—';
+}
+
+/** A setting that is on or off; absent counts as off. */
+function onOff(value: unknown): string {
+  return value === true ? 'açık' : 'kapalı';
 }
 
 /** "+₺25,00" added, "−₺25,00" taken off. */

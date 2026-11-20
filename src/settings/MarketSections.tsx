@@ -7,6 +7,7 @@ import { finishPairing } from '@/app/finishPairing';
 import { reopenWelcome } from '@/app/welcome';
 import { loadLicense } from '@/app/license';
 import { useMarketSettings } from '@/app/marketSettings';
+import { useSession } from '@/app/session';
 import { currentCashSession } from '@/data/cash';
 import { pendingCount } from '@/data/outbox';
 import {
@@ -15,6 +16,8 @@ import {
   isValidIdleLock,
   saveMarketSettings,
 } from '@/data/settings';
+import { listStaff, setStaffPin } from '@/data/staff';
+import { isValidNewPin } from '@/domain/pin';
 import { formatTRY, parseTRY } from '@/domain/money';
 import { MAX_UNIT_PRICE } from '@/domain/pricing';
 import { formatPriceInput } from '@/pos/format';
@@ -113,6 +116,141 @@ export function MarketSection({ onDone }: { onDone(message: string): void }): JS
     </SettingsSection>
   );
 }
+
+/**
+ * "PIN sor", the same on every register: whether anyone types a PIN. Turning it on, the person
+ * doing it gives themselves a PIN in the same step when theirs was made up by the app, so they
+ * are not locked out; the others without one are named, for the owner to give them one.
+ */
+export function PinSection({ onDone }: { onDone(message: string): void }): JSX.Element {
+  const { db } = useData();
+  const actor = useActor();
+  const session = useSession();
+  const { requirePin } = useMarketSettings();
+  const people = useLiveQuery(() => listStaff(db, { active: true }), [db]);
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const [pin, setPin] = useState('');
+  const [pinAgain, setPinAgain] = useState('');
+  const [errors, setErrors] = useState<{ pin?: string; pinAgain?: string }>({});
+  const [failure, setFailure] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const value = chosen ?? requirePin;
+  const turningOn = value && !requirePin;
+  // The person at the register, as the session has them: known before the staff list loads.
+  const me = session.staff;
+  const myPinNeeded = turningOn && me?.pinSet === false;
+  const withoutPin = (people ?? []).filter(
+    (person) => person.pinSet === false && person.id !== me?.id,
+  );
+
+  function pinProblems(): boolean {
+    const found: typeof errors = {};
+    if (me && !isValidNewPin(pin, me.role)) {
+      found.pin = isPrivilegedRole(me.role)
+        ? 'Sahip ve yönetici PIN’i 6 rakamdır.'
+        : 'PIN 4–6 rakamdır.';
+    } else if (pin !== pinAgain) {
+      found.pinAgain = 'PIN’ler aynı değil.';
+    }
+    setErrors(found);
+    return Object.keys(found).length > 0;
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || (myPinNeeded && pinProblems())) {
+      return;
+    }
+    setSaving(true);
+    setFailure(undefined);
+    try {
+      if (turningOn && me) {
+        // The PIN first, then the day starts again from now, then the setting: whoever turns it
+        // on stays at the register and can sign in again.
+        const updated = myPinNeeded ? await setStaffPin(db, me.id, pin, new Date(), actor) : me;
+        session.signIn(updated);
+      }
+      await saveMarketSettings(db, { requirePin: value }, new Date(), actor);
+      setChosen(null);
+      setPin('');
+      setPinAgain('');
+      setErrors({});
+      onDone(value ? 'PIN sor açıldı.' : 'PIN sor kapatıldı.');
+    } catch {
+      setFailure('Kaydedilemedi.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="pin-heading"
+      title="PIN sor"
+      description="Açıkken kasaya girişte ve yetki gereken işlemlerde PIN sorulur. Kapalıyken kimse PIN girmez; kasadaki kişi üstteki “Kişi değiştir” ile seçilir."
+    >
+      <form noValidate className="flex flex-col gap-3" onSubmit={(event) => void save(event)}>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={value}
+            onChange={(event) => {
+              setChosen(event.target.checked);
+              setErrors({});
+            }}
+            className="size-5 accent-accent"
+          />
+          PIN sor
+        </label>
+        {myPinNeeded ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm">Önce kendinize bir PIN belirleyin, yoksa kasaya giremezsiniz.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField
+                label="PIN’iniz"
+                hint={me && isPrivilegedRole(me.role) ? '6 rakam.' : '4–6 rakam.'}
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                maxLength={6}
+                value={pin}
+                error={errors.pin}
+                onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
+              />
+              <TextField
+                label="PIN tekrar"
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                maxLength={6}
+                value={pinAgain}
+                error={errors.pinAgain}
+                onChange={(event) => setPinAgain(event.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+          </div>
+        ) : null}
+        {value && withoutPin.length > 0 ? (
+          <p className="text-sm text-text-2">
+            {`PIN’i olmayanlar: ${withoutPin.map((person) => person.name).join(', ')}. Giriş yapabilmeleri için Personel’den PIN verin.`}
+          </p>
+        ) : null}
+        {failure ? (
+          <p role="alert" className="font-medium text-danger">
+            {failure}
+          </p>
+        ) : null}
+        <div>
+          <Button type="submit" disabled={saving || value === requirePin}>
+            PIN ayarını kaydet
+          </Button>
+        </div>
+      </form>
+    </SettingsSection>
+  );
+}
+
+const isPrivilegedRole = (role: string) => role === 'owner' || role === 'manager';
 
 const IDLE_LOCK_OPTIONS = IDLE_LOCK_CHOICES.map((minutes) => ({
   value: String(minutes),

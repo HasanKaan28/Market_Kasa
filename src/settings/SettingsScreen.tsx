@@ -4,6 +4,7 @@ import { useState, type JSX } from 'react';
 import { useData, useSyncStatus } from '@/app/appData';
 import { AppShell } from '@/app/AppShell';
 import { APP_VERSION } from '@/app/version';
+import { useMarketSettings } from '@/app/marketSettings';
 import { useSession } from '@/app/session';
 import { listStaff } from '@/data/staff';
 import { Button, ToastRegion, useToast } from '@/design';
@@ -16,6 +17,7 @@ import {
   LicenseSection,
   LockSection,
   MarketSection,
+  PinSection,
   ReceiptSection,
   RegisterSection,
 } from './MarketSections';
@@ -28,6 +30,7 @@ export function SettingsScreen(): JSX.Element {
   const { db, settings, runner } = useData();
   const status = useSyncStatus(runner);
   const session = useSession();
+  const { requirePin } = useMarketSettings();
   const toast = useToast();
   const people = useLiveQuery(() => listStaff(db), [db]);
   const [dialog, setDialog] = useState<{ kind: 'new' } | { kind: 'edit'; id: string } | null>(null);
@@ -58,7 +61,9 @@ export function SettingsScreen(): JSX.Element {
         <ScaleSection onDone={(message) => done(message)} />
         <UpdateSection version={APP_VERSION} {...updateTarget()} />
         <BackupSection />
-        <LockSection onDone={(message) => done(message)} />
+        <PinSection onDone={(message) => done(message)} />
+        {/* The idle lock asks for the PIN: without PINs it has nothing to do. */}
+        {requirePin ? <LockSection onDone={(message) => done(message)} /> : null}
         <section
           aria-labelledby="staff-heading"
           className="flex flex-col gap-3 rounded-control border border-line bg-surface p-4"
@@ -69,8 +74,9 @@ export function SettingsScreen(): JSX.Element {
                 Personel
               </h2>
               <p className="text-sm text-text-2">
-                Her kişi kasaya kendi PIN'iyle girer; izinler rolden gelir, kişiye göre
-                değiştirilebilir.
+                {requirePin
+                  ? 'Her kişi kasaya kendi PIN’iyle girer; izinler rolden gelir, kişiye göre değiştirilebilir.'
+                  : 'Kasadaki kişi üstteki “Kişi değiştir” ile seçilir; izinler rolden gelir, kişiye göre değiştirilebilir.'}
               </p>
             </div>
             <Button
@@ -83,7 +89,9 @@ export function SettingsScreen(): JSX.Element {
           </div>
           {people === undefined ? null : people.length === 0 ? (
             <p className="text-text-2">
-              Henüz personel yok. İlk eklenen kişi sahip olur; ondan sonra kasa PIN ile açılır.
+              {requirePin
+                ? 'Henüz personel yok. İlk eklenen kişi sahip olur; ondan sonra kasa PIN ile açılır.'
+                : 'Henüz personel yok. İlk eklenen kişi sahip olur.'}
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-line">
@@ -96,6 +104,11 @@ export function SettingsScreen(): JSX.Element {
                   >
                     <span className="font-medium">{person.name}</span>
                     <span className="text-sm text-text-2">{ROLE_LABELS[person.role]}</span>
+                    {requirePin && person.pinSet === false && !person.archivedAt ? (
+                      <span className="ml-auto rounded-chip bg-bg px-2 py-0.5 text-sm text-danger">
+                        PIN yok
+                      </span>
+                    ) : null}
                     {person.archivedAt ? (
                       <span className="ml-auto rounded-chip bg-bg px-2 py-0.5 text-sm text-muted">
                         Pasif

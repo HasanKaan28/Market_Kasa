@@ -213,6 +213,38 @@ describe('an approval bound to what it was for', () => {
     ]);
   });
 
+  it('marks an action let through without a PIN', async () => {
+    await recordApproval(
+      db,
+      {
+        permission: 'discount',
+        approverId: 'staff-cashier',
+        entity: 'cart',
+        amount: 500,
+        summary: 'Sepet indirimi ₺5,00',
+        pinless: true,
+      },
+      at,
+      { deviceCode: 'K1', staffId: 'staff-cashier' },
+    );
+    expect(await entries()).toEqual([
+      {
+        action: 'approval',
+        entityId: undefined,
+        staffId: 'staff-cashier',
+        before: undefined,
+        after: {
+          permission: 'discount',
+          approverId: 'staff-cashier',
+          entity: 'cart',
+          amount: 500,
+          summary: 'Sepet indirimi ₺5,00',
+          pinless: true,
+        },
+      },
+    ]);
+  });
+
   it('records a hand-made change to what a supplier is owed', async () => {
     const eti = await createSupplier(db, { name: 'Eti' }, at);
     const entry = await recordSupplierAdjustment(

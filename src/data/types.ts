@@ -220,6 +220,12 @@ export type StaffRecord = {
   pinHash: string;
   pinSalt: string;
   pinIterations: number;
+  /**
+   * False when the PIN was made up by the app and never shown (a person added while the market
+   * asks for no PIN): nobody knows it, so the owner sets one before the PIN is turned on. Absent
+   * means a PIN someone typed.
+   */
+  pinSet?: boolean;
   createdAt: string;
   updatedAt: string;
   /** Set when the person no longer works here: they cannot sign in. */
@@ -365,6 +371,8 @@ export type MarketSettingsRecord = {
   newCustomerLimit?: Kurus;
   /** Minutes an owner's or a manager's idle session stays open: 0 (never locks), 3, 10 or 30. */
   idleLockMinutes?: number;
+  /** Whether a PIN is asked to sign in, to switch person and to approve; absent means no. */
+  requirePin?: boolean;
   createdAt: string;
   updatedAt: string;
 };

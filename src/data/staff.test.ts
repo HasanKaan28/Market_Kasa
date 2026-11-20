@@ -8,6 +8,7 @@ import {
   checkPin,
   createStaff,
   listStaff,
+  resetStaffPin,
   restoreStaff,
   setStaffPin,
   updateStaff,
@@ -127,5 +128,40 @@ describe('staff', () => {
     await expect(setStaffPin(db, kaan.id, '1111', minutes(3))).rejects.toThrow(RangeError);
     await setStaffPin(db, ayse.id, '999999', minutes(4));
     expect(await checkPin(db, ayse.id, '999999', minutes(5))).toMatchObject({ ok: true });
+  });
+
+  it('adds a person without a PIN: a hidden random one is kept, marked as not set', async () => {
+    const kaan = await createStaff(db, { name: 'Kaan', role: 'owner' }, at);
+    expect(kaan.pinSet).toBe(false);
+    // The server refuses a staff row without a PIN hash.
+    expect(kaan.pinHash).not.toBe('');
+    expect(kaan.pinIterations).toBeGreaterThanOrEqual(100_000);
+    const ayse = await createStaff(db, { name: 'Ayşe', role: 'cashier' }, at);
+    expect(ayse.pinSet).toBe(false);
+    expect(ayse.pinSalt).not.toBe(kaan.pinSalt);
+    const [insert] = (await pendingOps(db)).filter(
+      (op) => op.table === 'staff' && op.recordId === ayse.id,
+    );
+    expect(insert).toMatchObject({ record: { pinSet: false, pinHash: ayse.pinHash } });
+    // A PIN typed when adding is known: nothing marks it.
+    const veli = await createStaff(db, { name: 'Veli', role: 'cashier', pin: '1234' }, at);
+    expect(veli.pinSet).toBeUndefined();
+  });
+
+  it('marks a PIN as set once the owner gives one', async () => {
+    await owner();
+    const ayse = await createStaff(db, { name: 'Ayşe', role: 'cashier' }, at);
+    const given = await setStaffPin(db, ayse.id, '1234', minutes(1));
+    expect(given.pinSet).toBeUndefined();
+    expect((await db.staff.get(ayse.id))?.pinSet).toBeUndefined();
+    expect(await checkPin(db, ayse.id, '1234', minutes(2))).toMatchObject({ ok: true });
+  });
+
+  it('replaces a PIN with a hidden one when it is dropped', async () => {
+    await owner();
+    const ayse = await createStaff(db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, at);
+    const dropped = await resetStaffPin(db, ayse.id, minutes(1));
+    expect(dropped.pinSet).toBe(false);
+    expect(await checkPin(db, ayse.id, '1234', minutes(2))).toMatchObject({ reason: 'wrong' });
   });
 });

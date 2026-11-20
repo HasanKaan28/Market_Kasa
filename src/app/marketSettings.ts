@@ -13,6 +13,7 @@ const UNTIL_LOADED: MarketSettings = {
   scale: DEFAULT_SCALE,
   newCustomerLimit: DEFAULT_NEW_CUSTOMER_LIMIT,
   idleLockMinutes: DEFAULT_IDLE_LOCK_MINUTES,
+  requirePin: false,
 };
 
 /** The market's settings as they stand, following a change made here or on another register. */

@@ -1,5 +1,5 @@
 import { PERMISSIONS, ROLES, type Permission, type Role } from '@/domain/permissions';
-import { hashPin, isValidNewPin, verifyPin } from '@/domain/pin';
+import { hashPin, isValidNewPin, randomPin, verifyPin } from '@/domain/pin';
 import { addAudit, auditChange, type Actor } from './audit';
 import type { MarketDb } from './db';
 import { LastOwnerError, RecordNotFoundError } from './errors';
@@ -11,7 +11,11 @@ import type { StaffRecord } from './types';
 export type NewStaff = {
   name: string;
   role: Role;
-  pin: string;
+  /**
+   * The person's PIN. Left out while the market asks for no PIN: a random one is hashed in its
+   * place, never shown, and the person is marked `pinSet: false` until the owner gives one.
+   */
+  pin?: string;
   permissions?: Partial<Record<Permission, boolean>>;
 };
 
@@ -33,8 +37,9 @@ const byName = new Intl.Collator('tr');
 const lockKey = (staffId: string) => `pinLock:${staffId}`;
 
 /**
- * Adds a person with their PIN, kept only as a hash. While the market has no active owner, the
- * person added must be one: the first person set up is the owner.
+ * Adds a person with their PIN, kept only as a hash, or with a hidden random one when no PIN is
+ * given. While the market has no active owner, the person added must be one: the first person
+ * set up is the owner.
  */
 export async function createStaff(
   db: MarketDb,
@@ -46,7 +51,10 @@ export async function createStaff(
   assertRole(input.role);
   const permissions = cleanPermissions(input.permissions);
   // Hashed before the transaction: IndexedDB commits a transaction left waiting on other work.
-  const pin = await hashPin(requirePin(input.pin, input.role));
+  const known = input.pin !== undefined;
+  const pin = await hashPin(
+    input.pin === undefined ? randomPin() : requirePin(input.pin, input.role),
+  );
   const stamp = at.toISOString();
   const record: StaffRecord = withoutUndefined({
     id: newId(at.getTime()),
@@ -56,6 +64,7 @@ export async function createStaff(
     pinHash: pin.hash,
     pinSalt: pin.salt,
     pinIterations: pin.iterations,
+    pinSet: known ? undefined : false,
     createdAt: stamp,
     updatedAt: stamp,
   });
@@ -121,7 +130,7 @@ export async function updateStaff(
   });
 }
 
-/** Gives a person a new PIN, which also lifts a lock from wrong PINs. */
+/** Gives a person a new PIN, which also lifts a lock from wrong PINs and marks it as known. */
 export async function setStaffPin(
   db: MarketDb,
   id: string,
@@ -137,7 +146,45 @@ export async function setStaffPin(
     const updated = await save(
       db,
       current,
-      { pinHash: hashed.hash, pinSalt: hashed.salt, pinIterations: hashed.iterations },
+      {
+        pinHash: hashed.hash,
+        pinSalt: hashed.salt,
+        pinIterations: hashed.iterations,
+        pinSet: undefined,
+      },
+      at,
+    );
+    if (actor) {
+      await addAudit(db, { action: 'staff.pin', entity: 'staff', entityId: id }, actor, at);
+    }
+    return updated;
+  });
+}
+
+/**
+ * Replaces a person's PIN with a hidden random one, marked as not set: for an owner or a
+ * manager made one while the market asks for no PIN, whose old PIN may be short. The owner gives
+ * them a PIN before the PIN is turned on.
+ */
+export async function resetStaffPin(
+  db: MarketDb,
+  id: string,
+  at: Date,
+  actor?: Actor,
+): Promise<StaffRecord> {
+  const hashed = await hashPin(randomPin());
+  return db.transaction('rw', db.staff, db.outbox, db.meta, db.auditLog, async () => {
+    const current = await requireStaff(db, id);
+    await db.meta.delete(lockKey(id));
+    const updated = await save(
+      db,
+      current,
+      {
+        pinHash: hashed.hash,
+        pinSalt: hashed.salt,
+        pinIterations: hashed.iterations,
+        pinSet: false,
+      },
       at,
     );
     if (actor) {

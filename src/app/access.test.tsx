@@ -21,8 +21,15 @@ import { SessionProvider } from './SessionProvider';
 const milk = { barcode: '8690000000017', name: 'Süt', sellPrice: 4250, vatRate: 1 } as const;
 const before = () => new Date(Date.now() - 60_000);
 
-async function team() {
+/** A market that asks for PINs, as every test here but the last block expects. */
+async function pinMarket(): Promise<AppData> {
   const data = createTestData();
+  await saveMarketSettings(data.db, { requirePin: true }, before());
+  return data;
+}
+
+async function team({ requirePin = true }: { requirePin?: boolean } = {}) {
+  const data = requirePin ? await pinMarket() : createTestData();
   const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
   const mehmet = await createStaff(
     data.db,
@@ -359,7 +366,7 @@ describe('access', () => {
   });
 
   it('asks approval for a credit sale with its customer and amount', async () => {
-    const data = createTestData();
+    const data = await pinMarket();
     const kaan = await createStaff(
       data.db,
       { name: 'Kaan', role: 'owner', pin: '482100' },
@@ -397,7 +404,7 @@ describe('access', () => {
   });
 
   it('asks approval for the credit part of a split payment', async () => {
-    const data = createTestData();
+    const data = await pinMarket();
     await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
     const ayse = await createStaff(
       data.db,
@@ -525,5 +532,87 @@ describe('access', () => {
       await within(dialog).findByText('Bu işlemi onaylayabilecek kimse yok.'),
     ).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Onayla' })).toBeNull();
+  });
+});
+
+describe('access without PINs', () => {
+  it('gives a discount at once, logged as done without a PIN by the cashier', async () => {
+    const { data, ayse } = await team({ requirePin: false });
+    signedIn(ayse.id);
+    await register(data);
+    await userEvent.click(screen.getByRole('button', { name: 'İndirim' }));
+    const discount = await screen.findByRole('dialog', { name: 'Sepet indirimi' });
+    await userEvent.type(within(discount).getByLabelText('İndirim'), '5');
+    await userEvent.click(within(discount).getByRole('button', { name: 'Uygula' }));
+    await vi.waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('₺37,50'));
+    expect(screen.queryByRole('dialog', { name: 'Yetkili onayı' })).not.toBeInTheDocument();
+    expect(await data.db.auditLog.toArray()).toMatchObject([
+      {
+        action: 'approval',
+        staffId: ayse.id,
+        after: {
+          permission: 'discount',
+          approverId: ayse.id,
+          amount: 500,
+          summary: 'Sepet indirimi ₺5,00 · sepet ₺42,50',
+          pinless: true,
+        },
+      },
+    ]);
+  });
+
+  it('sells over the credit limit at once, logged as done without a PIN', async () => {
+    const { data, ayse } = await team({ requirePin: false });
+    signedIn(ayse.id);
+    const ahmet = await createCustomer(
+      data.db,
+      { name: 'Ahmet Yılmaz', creditLimit: 1000 },
+      before(),
+    );
+    await register(data);
+    await userEvent.click(screen.getByRole('button', { name: 'Veresiye' }));
+    await userEvent.type(await screen.findByLabelText('Müşteri ara'), 'ahmet');
+    await userEvent.click(await screen.findByRole('button', { name: /Ahmet Yılmaz/ }));
+    expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Yetkili onayı' })).not.toBeInTheDocument();
+    expect((await recentSales(data.db))[0]).toMatchObject({ staffId: ayse.id });
+    expect((await data.db.auditLog.toArray()).at(-1)).toMatchObject({
+      action: 'approval',
+      entityId: ahmet.id,
+      after: { permission: 'overLimit', approverId: ayse.id, pinless: true },
+    });
+  });
+
+  it('sells on credit for a cashier without that permission', async () => {
+    const data = createTestData();
+    await createStaff(data.db, { name: 'Kaan', role: 'owner' }, before());
+    const ayse = await createStaff(
+      data.db,
+      { name: 'Ayşe', role: 'cashier', permissions: { creditSale: false } },
+      before(),
+    );
+    signedIn(ayse.id);
+    await createCustomer(data.db, { name: 'Ahmet Yılmaz' }, before());
+    await register(data);
+    await userEvent.click(screen.getByRole('button', { name: 'Veresiye' }));
+    await userEvent.type(await screen.findByLabelText('Müşteri ara'), 'ahmet');
+    await userEvent.click(await screen.findByRole('button', { name: /Ahmet Yılmaz/ }));
+    expect(await screen.findByText(/Satış tamamlandı/)).toBeInTheDocument();
+    expect((await data.db.auditLog.toArray()).at(-1)).toMatchObject({
+      action: 'approval',
+      after: { permission: 'creditSale', approverId: ayse.id, pinless: true },
+    });
+  });
+
+  it('still hides the screens a person may not use', async () => {
+    const { data, ayse } = await team({ requirePin: false });
+    signedIn(ayse.id);
+    await renderWithData(
+      <SessionProvider>
+        <Screens route="reports" />
+      </SessionProvider>,
+      data,
+    );
+    expect(await screen.findByText('Bu ekran için yetkiniz yok.')).toBeInTheDocument();
   });
 });

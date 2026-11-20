@@ -24,6 +24,20 @@ export function isValidNewPin(pin: string, role: string): boolean {
 }
 
 /**
+ * A random six-digit PIN, for a person added while the market asks for no PIN: it is hashed and
+ * never shown, so the staff row always carries a PIN hash. Six digits fit any role.
+ */
+export function randomPin(): string {
+  // 2^32 is not a multiple of 10^6: values in the last partial block are drawn again.
+  const limit = Math.floor(0x1_0000_0000 / 1_000_000) * 1_000_000;
+  const value = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(value);
+  } while ((value[0] ?? 0) >= limit);
+  return String((value[0] ?? 0) % 1_000_000).padStart(6, '0');
+}
+
+/**
  * Hashes a PIN with PBKDF2-SHA256: a new random salt for each person, or the given one (base64)
  * to check a PIN against a stored hash.
  */

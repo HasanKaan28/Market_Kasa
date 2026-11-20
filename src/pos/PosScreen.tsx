@@ -206,8 +206,20 @@ export function PosScreen(): JSX.Element {
     if (session.can(permission)) {
       next();
     } else {
-      setDialog({ kind: 'approve', permission, next });
+      approval({ permission, next }, (asked) => setDialog({ kind: 'approve', ...asked }));
     }
+  }
+
+  // Shows `ask` to wait for a permitted person's PIN. While the market asks for no PIN, nothing
+  // waits: the person at the register goes ahead, logged as their own approval without a PIN.
+  function approval(request: Approval, ask: (request: Approval) => void) {
+    if (session.requirePin || !staff) {
+      ask(request);
+      return;
+    }
+    void approved(request, staff.id, true).then(request.next, () =>
+      toast.show('Onay kaydedilemedi. Yeniden deneyin.'),
+    );
   }
 
   async function handleScan(code: string) {
@@ -250,17 +262,19 @@ export function PosScreen(): JSX.Element {
         ? ((await db.customers.get(extra.customerId))?.name ?? 'Müşteri')
         : 'Müşteri';
     if (credit > 0 && !extra.creditApproved && !session.can('creditSale')) {
-      setDialog({
-        kind: 'approve',
-        permission: 'creditSale',
-        target: {
-          entity: 'customer',
-          entityId: extra.customerId,
-          amount: credit,
-          summary: `${customerName}: veresiye ${formatTRY(credit)} · sepet ${formatTRY(cartTotals(cart).total)}`,
+      approval(
+        {
+          permission: 'creditSale',
+          target: {
+            entity: 'customer',
+            entityId: extra.customerId,
+            amount: credit,
+            summary: `${customerName}: veresiye ${formatTRY(credit)} · sepet ${formatTRY(cartTotals(cart).total)}`,
+          },
+          next: () => void pay(payments, { ...extra, creditApproved: true }),
         },
-        next: () => void pay(payments, { ...extra, creditApproved: true }),
-      });
+        (asked) => setDialog({ kind: 'approve', ...asked }),
+      );
       return;
     }
     setBusy(true);
@@ -287,17 +301,19 @@ export function PosScreen(): JSX.Element {
       // Over the limit, a permitted person may let the sale through; with no staff set up there
       // is nobody to ask, and the sale is refused as before.
       if (error instanceof CreditLimitError && !extra.allowOverLimit && !session.open) {
-        setDialog({
-          kind: 'approve',
-          permission: 'overLimit',
-          target: {
-            entity: 'customer',
-            entityId: extra.customerId,
-            amount: credit,
-            summary: `${customerName}: limit aşımı · veresiye ${formatTRY(credit)}`,
+        approval(
+          {
+            permission: 'overLimit',
+            target: {
+              entity: 'customer',
+              entityId: extra.customerId,
+              amount: credit,
+              summary: `${customerName}: limit aşımı · veresiye ${formatTRY(credit)}`,
+            },
+            next: () => void pay(payments, { ...extra, allowOverLimit: true }),
           },
-          next: () => void pay(payments, { ...extra, allowOverLimit: true }),
-        });
+          (asked) => setDialog({ kind: 'approve', ...asked }),
+        );
         return;
       }
       if (error instanceof StaleCartError) {
@@ -361,8 +377,13 @@ export function PosScreen(): JSX.Element {
   }
 
   // Written down before the approved action goes ahead, with what it was approved for.
-  async function approved({ permission, target }: Approval, approverId: string) {
-    await recordApproval(db, { permission, approverId, ...target }, new Date(), actor);
+  async function approved({ permission, target }: Approval, approverId: string, pinless = false) {
+    await recordApproval(
+      db,
+      { permission, approverId, ...target, ...(pinless ? { pinless } : {}) },
+      new Date(),
+      actor,
+    );
   }
 
   function finish(message: string) {
@@ -481,16 +502,19 @@ export function PosScreen(): JSX.Element {
               apply();
               return;
             }
-            setOverlay({
-              permission: 'discount',
-              target: {
-                entity: 'cart',
-                entityId: cart.id,
-                amount,
-                summary: `Sepet indirimi ${formatTRY(amount)} · sepet ${formatTRY(base)}`,
+            approval(
+              {
+                permission: 'discount',
+                target: {
+                  entity: 'cart',
+                  entityId: cart.id,
+                  amount,
+                  summary: `Sepet indirimi ${formatTRY(amount)} · sepet ${formatTRY(base)}`,
+                },
+                next: apply,
               },
-              next: apply,
-            });
+              setOverlay,
+            );
           }}
         />
       ) : null}

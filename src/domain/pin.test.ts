@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPin, isValidPin, isValidNewPin, verifyPin } from './pin';
+import { hashPin, isValidPin, isValidNewPin, randomPin, verifyPin } from './pin';
 
 function bytes(base64: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
@@ -9,6 +9,12 @@ describe('PIN', () => {
   it('accepts only four to six digits', () => {
     expect(['1234', '123456', '0000'].every(isValidPin)).toBe(true);
     expect(['123', '1234567', '12a4', ' 1234', '١٢٣٤', ''].some(isValidPin)).toBe(false);
+  });
+
+  it('makes a random six-digit PIN that any role accepts', () => {
+    const pins = Array.from({ length: 20 }, () => randomPin());
+    expect(pins.every((pin) => /^\d{6}$/.test(pin) && isValidNewPin(pin, 'owner'))).toBe(true);
+    expect(new Set(pins).size).toBeGreaterThan(1);
   });
 
   it('asks six digits of a new owner or manager PIN', () => {

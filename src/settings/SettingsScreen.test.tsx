@@ -6,7 +6,7 @@ import { SessionProvider } from '@/app/SessionProvider';
 import { closeCashSession, openCashSession } from '@/data/cash';
 import { createProduct } from '@/data/products';
 import { recordSale } from '@/data/sales';
-import { loadMarketSettings } from '@/data/settings';
+import { loadMarketSettings, saveMarketSettings } from '@/data/settings';
 import { checkPin, createStaff, updateStaff } from '@/data/staff';
 import { createTestData, renderWithData } from '@/test/renderWithData';
 
@@ -17,6 +17,7 @@ async function team() {
   const data = createTestData();
   const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
   const ayse = await createStaff(data.db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, before());
+  await saveMarketSettings(data.db, { requirePin: true }, before());
   return { data, kaan, ayse };
 }
 
@@ -50,6 +51,7 @@ describe('SettingsScreen', () => {
 
   it('adds the first person as the owner and signs them in', async () => {
     const data = createTestData();
+    await saveMarketSettings(data.db, { requirePin: true }, before());
     await settingsAs(data);
     expect(await screen.findByRole('heading', { name: 'Ayarlar', level: 1 })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Yeni personel' }));
@@ -312,5 +314,121 @@ describe('SettingsScreen', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Market ayarını kaydet' }));
     expect(await within(log).findByText('Gün dönümü 00:00 → 02:00')).toBeInTheDocument();
     expect(within(log).getAllByText('Kaan')).toHaveLength(2);
+  });
+});
+
+describe('SettingsScreen without PINs', () => {
+  it('adds the first owner and a cashier without asking for a PIN', async () => {
+    const data = createTestData();
+    await settingsAs(data);
+    await userEvent.click(await screen.findByRole('button', { name: 'Yeni personel' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Yeni personel' });
+    expect(within(dialog).getByLabelText('Rol')).toHaveValue('owner');
+    await userEvent.type(within(dialog).getByLabelText('Ad'), 'Emin');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByText('Emin eklendi.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Kişi değiştir' })).toBeInTheDocument();
+    const [emin] = await data.db.staff.toArray();
+    expect(emin).toMatchObject({ name: 'Emin', role: 'owner', pinSet: false });
+    expect(emin?.pinHash).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Yeni personel' }));
+    dialog = await screen.findByRole('dialog', { name: 'Yeni personel' });
+    await userEvent.type(within(dialog).getByLabelText('Ad'), 'Ayşe');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByText('Ayşe eklendi.')).toBeInTheDocument();
+    const ayse = (await data.db.staff.toArray()).find((person) => person.name === 'Ayşe');
+    expect(ayse).toMatchObject({ role: 'cashier', pinSet: false });
+  });
+
+  it('still checks a PIN typed when adding a person', async () => {
+    const data = createTestData();
+    await createStaff(data.db, { name: 'Emin', role: 'owner' }, before());
+    await settingsAs(data);
+    await userEvent.click(await screen.findByRole('button', { name: 'Yeni personel' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni personel' });
+    await userEvent.type(within(dialog).getByLabelText('Ad'), 'Ayşe');
+    await userEvent.type(within(dialog).getByLabelText('PIN'), '12');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await within(dialog).findByText('PIN 4–6 rakamdır.')).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByLabelText('PIN'), '34');
+    await userEvent.type(within(dialog).getByLabelText('PIN tekrar'), '1234');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByText('Ayşe eklendi.')).toBeInTheDocument();
+    const ayse = (await data.db.staff.toArray()).find((person) => person.name === 'Ayşe');
+    expect(ayse?.pinSet).toBeUndefined();
+    expect(await checkPin(data.db, ayse?.id ?? '', '1234', new Date())).toMatchObject({ ok: true });
+  });
+
+  it('makes a cashier a manager without a new PIN', async () => {
+    const data = createTestData();
+    const emin = await createStaff(data.db, { name: 'Emin', role: 'owner' }, before());
+    const ayse = await createStaff(
+      data.db,
+      { name: 'Ayşe', role: 'cashier', pin: '1234' },
+      before(),
+    );
+    await settingsAs(data, emin.id);
+    await userEvent.click(await screen.findByRole('button', { name: /Ayşe/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ayşe' });
+    await userEvent.selectOptions(within(dialog).getByLabelText('Rol'), 'Yönetici');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await vi.waitFor(async () =>
+      expect(await data.db.staff.get(ayse.id)).toMatchObject({ role: 'manager', pinSet: false }),
+    );
+    // The short cashier PIN does not open a manager's register once the PIN is turned on.
+    expect(await checkPin(data.db, ayse.id, '1234', new Date())).toMatchObject({ ok: false });
+  });
+
+  it('hides the idle lock while no PIN is asked', async () => {
+    const data = createTestData();
+    const emin = await createStaff(data.db, { name: 'Emin', role: 'owner' }, before());
+    await settingsAs(data, emin.id);
+    const section = await screen.findByRole('region', { name: 'PIN sor' });
+    expect(within(section).getByRole('checkbox', { name: 'PIN sor' })).not.toBeChecked();
+    expect(screen.queryByRole('region', { name: 'Otomatik kilit' })).not.toBeInTheDocument();
+  });
+
+  it("turns the PIN on, setting the owner's own PIN in the same step", async () => {
+    const data = createTestData();
+    const emin = await createStaff(data.db, { name: 'Emin', role: 'owner' }, before());
+    await createStaff(data.db, { name: 'Ayşe', role: 'cashier' }, before());
+    await settingsAs(data, emin.id);
+    const section = await screen.findByRole('region', { name: 'PIN sor' });
+    await userEvent.click(within(section).getByRole('checkbox', { name: 'PIN sor' }));
+    // Ayşe has no PIN of her own yet: she is named, for the owner to give her one.
+    expect(within(section).getByText(/Ayşe/)).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'PIN ayarını kaydet' }));
+    expect(
+      await within(section).findByText('Sahip ve yönetici PIN’i 6 rakamdır.'),
+    ).toBeInTheDocument();
+    expect(await loadMarketSettings(data.db)).toMatchObject({ requirePin: false });
+    await userEvent.type(within(section).getByLabelText('PIN’iniz'), '135790');
+    await userEvent.type(within(section).getByLabelText('PIN tekrar'), '135790');
+    await userEvent.click(within(section).getByRole('button', { name: 'PIN ayarını kaydet' }));
+    expect(await screen.findByText('PIN sor açıldı.')).toBeInTheDocument();
+    expect(await loadMarketSettings(data.db)).toMatchObject({ requirePin: true });
+    expect(await checkPin(data.db, emin.id, '135790', new Date())).toMatchObject({ ok: true });
+    expect((await data.db.staff.get(emin.id))?.pinSet).toBeUndefined();
+    // Still at work: no sign-in screen, and the lock is there now.
+    expect(await screen.findByRole('button', { name: 'Kilitle' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Otomatik kilit' })).toBeInTheDocument();
+  });
+
+  it('turns the PIN on at once for an owner who already has one', async () => {
+    const data = createTestData();
+    const emin = await createStaff(
+      data.db,
+      { name: 'Emin', role: 'owner', pin: '482100' },
+      before(),
+    );
+    await settingsAs(data, emin.id);
+    const section = await screen.findByRole('region', { name: 'PIN sor' });
+    await userEvent.click(within(section).getByRole('checkbox', { name: 'PIN sor' }));
+    expect(within(section).queryByLabelText('PIN’iniz')).not.toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'PIN ayarını kaydet' }));
+    expect(await screen.findByText('PIN sor açıldı.')).toBeInTheDocument();
+    expect(await loadMarketSettings(data.db)).toMatchObject({ requirePin: true });
+    expect(await checkPin(data.db, emin.id, '482100', new Date())).toMatchObject({ ok: true });
   });
 });

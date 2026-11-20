@@ -22,6 +22,11 @@ export type MarketSettings = {
    * A cashier's session never locks by itself.
    */
   idleLockMinutes: IdleLockMinutes;
+  /**
+   * Whether anyone types a PIN: to sign in, after a day, after the idle lock, to switch person
+   * and to approve. Off, the register opens as the person last at it and nobody is asked.
+   */
+  requirePin: boolean;
 };
 
 /** The idle lock's choices: off, or 3, 10 or 30 minutes. */
@@ -59,6 +64,8 @@ export async function loadMarketSettings(db: MarketDb): Promise<MarketSettings> 
   const limit = record?.newCustomerLimit;
   const idle = record?.idleLockMinutes;
   return {
+    // Off unless the market turned it on: a market saved before the setting has no field.
+    requirePin: record?.requirePin === true,
     cutoffMinutes: typeof cutoff === 'number' && isValidCutoff(cutoff) ? cutoff : 0,
     scale: scale && isValidScaleConfig(scale) ? scale : DEFAULT_SCALE,
     newCustomerLimit: isValidCustomerLimit(limit) ? limit : DEFAULT_NEW_CUSTOMER_LIMIT,
@@ -84,6 +91,9 @@ export async function saveMarketSettings(
   }
   if (input.idleLockMinutes !== undefined && !isValidIdleLock(input.idleLockMinutes)) {
     throw new RangeError(`The idle lock is 0, 3, 10 or 30 minutes, got ${input.idleLockMinutes}`);
+  }
+  if (input.requirePin !== undefined && typeof input.requirePin !== 'boolean') {
+    throw new RangeError(`PIN sor is on or off, got ${String(input.requirePin)}`);
   }
   if (input.newCustomerLimit !== undefined && !isValidCustomerLimit(input.newCustomerLimit)) {
     throw new RangeError(

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { saveMarketSettings } from '@/data/settings';
@@ -9,10 +9,14 @@ import { SessionProvider } from './SessionProvider';
 
 const at = new Date('2026-10-29T09:00:00Z');
 
-async function staffData() {
+/** Kaan the owner and Ayşe the cashier; the market asks for PINs unless `requirePin` is false. */
+async function staffData({ requirePin = true }: { requirePin?: boolean } = {}) {
   const data = createTestData();
   const kaan = await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, at);
   const ayse = await createStaff(data.db, { name: 'Ayşe', role: 'cashier', pin: '1234' }, at);
+  if (requirePin) {
+    await saveMarketSettings(data.db, { requirePin: true }, at);
+  }
   return { data, kaan, ayse };
 }
 
@@ -250,6 +254,102 @@ describe('SessionProvider', () => {
     );
     expect(await screen.findByText('Kasa ekranı')).toBeInTheDocument();
     await archiveStaff(data.db, ayse.id, new Date());
+    expect(await screen.findByRole('heading', { name: 'Kim kasada?' })).toBeInTheDocument();
+  });
+});
+
+describe('SessionProvider without PINs', () => {
+  function renderShell(data: ReturnType<typeof createTestData>, props = {}) {
+    return renderWithData(
+      <SessionProvider {...props}>
+        <Shell />
+      </SessionProvider>,
+      data,
+    );
+  }
+
+  it('opens as the owner without asking anything', async () => {
+    const { data } = await staffData({ requirePin: false });
+    await renderShell(data);
+    expect(await screen.findByText('Kasa ekranı')).toBeInTheDocument();
+    expect(screen.getByText('Kaan')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Kim kasada?' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kilitle' })).not.toBeInTheDocument();
+  });
+
+  it('opens as the person last at the register', async () => {
+    const { data, ayse } = await staffData({ requirePin: false });
+    signedInAgo(ayse.id, HOUR);
+    await renderShell(data);
+    expect(await screen.findByText('Kasa ekranı')).toBeInTheDocument();
+    expect(screen.getByText('Ayşe')).toBeInTheDocument();
+  });
+
+  it('opens as the owner when the last person has left', async () => {
+    const { data, ayse } = await staffData({ requirePin: false });
+    signedInAgo(ayse.id, HOUR);
+    await archiveStaff(data.db, ayse.id, at);
+    await renderShell(data);
+    expect(await screen.findByText('Kasa ekranı')).toBeInTheDocument();
+    expect(screen.getByText('Kaan')).toBeInTheDocument();
+  });
+
+  it('never signs the owner out after a day or when idle', async () => {
+    const { data, kaan } = await staffData({ requirePin: false });
+    await saveMarketSettings(data.db, { idleLockMinutes: 3 }, at);
+    signedInAgo(kaan.id, 800);
+    await renderShell(data, { minuteMs: 10, privilegedSessionMs: 1000 });
+    expect(await screen.findByText('Kasa ekranı')).toBeInTheDocument();
+    // Past the shortened day and thirty idle "minutes".
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(screen.getByText('Kasa ekranı')).toBeInTheDocument();
+    expect(screen.getByText('Kaan')).toBeInTheDocument();
+  });
+
+  it("does not ask an owner's PIN a day after the last sign-in", async () => {
+    const { data, kaan } = await staffData({ requirePin: false });
+    signedInAgo(kaan.id, 25 * HOUR);
+    await renderShell(data);
+    expect(await screen.findByText('Kasa ekranı')).toBeInTheDocument();
+    expect(screen.getByText('Kaan')).toBeInTheDocument();
+  });
+
+  it('switches the person with one tap', async () => {
+    const { data, ayse } = await staffData({ requirePin: false });
+    await renderShell(data);
+    expect(await screen.findByText('Kaan')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Kişi değiştir' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Kişi değiştir' });
+    await userEvent.click(await within(dialog).findByRole('button', { name: /Ayşe/ }));
+    expect(await screen.findByText('Ayşe')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument();
+    expect(storedSignIn()).toMatchObject({ staffId: ayse.id });
+  });
+
+  it('stays locked when the market has had staff and none is left', async () => {
+    const data = createTestData();
+    await data.db.meta.put({ key: 'hadStaff', value: true });
+    await renderShell(data);
+    expect(await screen.findByRole('heading', { name: 'Kasa kilitli' })).toBeInTheDocument();
+  });
+
+  it('keeps a person picked today when another register turns the PIN on', async () => {
+    const { data } = await staffData({ requirePin: false });
+    await renderShell(data);
+    await userEvent.click(await screen.findByRole('button', { name: 'Kişi değiştir' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Kişi değiştir' });
+    await userEvent.click(await within(dialog).findByRole('button', { name: /Kaan/ }));
+    await saveMarketSettings(data.db, { requirePin: true }, new Date());
+    expect(await screen.findByRole('button', { name: 'Kilitle' })).toBeInTheDocument();
+    expect(screen.getByText('Kasa ekranı')).toBeInTheDocument();
+  });
+
+  it('asks for a PIN when another register turns it on and nobody was picked here', async () => {
+    const { data } = await staffData({ requirePin: false });
+    await renderShell(data);
+    expect(await screen.findByText('Kaan')).toBeInTheDocument();
+    await saveMarketSettings(data.db, { requirePin: true }, new Date());
     expect(await screen.findByRole('heading', { name: 'Kim kasada?' })).toBeInTheDocument();
   });
 });

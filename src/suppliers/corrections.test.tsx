@@ -6,6 +6,7 @@ import type { AppData } from '@/app/appData';
 import { reversedPurchaseIds } from '@/data/corrections';
 import { createProduct } from '@/data/products';
 import { recordPurchase } from '@/data/purchases';
+import { saveMarketSettings } from '@/data/settings';
 import { createStaff } from '@/data/staff';
 import { stockOf } from '@/data/stock';
 import { addSupplierInvoice, recordSupplierPayment } from '@/data/supplierLedger';
@@ -175,6 +176,7 @@ describe('taking back and correcting a supplier invoice', () => {
 
   it('asks a manager or the owner to approve it for someone who may not', async () => {
     const data = createTestData();
+    await saveMarketSettings(data.db, { requirePin: true }, before());
     await createStaff(data.db, { name: 'Kaan', role: 'owner', pin: '482100' }, before());
     const deniz = await createStaff(
       data.db,
@@ -201,6 +203,7 @@ describe('taking back and correcting a supplier invoice', () => {
 
   it('asks approval for a hand-made change to what is owed, for its amount', async () => {
     const data = createTestData();
+    await saveMarketSettings(data.db, { requirePin: true }, before());
     const kaan = await createStaff(
       data.db,
       { name: 'Kaan', role: 'owner', pin: '482100' },

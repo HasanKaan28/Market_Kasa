@@ -57,7 +57,8 @@ export type ApprovalTarget = {
 
 /**
  * Records that a permitted person let someone else do something (`actor` is who asked), with
- * what it was for: the record, the amount and the summary the approver saw.
+ * what it was for: the record, the amount and the summary the approver saw. `pinless` marks an
+ * action the person did themselves while the market asks for no PIN: the approver is that person.
  */
 export async function recordApproval(
   db: MarketDb,
@@ -68,7 +69,8 @@ export async function recordApproval(
     entityId,
     amount,
     summary,
-  }: { permission: Permission; approverId: string } & ApprovalTarget,
+    pinless,
+  }: { permission: Permission; approverId: string; pinless?: true } & ApprovalTarget,
   at: Date,
   actor: Actor,
 ): Promise<AuditRecord> {
@@ -79,7 +81,7 @@ export async function recordApproval(
         action: 'approval',
         entity: 'approval',
         entityId,
-        after: withoutUndefined({ permission, approverId, entity, amount, summary }),
+        after: withoutUndefined({ permission, approverId, entity, amount, summary, pinless }),
       },
       actor,
       at,

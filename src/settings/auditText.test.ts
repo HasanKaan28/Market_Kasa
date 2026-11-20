@@ -83,6 +83,36 @@ describe('describeAudit', () => {
     ).toBe('İndirim onayı · onaylayan Ayşe');
   });
 
+  it('tells an action let through without a PIN', () => {
+    expect(
+      describeAudit(
+        entry({
+          after: {
+            permission: 'discount',
+            approverId: 's1',
+            summary: 'Sepet indirimi ₺5,00',
+            pinless: true,
+          },
+        }),
+        names,
+      ),
+    ).toBe('İndirim (PIN sorulmadı) · Sepet indirimi ₺5,00 · yapan Ayşe');
+  });
+
+  it('tells the PIN turned on or off', () => {
+    expect(
+      describeAudit(
+        entry({
+          action: 'settings.update',
+          entity: 'settings',
+          before: { requirePin: false },
+          after: { requirePin: true },
+        }),
+        names,
+      ),
+    ).toBe('PIN sor kapalı → açık');
+  });
+
   it('tells a supplier balance changed by hand', () => {
     expect(
       describeAudit(

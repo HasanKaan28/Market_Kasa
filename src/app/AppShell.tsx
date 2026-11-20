@@ -5,6 +5,7 @@ import type { SyncState } from '@/sync/runner';
 import { LicenseBanner } from './LicenseBanner';
 import { ROUTE_PERMISSIONS, type Route } from './route';
 import { useSession } from './session';
+import { SwitchPerson } from './SwitchPerson';
 import { APP_VERSION } from './version';
 
 export type NavKey = Route;
@@ -71,7 +72,7 @@ export function AppShell({
         <div className="ml-auto flex flex-wrap items-center gap-4">
           <SyncBadge state={syncState} pendingCount={pendingCount} error={syncError} />
           {shownStaff ? <span className="text-sm text-text-2">{shownStaff}</span> : null}
-          {session.staff ? (
+          {session.staff === null ? null : session.requirePin ? (
             <Button
               variant="ghost"
               icon={<Lock aria-hidden="true" size={18} />}
@@ -79,7 +80,10 @@ export function AppShell({
             >
               Kilitle
             </Button>
-          ) : null}
+          ) : (
+            // Without PINs there is nothing to lock: the person at the register is switched.
+            <SwitchPerson />
+          )}
         </div>
       </header>
       <LicenseBanner />
