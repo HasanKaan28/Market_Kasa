@@ -169,7 +169,8 @@ describe('SessionProvider', () => {
     );
     expect(await screen.findByRole('heading', { name: 'Kim kasada?' })).toBeInTheDocument();
     expect(screen.queryByText('Kasa ekranı')).not.toBeInTheDocument();
-    expect(localStorage.getItem('mk2.staff')).toBeNull();
+    // The sign-in screen shows at once; the device forgets the person in an effect right after.
+    await waitFor(() => expect(localStorage.getItem('mk2.staff')).toBeNull());
   });
 
   it("asks an owner's PIN again when the day runs out with the app open", async () => {
